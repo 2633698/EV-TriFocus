@@ -1,0 +1,50 @@
+{
+    "environment": {
+        "grid_id": "DEFAULT001",
+        "charger_count": 20,
+        "user_count": 50,
+        "simulation_days": 7,
+        "time_step_minutes": 15
+    },
+    "model": {
+        "input_dim": 19,
+        "hidden_dim": 128,
+        "task_hidden_dim": 64,
+        "model_path": "models/ev_charging_model.pth"
+    },
+    "scheduler": {
+        "use_trained_model": true,
+        "optimization_weights": {
+            "user_satisfaction": 0.4,
+            "operator_profit": 0.3,
+            "grid_friendliness": 0.3
+        }
+    },
+    "visualization": {
+        "dashboard_port": 8050,
+        "update_interval": 15,
+        "output_dir": "output"
+    },
+    "strategies": {
+        "user": {
+            "user_satisfaction": 0.6,
+            "operator_profit": 0.2,
+            "grid_friendliness": 0.2
+        },
+        "profit": {
+            "user_satisfaction": 0.2,
+            "operator_profit": 0.6,
+            "grid_friendliness": 0.2
+        },
+        "grid": {
+            "user_satisfaction": 0.2,
+            "operator_profit": 0.2,
+            "grid_friendliness": 0.6
+        },
+        "balanced": {
+            "user_satisfaction": 0.33,
+            "operator_profit": 0.33,
+            "grid_friendliness": 0.34
+        }
+    }
+}
