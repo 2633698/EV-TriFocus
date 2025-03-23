@@ -883,38 +883,7 @@ class IntegratedChargingSystem:
         
         plt.savefig(f"{output_dir}/renewable_utilization_comparison.png")
         plt.close()
-    
-    def generate_dashboards(self):
-        """
-        生成交互式可视化仪表盘
-        
-        返回:
-            dashboard_files: 生成的仪表盘文件路径
-        """
-        self.logger.info("生成交互式可视化仪表盘")
-        
-        output_dir = self.config["visualization"]["output_dir"]
-        
-        # 生成用户界面HTML
-        user_dashboard = self.dashboard.generate_user_interface()
-        user_dashboard_path = f"{output_dir}/user_dashboard.html"
-        
-        with open(user_dashboard_path, "w", encoding="utf-8") as f:
-            f.write(user_dashboard)
-        
-        # 生成运营商看板HTML
-        operator_dashboard = self.dashboard.generate_operator_dashboard()
-        operator_dashboard_path = f"{output_dir}/operator_dashboard.html"
-        
-        with open(operator_dashboard_path, "w", encoding="utf-8") as f:
-            f.write(operator_dashboard)
-        
-        self.logger.info(f"仪表盘已生成：{user_dashboard_path}, {operator_dashboard_path}")
-        
-        return {
-            "user_dashboard": user_dashboard_path,
-            "operator_dashboard": operator_dashboard_path
-        }
+
 
 
 def main():
@@ -989,15 +958,7 @@ def main():
     # 5. 分析电网影响
     print("\n5. 分析充电调度对电网的影响...")
     system.analyze_grid_impact()
-    
-    # 6. 生成交互式仪表盘
-    print("\n6. 生成交互式可视化仪表盘...")
-    dashboard_files = system.generate_dashboards()
-    
-    print("\n分析完成! 结果保存在output目录下。")
-    print(f"用户仪表盘: {dashboard_files['user_dashboard']}")
-    print(f"运营商仪表盘: {dashboard_files['operator_dashboard']}")
-    
+
     return system
 
 

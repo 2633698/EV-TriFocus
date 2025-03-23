@@ -4,6 +4,10 @@ import json
 import matplotlib.pyplot as plt
 import logging
 
+from pylab import mpl
+mpl.rcParams["font.sans-serif"] = ["SimHei"] # 设置显示中文字体 宋体
+mpl.rcParams["axes.unicode_minus"] = False #字体更改后，会导致坐标轴中的部分字符无法正常显示，此时需要设置正常显示负号
+
 # 导入自定义模块
 # from ev_charging_scheduler import ChargingEnvironment, ChargingScheduler, ChargingVisualizationDashboard
 from ev_model_training import DataGenerator, train_model, evaluate_model

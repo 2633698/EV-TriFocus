@@ -1,38 +1,103 @@
-2025-03-19 22:46:22,714 - EVChargingSystem - INFO - 运行模式: simulate
-2025-03-19 22:46:22,716 - EVChargingSystem - INFO - 开始运行充电调度模拟，策略: balanced, 天数: 7
-2025-03-19 22:46:25,133 - ChargingSystem - INFO - 加载预训练模型: ev_charging_model.pth
-2025-03-19 22:46:25,156 - ChargingSystem - INFO - 成功加载预训练模型
-2025-03-19 22:46:25,157 - ChargingSystem - INFO - 系统初始化完成
-2025-03-19 22:46:25,157 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
-2025-03-19 22:46:28,033 - ChargingSystem - INFO - 模拟完成，7天平均指标:
-2025-03-19 22:46:28,033 - ChargingSystem - INFO -   用户满意度: 0.3712
-2025-03-19 22:46:28,034 - ChargingSystem - INFO -   运营商利润: 0.0132
-2025-03-19 22:46:28,043 - ChargingSystem - INFO -   电网友好度: -0.2515
-2025-03-19 22:46:28,044 - ChargingSystem - INFO -   综合奖励: 0.2647
-2025-03-19 22:46:28,044 - ChargingSystem - INFO - 开始分析用户充电行为模式 (7天)
-2025-03-19 22:46:29,977 - ChargingSystem - INFO - 开始分析充电调度策略对电网的影响 (7天)
-2025-03-19 22:46:32,057 - ChargingSystem - INFO - 生成交互式可视化仪表盘
-2025-03-19 22:46:32,059 - ChargingSystem - INFO - 仪表盘已生成：output/user_dashboard.html, output/operator_dashboard.html
-2025-03-19 22:46:32,059 - EVChargingSystem - INFO - 模拟完成，结果保存在: output
-2025-03-19 22:46:32,060 - EVChargingSystem - INFO - 用户仪表盘: output/user_dashboard.html
-2025-03-19 22:46:32,060 - EVChargingSystem - INFO - 运营商仪表盘: output/operator_dashboard.html
-2025-03-19 22:46:32,060 - EVChargingSystem - INFO - 所有任务已完成
-2025-03-19 22:53:34,173 - EVChargingSystem - INFO - 运行模式: simulate
-2025-03-19 22:53:34,181 - EVChargingSystem - INFO - 开始运行充电调度模拟，策略: balanced, 天数: 7
-2025-03-19 22:53:36,731 - ChargingSystem - INFO - 加载预训练模型: ev_charging_model.pth
-2025-03-19 22:53:36,749 - ChargingSystem - INFO - 成功加载预训练模型
-2025-03-19 22:53:36,749 - ChargingSystem - INFO - 系统初始化完成
-2025-03-19 22:53:36,750 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
-2025-03-19 22:53:39,975 - ChargingSystem - INFO - 模拟完成，7天平均指标:
-2025-03-19 22:53:39,975 - ChargingSystem - INFO -   用户满意度: 0.3712
-2025-03-19 22:53:39,976 - ChargingSystem - INFO -   运营商利润: 0.0132
-2025-03-19 22:53:39,976 - ChargingSystem - INFO -   电网友好度: -0.2515
-2025-03-19 22:53:39,976 - ChargingSystem - INFO -   综合奖励: 0.2647
-2025-03-19 22:53:39,977 - ChargingSystem - INFO - 开始分析用户充电行为模式 (7天)
-2025-03-19 22:53:42,301 - ChargingSystem - INFO - 开始分析充电调度策略对电网的影响 (7天)
-2025-03-19 22:53:44,892 - ChargingSystem - INFO - 生成交互式可视化仪表盘
-2025-03-19 22:53:44,894 - ChargingSystem - INFO - 仪表盘已生成：output/user_dashboard.html, output/operator_dashboard.html
-2025-03-19 22:53:44,894 - EVChargingSystem - INFO - 模拟完成，结果保存在: output
-2025-03-19 22:53:44,895 - EVChargingSystem - INFO - 用户仪表盘: output/user_dashboard.html
-2025-03-19 22:53:44,895 - EVChargingSystem - INFO - 运营商仪表盘: output/operator_dashboard.html
-2025-03-19 22:53:44,896 - EVChargingSystem - INFO - 所有任务已完成
+2025-03-23 16:21:18,541 - EVChargingSystem - INFO - 运行模式: all
+2025-03-23 16:21:18,543 - EVChargingSystem - INFO - 开始运行充电调度模拟，策略: balanced, 天数: 14
+2025-03-23 16:21:20,288 - ChargingSystem - INFO - 未找到预训练模型或配置为不使用模型，将使用启发式规则进行调度
+2025-03-23 16:21:20,288 - ChargingSystem - INFO - 系统初始化完成
+2025-03-23 16:21:20,290 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 14天，总步数: 1344步
+2025-03-23 16:21:22,200 - ChargingSystem - INFO - 模拟完成，14天平均指标:
+2025-03-23 16:21:22,202 - ChargingSystem - INFO -   用户满意度: 0.0859
+2025-03-23 16:21:22,202 - ChargingSystem - INFO -   运营商利润: 0.0018
+2025-03-23 16:21:22,202 - ChargingSystem - INFO -   电网友好度: -0.0335
+2025-03-23 16:21:22,203 - ChargingSystem - INFO -   综合奖励: 0.1799
+2025-03-23 16:21:22,203 - ChargingSystem - INFO - 开始分析用户充电行为模式 (14天)
+2025-03-23 16:21:23,138 - ChargingSystem - INFO - 开始分析充电调度策略对电网的影响 (14天)
+2025-03-23 16:21:24,268 - ChargingSystem - INFO - 生成交互式可视化仪表盘
+2025-03-23 16:21:24,270 - ChargingSystem - INFO - 仪表盘已生成：results/user_dashboard.html, results/operator_dashboard.html
+2025-03-23 16:21:24,271 - EVChargingSystem - INFO - 模拟完成，结果保存在: results
+2025-03-23 16:21:24,271 - EVChargingSystem - INFO - 用户仪表盘: results/user_dashboard.html
+2025-03-23 16:21:24,271 - EVChargingSystem - INFO - 运营商仪表盘: results/operator_dashboard.html
+2025-03-23 16:21:24,272 - EVChargingSystem - INFO - 开始训练决策模型
+2025-03-23 16:21:24,272 - EVChargingSystem - INFO - 生成训练数据...
+2025-03-23 16:21:32,455 - EVChargingSystem - INFO - 开始训练模型...
+2025-03-23 16:23:56,116 - EVChargingSystem - INFO - 评估模型性能...
+2025-03-23 16:23:56,159 - EVChargingSystem - INFO - 模型已保存到: models/ev_charging_model.pth
+2025-03-23 16:23:56,160 - EVChargingSystem - INFO - 模型评估指标:
+2025-03-23 16:23:56,805 - EVChargingSystem - INFO - 学习曲线已保存到: results/learning_curves.png
+2025-03-23 16:23:56,808 - EVChargingSystem - INFO - 开始比较不同调度策略
+2025-03-23 16:23:56,826 - ChargingSystem - INFO - 未找到预训练模型或配置为不使用模型，将使用启发式规则进行调度
+2025-03-23 16:23:56,826 - ChargingSystem - INFO - 系统初始化完成
+2025-03-23 16:23:56,826 - ChargingSystem - INFO - 开始比较 4 种不同的调度策略
+2025-03-23 16:23:56,827 - ChargingSystem - INFO - 评估策略: user
+2025-03-23 16:23:56,862 - ChargingSystem - INFO - 成功加载预训练模型
+2025-03-23 16:23:56,862 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 3天，总步数: 288步
+2025-03-23 16:23:57,568 - ChargingSystem - INFO - 评估策略: profit
+2025-03-23 16:23:57,583 - ChargingSystem - INFO - 成功加载预训练模型
+2025-03-23 16:23:57,585 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 3天，总步数: 288步
+2025-03-23 16:23:58,141 - ChargingSystem - INFO - 评估策略: grid
+2025-03-23 16:23:58,160 - ChargingSystem - INFO - 成功加载预训练模型
+2025-03-23 16:23:58,160 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 3天，总步数: 288步
+2025-03-23 16:23:58,964 - ChargingSystem - INFO - 评估策略: balanced
+2025-03-23 16:23:58,990 - ChargingSystem - INFO - 成功加载预训练模型
+2025-03-23 16:23:58,990 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 3天，总步数: 288步
+2025-03-23 16:24:00,384 - EVChargingSystem - INFO - 策略比较结果:
+2025-03-23 16:24:00,385 - EVChargingSystem - INFO - 策略: user
+2025-03-23 16:24:00,385 - EVChargingSystem - INFO -   用户满意度: 0.0579
+2025-03-23 16:24:00,386 - EVChargingSystem - INFO -   运营商利润: 0.0020
+2025-03-23 16:24:00,386 - EVChargingSystem - INFO -   电网友好度: -0.0364
+2025-03-23 16:24:00,386 - EVChargingSystem - INFO -   综合奖励: 0.1683
+2025-03-23 16:24:00,386 - EVChargingSystem - INFO - 策略: profit
+2025-03-23 16:24:00,386 - EVChargingSystem - INFO -   用户满意度: 0.0562
+2025-03-23 16:24:00,388 - EVChargingSystem - INFO -   运营商利润: 0.0019
+2025-03-23 16:24:00,388 - EVChargingSystem - INFO -   电网友好度: -0.0306
+2025-03-23 16:24:00,388 - EVChargingSystem - INFO -   综合奖励: 0.1685
+2025-03-23 16:24:00,388 - EVChargingSystem - INFO - 策略: grid
+2025-03-23 16:24:00,389 - EVChargingSystem - INFO -   用户满意度: 0.0510
+2025-03-23 16:24:00,389 - EVChargingSystem - INFO -   运营商利润: 0.0018
+2025-03-23 16:24:00,389 - EVChargingSystem - INFO -   电网友好度: -0.0312
+2025-03-23 16:24:00,389 - EVChargingSystem - INFO -   综合奖励: 0.1663
+2025-03-23 16:24:00,389 - EVChargingSystem - INFO - 策略: balanced
+2025-03-23 16:24:00,390 - EVChargingSystem - INFO -   用户满意度: 0.0635
+2025-03-23 16:24:00,390 - EVChargingSystem - INFO -   运营商利润: 0.0018
+2025-03-23 16:24:00,390 - EVChargingSystem - INFO -   电网友好度: -0.0316
+2025-03-23 16:24:00,390 - EVChargingSystem - INFO -   综合奖励: 0.1712
+2025-03-23 16:24:00,391 - EVChargingSystem - INFO - 策略比较结果已保存到: results
+2025-03-23 16:24:00,391 - EVChargingSystem - INFO - 生成可视化结果
+2025-03-23 16:24:00,405 - ChargingSystem - INFO - 未找到预训练模型或配置为不使用模型，将使用启发式规则进行调度
+2025-03-23 16:24:00,405 - ChargingSystem - INFO - 系统初始化完成
+2025-03-23 16:24:00,407 - ChargingSystem - INFO - 生成交互式可视化仪表盘
+2025-03-23 16:24:00,409 - ChargingSystem - INFO - 仪表盘已生成：results/user_dashboard.html, results/operator_dashboard.html
+2025-03-23 16:24:00,409 - EVChargingSystem - INFO - 可视化结果已生成:
+2025-03-23 16:24:00,409 - EVChargingSystem - INFO - 用户仪表盘: results/user_dashboard.html
+2025-03-23 16:24:00,410 - EVChargingSystem - INFO - 运营商仪表盘: results/operator_dashboard.html
+2025-03-23 16:24:00,410 - EVChargingSystem - INFO - 运行系统测试...
+2025-03-23 16:24:00,416 - EVChargingSystem - INFO - 运行综合评价...
+2025-03-23 16:24:00,430 - ChargingSystem - INFO - 未找到预训练模型或配置为不使用模型，将使用启发式规则进行调度
+2025-03-23 16:24:00,431 - ChargingSystem - INFO - 系统初始化完成
+2025-03-23 16:24:00,445 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 14天，总步数: 1344步
+2025-03-23 16:24:00,516 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 14天，总步数: 1344步
+2025-03-23 16:24:00,579 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 14天，总步数: 1344步
+2025-03-23 16:24:00,642 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 14天，总步数: 1344步
+2025-03-23 16:24:01,722 - ChargingSystem - INFO - 未找到预训练模型或配置为不使用模型，将使用启发式规则进行调度
+2025-03-23 16:24:01,723 - ChargingSystem - INFO - 系统初始化完成
+2025-03-23 16:24:01,735 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 14天，总步数: 1344步
+2025-03-23 16:24:01,805 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 14天，总步数: 1344步
+2025-03-23 16:24:01,893 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 14天，总步数: 1344步
+2025-03-23 16:24:01,941 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 14天，总步数: 1344步
+2025-03-23 16:24:02,630 - ChargingSystem - INFO - 未找到预训练模型或配置为不使用模型，将使用启发式规则进行调度
+2025-03-23 16:24:02,630 - ChargingSystem - INFO - 系统初始化完成
+2025-03-23 16:24:02,652 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:02,754 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:02,886 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:02,923 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:02,984 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:03,055 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:03,150 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:03,204 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:03,269 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:03,339 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:03,425 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:03,463 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:03,519 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:03,597 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:03,697 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:03,739 - ChargingSystem - INFO - 开始运行充电调度模拟，模拟天数: 7天，总步数: 672步
+2025-03-23 16:24:05,397 - EVChargingSystem - INFO - 所有任务已完成
