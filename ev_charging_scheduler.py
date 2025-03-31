@@ -7,6 +7,9 @@ import pandas as pd
 import json
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
+from pylab import mpl
+mpl.rcParams["font.sans-serif"] = ["SimHei"] # 设置显示中文字体 宋体
+mpl.rcParams["axes.unicode_minus"] = False #字体更改后，会导致坐标轴中的部分字符无法正常显示，此时需要设置正常显示负号
 
 # 设置随机种子以确保结果可复现
 torch.manual_seed(42)
@@ -16,12 +19,7 @@ class ChargingEnvironment:
     """充电环境模拟类，包含电网状态、充电桩、用户行为等"""
     
     def __init__(self, config):
-        """
-        初始化充电环境
-        
-        参数:
-            config: 配置参数字典，包含模拟参数
-        """
+
         self.config = config
         self.grid_status = {}  # 电网状态
         self.chargers = {}     # 充电桩信息
@@ -155,7 +153,7 @@ class ChargingEnvironment:
     def get_current_state(self):
         """获取当前环境状态"""
         current_hour = self.time.hour
-        
+
         # 确定当前电价
         if current_hour in self.grid_status["peak_hours"]:
             current_price = self.grid_status["peak_price"]
@@ -163,7 +161,7 @@ class ChargingEnvironment:
             current_price = self.grid_status["valley_price"]
         else:
             current_price = self.grid_status["normal_price"]
-        
+
         # 构建标准化输出
         state = {
             "timestamp": self.time.isoformat(),
@@ -179,7 +177,7 @@ class ChargingEnvironment:
                 "is_valley_hour": current_hour in self.grid_status["valley_hours"]
             }
         }
-        
+
         # 添加用户数据
         for user_id, user in self.users.items():
             state["users"].append({
@@ -191,7 +189,7 @@ class ChargingEnvironment:
                 "user_type": user["type"],
                 "profile": user["profile"]
             })
-        
+
         # 添加充电桩数据
         for charger_id, charger in self.chargers.items():
             state["chargers"].append({
@@ -203,16 +201,17 @@ class ChargingEnvironment:
                 "charger_type": charger["type"],
                 "avg_waiting_time": charger["avg_waiting_time"]
             })
-        
+
         return state
+
     
     def step(self, actions):
         """
         根据调度动作执行一个时间步长的模拟
-        
+
         参数:
             actions: 调度动作，将用户分配到特定充电桩的决策
-        
+
         返回:
             rewards: 根据目标函数计算的奖励值
             next_state: 执行动作后的新状态
@@ -220,68 +219,76 @@ class ChargingEnvironment:
         """
         # 更新环境状态
         self.time += timedelta(minutes=15)  # 每步模拟15分钟
-        
+
+        # 模拟用户能量消耗
+        for user_id, user in self.users.items():
+            # 假设用户消耗电量与行驶距离成正比，我们可以通过历史数据或者随机数来模拟消耗
+            energy_consumed = np.random.uniform(3, 7)  # 用户每 15 分钟消耗电量范围 3%-7%
+            user["soc"] = max(0, user["soc"] - energy_consumed)  # 确保电量不为负
+
         # 根据调度动作更新充电桩队列
         for user_id, charger_id in actions.items():
             if user_id in self.users and charger_id in self.chargers:
                 # 增加充电桩排队长度
                 self.chargers[charger_id]["queue_length"] += 1
-                
+
                 # 模拟充电过程 (简化处理)
                 user = self.users[user_id]
                 charger = self.chargers[charger_id]
-                
+
                 # 充电时间取决于SOC和充电功率
                 charge_amount = min(100 - user["soc"], 30)  # 最多充30%
                 user["soc"] += charge_amount
-                
+
                 # 更新充电桩状态
                 # 简化模拟：每个用户完成充电后队列减1
                 self.chargers[charger_id]["queue_length"] = max(0, charger["queue_length"] - 1)
-                
+
                 # 小概率发生故障
                 if np.random.random() < charger["failure_rate"]:
                     self.chargers[charger_id]["health_score"] = max(60, charger["health_score"] - np.random.randint(1, 5))
                     self.chargers[charger_id]["available_power"] = charger["max_power"] * (charger["health_score"] / 100)
-        
+
         # 计算奖励
         rewards = self.calculate_rewards(actions)
-        
+
         # 获取新状态
         next_state = self.get_current_state()
-        
+
         # 检查是否结束模拟
         done = self.time.hour == 23 and self.time.minute >= 45
-        
+
         return rewards, next_state, done
+
     
     def calculate_rewards(self, actions):
-        """
-        计算调度动作的奖励值
-        
-        参数:
-            actions: 调度动作，将用户分配到特定充电桩的决策
-        
-        返回:
-            rewards: 包含用户满意度、运营商利润和电网友好度三个方面的奖励
-        """
+
         user_satisfaction = 0
         operator_profit = 0
         grid_friendliness = 0
         
+        # 如果没有动作，返回零奖励
+        if not actions:
+            return {
+                "user_satisfaction": 0.0,
+                "operator_profit": 0.0,
+                "grid_friendliness": 0.0,
+                "total_reward": 0.0
+            }
         current_hour = self.time.hour
         
         # 确定当前电价
         if current_hour in self.grid_status["peak_hours"]:
             current_price = self.grid_status["peak_price"]
-            grid_stress_factor = 1.5  # 高峰期电网压力因子
+            grid_stress_factor = 1.2  # 高峰期电网压力因子
         elif current_hour in self.grid_status["valley_hours"]:
             current_price = self.grid_status["valley_price"]
-            grid_stress_factor = 0.5  # 低谷期电网压力因子
+            grid_stress_factor = 0.4  # 低谷期电网压力因子
         else:
             current_price = self.grid_status["normal_price"]
-            grid_stress_factor = 1.0  # 平常时段电网压力因子
-        
+            grid_stress_factor = 0.8  # 平常时段电网压力因子
+        base_grid_score = 0
+        renewable_factor = self.grid_status["renewable_ratio"] / 100
         for user_id, charger_id in actions.items():
             if user_id in self.users and charger_id in self.chargers:
                 user = self.users[user_id]
@@ -320,22 +327,34 @@ class ChargingEnvironment:
                 operator_profit += charger_profit
                 
                 # 3. 电网友好度计算
+                charge_amount = min(100 - user["soc"], 30) / 100 * 60
                 # 当前负载贡献
                 load_contribution = charge_amount / 15  # 15分钟内的功率贡献
                 
-                # 电网友好度评分 (高峰期充电友好度低，低谷期充电友好度高)
-                grid_score = -load_contribution * grid_stress_factor
-                
+                if current_hour in self.grid_status["valley_hours"]:
+                    # 低谷时段充电奖励
+                    grid_score = load_contribution * 0.5  # 正向奖励
+                elif current_hour in self.grid_status["peak_hours"]:
+                    # 高峰时段充电惩罚，但惩罚程度降低
+                    grid_score = -load_contribution * 0.5 * (self.grid_status["current_load"] / 100)
+                else:
+                    # 平时段适度惩罚
+                    grid_score = -load_contribution * 0.1 * (self.grid_status["current_load"] / 100)
+
+
+
                 # 新能源利用奖励 (有光伏的充电桩在白天充电更友好)
                 if charger["has_solar"] and 8 <= current_hour <= 16:
-                    grid_score += load_contribution * 0.3
-                
+                    grid_score += load_contribution * 0.5
+                if self.grid_status["renewable_ratio"] > 40:  # If renewable energy is above 40%
+                    renewable_bonus = load_contribution * (self.grid_status["renewable_ratio"] - 40) / 100
+                    grid_score += renewable_bonus
                 grid_friendliness += grid_score
-        
+                
         # 归一化处理
         if actions:
             user_satisfaction /= len(actions)
-            operator_profit = min(1.0, operator_profit / (len(actions) * 10))  # 假设平均每次充电10元利润为满分
+            operator_profit = min(1.0, operator_profit / (len(actions) * 10))
             grid_friendliness = max(-1.0, min(1.0, grid_friendliness / len(actions)))
         
         return {
@@ -400,20 +419,39 @@ class ChargingScheduler:
         
         # 模型训练标志
         self.is_trained = False
-    
+    def dynamic_scheduling(self, current_hour, actions):
+        """根据当前电网负荷调整调度策略"""
+        grid_load = self.env.grid_status["current_load"]
+        
+        if current_hour in self.env.grid_status["peak_hours"]:
+            # 高峰时段
+            if grid_load > 80:  # 电网负荷过高，优先调度低功率充电桩
+                for user_id, charger_id in actions.items():
+                    charger = self.env.chargers[charger_id]
+                    if charger["max_power"] > 60:
+                        # 将大功率充电桩分配给低负载用户
+                        actions[user_id] = self.find_low_power_charger()
+        elif current_hour in self.env.grid_status["valley_hours"]:
+            # 低谷时段，电网负荷低，鼓励更多充电
+            self.encourage_more_charging(actions)
+        return actions
+
+    def find_low_power_charger(self):
+        """查找低功率充电桩"""
+        for charger_id, charger in self.env.chargers.items():
+            if charger["max_power"] <= 60:
+                return charger_id
+
+    def encourage_more_charging(self, actions):
+        """在低谷时段鼓励更多充电"""
+        for user_id, charger_id in actions.items():
+            charger = self.env.chargers[charger_id]
+            if charger["queue_length"] == 0:
+                # 如果充电桩没有排队，鼓励更多充电
+                actions[user_id] = charger_id
+        return actions
     def preprocess_features(self, user, charger, grid_status, current_time):
-        """
-        预处理用户、充电桩和电网特征
-        
-        参数:
-            user: 用户信息
-            charger: 充电桩信息
-            grid_status: 电网状态信息
-            current_time: 当前时间
-        
-        返回:
-            features: 特征向量
-        """
+
         # 计算用户到充电桩的距离
         user_lat, user_lng = user["position"]["lat"], user["position"]["lng"]
         charger_lat, charger_lng = charger["position"]["lat"], charger["position"]["lng"]
@@ -462,27 +500,32 @@ class ChargingScheduler:
         return torch.tensor(features, dtype=torch.float32)
     
     def filter_feasible_chargers(self, user, all_chargers, grid_status, current_time):
-        """
-        预筛选层: 筛选出对用户可行的充电桩
-        
-        参数:
-            user: 用户信息
-            all_chargers: 所有充电桩信息
-            grid_status: 电网状态
-            current_time: 当前时间
-        
-        返回:
-            feasible_chargers: 可行的充电桩列表
-        """
+
         feasible_chargers = []
-        
+
+        current_hour = current_time.hour
+    
+        # 判断是否为高峰时段
+        is_peak_hour = current_hour in [7, 8, 9, 10, 18, 19, 20, 21]
+        is_valley_hour = current_hour in [0, 1, 2, 3, 4, 5]
+        current_hour = current_time.hour
+        is_solar_hour = 1 if 8 <= current_hour <= 16 else 0
+        high_renewable = grid_status["renewable_ratio"] > 40
         for charger_id, charger in all_chargers.items():
-            # 1. 电网约束
-            # 剔除高负载区域的充电桩
-            if grid_status["current_load"] > 85 and not charger.get("has_storage", False):
-                continue
-                
-            # 2. 用户约束
+            if is_valley_hour or (high_renewable and is_solar_hour):
+                pass
+            if is_peak_hour and grid_status["current_load"] > 80:
+                # 紧急情况下才允许在高峰期高负载情况下充电
+                if user["soc"] > 20 and not charger.get("has_storage", False):
+                    continue
+            # 在高负载但非高峰期，放宽限制
+            elif grid_status["current_load"] > 90 and not charger.get("has_storage", False):
+                if user["soc"] > 15:  # 真正紧急情况才允许
+                    continue
+            if is_solar_hour and charger.get("has_solar", False):
+
+                pass
+
             # 计算距离
             user_lat, user_lng = user["position"]["lat"], user["position"]["lng"]
             charger_lat, charger_lng = charger["position"]["lat"], charger["position"]["lng"]
@@ -494,13 +537,13 @@ class ChargingScheduler:
                 # 但如果SOC低于10%，则放宽此约束作为应急措施
                 if user["soc"] >= 10:
                     continue
-            
-            # 3. 设备约束
+
             # 跳过健康状态差的充电桩
             if charger["health_score"] < 70:
                 continue
-                
-            # 4. 时间约束
+            # 跳过功率不匹配的充电桩
+            if charger["available_power"] < user["preferred_power"] * 0.8:
+                continue
             # 如果用户时间敏感且等待时间长，跳过
             expected_wait = charger["queue_length"] * charger["avg_waiting_time"]
             if user.get("time_sensitivity", 0.5) > 0.7 and expected_wait > user["max_wait_time"]:
@@ -508,23 +551,29 @@ class ChargingScheduler:
                 
             # 通过所有约束，加入可行充电桩列表
             feasible_chargers.append(charger)
+        if is_solar_hour:
+
+            feasible_chargers.sort(key=lambda c: 1 if c.get("has_solar", False) else 0, reverse=True)
         
         return feasible_chargers
     
     def score_chargers(self, user, chargers, grid_status, current_time):
-        """
-        为用户的每个可行充电桩打分
-        
-        参数:
-            user: 用户信息
-            chargers: 可行的充电桩列表
-            grid_status: 电网状态
-            current_time: 当前时间
-        
-        返回:
-            charger_scores: 充电桩得分列表，包含ID和综合评分
-        """
+
         charger_scores = []
+        current_hour = current_time.hour
+        if grid_status["current_load"] > 85:
+            if current_hour in [7, 8, 9, 10, 18, 19, 20, 21]:
+                weights = {"user": 0.2, "profit": 0.2, "grid": 0.6}
+            else:
+                weights = {"user": 0.3, "profit": 0.2, "grid": 0.5}
+        elif current_hour in [0, 1, 2, 3, 4, 5]:
+            weights = {"user": 0.3, "profit": 0.3, "grid": 0.4}
+        elif grid_status["renewable_ratio"] > 50:
+            weights = {"user": 0.3, "profit": 0.2, "grid": 0.5}
+        elif user["soc"] < 20:
+            weights = {"user": 0.5, "profit": 0.3, "grid": 0.2}
+        else:
+            weights = {"user": 0.3, "profit": 0.3, "grid": 0.4}
         
         for charger in chargers:
             # 提取特征
@@ -537,8 +586,10 @@ class ChargingScheduler:
                     # 解包返回的元组，只取第一个值（用户满意度）
                     user_satisfaction, _, _ = self.user_model(features)
                     user_preference = user_satisfaction.item()
+
             else:
                 # 未训练时使用启发式规则
+
                 # 计算用户到充电桩的距离
                 user_lat, user_lng = user["position"]["lat"], user["position"]["lng"]
                 charger_lat, charger_lng = charger["position"]["lat"], charger["position"]["lng"]
@@ -581,10 +632,37 @@ class ChargingScheduler:
                 current_price = grid_status.get("normal_price", 0.85)  # 提供默认值
             
             # 简化的利润计算
+            # 2. 运营商利润计算
+            # 充电量 (kWh)
             charge_amount = min(100 - user["soc"], 30) / 100 * 60  # 假设电池容量60kWh
-            charging_fee = charge_amount * current_price * 1.1  # 运营商加价10%
+            # 差异化定价策略，基于时段动态调整加价比例
+            if current_hour in [7, 8, 9, 10, 18, 19, 20, 21]:
+                # 低谷时段提高加价，因为电费成本低
+                markup_rate = 1.25  # 低谷时段加价25%
+            elif current_hour in [0, 1, 2, 3, 4, 5]:
+                # 高峰时段降低加价，提高吸引力
+                markup_rate = 1.05  # 高峰时段仅加价5%
+            else:
+                markup_rate = 1.15  # 平常时段加价15%
+
+            # 充电收入
+            charging_fee = charge_amount * current_price * markup_rate
+
+            # 电网采购成本
             grid_cost = charge_amount * current_price
-            depreciation_cost = charge_amount * 0.05  # 设备折旧成本
+
+            # 设备折旧成本 - 考虑不同桩类型的折旧差异
+            #if charger["type"] == "fast":
+            #    depreciation_rate = 0.06  # 快充桩折旧率更高
+            #else:
+            depreciation_rate = 0.04  # 慢充桩折旧率低
+
+            depreciation_cost = charge_amount * depreciation_rate
+
+            # 光伏自发电收益
+            solar_benefit = 0
+            if charger.get("has_solar", False) and 8 <= current_hour <= 16:
+                solar_benefit = charge_amount * 0.2  # 20%的电量来自自发电，降低采购成本
             operator_profit = charging_fee - grid_cost - depreciation_cost
             
             # 设备健康影响因子 (健康状态越好，长期利润越高)
@@ -606,15 +684,20 @@ class ChargingScheduler:
             
             grid_score = 1 - grid_penalty + renewable_bonus
             grid_score = max(0, min(1, grid_score))  # 限制在0-1范围内
-            
+
             # 计算综合评分 (用户满意度、运营商利润和电网友好度三者平衡)
             # 根据不同场景调整权重
             if grid_load > 0.8:  # 电网高负载情况下，电网友好度权重提高
-                weights = {"user": 0.3, "profit": 0.3, "grid": 0.4}
+                if current_hour in [7, 8, 9, 10, 18, 19, 20, 21]:  # 高峰期高负载
+                    weights = {"user": 0.25, "profit": 0.25, "grid": 0.5}  # 大幅增加电网友好度权重
+                else:
+                    weights = {"user": 0.3, "profit": 0.3, "grid": 0.4}
+            elif current_hour in [0, 1, 2, 3, 4, 5]:  # 低谷时段主动鼓励充电
+                weights = {"user": 0.35, "profit": 0.4, "grid": 0.25}  # 增加利润权重，鼓励运营商引导用户低谷充电
             elif user["soc"] < 20:  # 用户电量低的情况，用户满意度权重提高
                 weights = {"user": 0.5, "profit": 0.3, "grid": 0.2}
             else:  # 默认平衡权重
-                weights = {"user": 0.4, "profit": 0.3, "grid": 0.3}
+                weights = {"user": 0.35, "profit": 0.35, "grid": 0.3}
             
             combined_score = (
                 weights["user"] * user_preference + 
@@ -837,7 +920,25 @@ class ChargingScheduler:
             avg_metrics[key] = np.mean(metrics[key])
         
         return metrics, avg_metrics
-    
+    def update_load_forecast(self, current_load, hour):
+        """更新负载预测模型"""
+        # 初始化历史负载数据结构
+        if not hasattr(self, 'historical_loads'):
+            self.historical_loads = {hour: [] for hour in range(24)}
+            self.load_forecast = np.zeros(24)
+        
+        # 添加当前负载到历史数据
+        self.historical_loads[hour].append(current_load)
+        
+        # 保留最近7天的数据
+        if len(self.historical_loads[hour]) > 7:
+            self.historical_loads[hour].pop(0)
+        
+        # 更新每小时预测
+        for h in range(24):
+            if self.historical_loads[h]:
+                # 简单移动平均预测
+                self.load_forecast[h] = np.mean(self.historical_loads[h])
     def visualize_results(self, metrics):
         """
         可视化模拟结果
@@ -888,7 +989,520 @@ class ChargingScheduler:
         plt.close()
 
 
-
+class ChargingVisualizationDashboard:
+    """充电调度可视化交互系统"""
+    
+    def __init__(self, scheduler):
+        """
+        初始化可视化交互系统
+        
+        参数:
+            scheduler: 充电调度器实例
+        """
+        self.scheduler = scheduler
+        self.env = scheduler.env
+    
+    def generate_user_interface(self):
+        """生成用户界面HTML"""
+        html = """
+        <!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>EV充电推荐系统</title>
+            <style>
+                body {
+                    font-family: 'Arial', sans-serif;
+                    margin: 0;
+                    padding: 0;
+                    background-color: #f5f5f5;
+                }
+                .container {
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }
+                .header {
+                    background-color: #2c3e50;
+                    color: white;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin-bottom: 20px;
+                }
+                .card {
+                    background-color: white;
+                    border-radius: 5px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                    padding: 20px;
+                    margin-bottom: 20px;
+                }
+                .recommendation {
+                    display: flex;
+                    margin-bottom: 15px;
+                    padding: 15px;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 5px;
+                    transition: all 0.3s;
+                }
+                .recommendation:hover {
+                    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+                    transform: translateY(-2px);
+                }
+                .score-indicator {
+                    width: 60px;
+                    height: 60px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: bold;
+                    margin-right: 20px;
+                }
+                .details {
+                    flex-grow: 1;
+                }
+                .stat-group {
+                    display: flex;
+                    margin-top: 10px;
+                }
+                .stat {
+                    margin-right: 20px;
+                    font-size: 14px;
+                }
+                .emergency-switch {
+                    background-color: #e74c3c;
+                    color: white;
+                    border: none;
+                    padding: 10px 15px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    margin-bottom: 20px;
+                }
+                .label {
+                    display: inline-block;
+                    padding: 3px 8px;
+                    border-radius: 3px;
+                    font-size: 12px;
+                    color: white;
+                    margin-right: 5px;
+                }
+                .label-green {
+                    background-color: #2ecc71;
+                }
+                .label-blue {
+                    background-color: #3498db;
+                }
+                .label-orange {
+                    background-color: #e67e22;
+                }
+                .charts {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 20px;
+                }
+                .chart {
+                    flex-basis: calc(50% - 20px);
+                    min-width: 300px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>电动汽车充电推荐系统</h1>
+                    <p>基于用户偏好、运营商利润和电网友好度的智能调度</p>
+                </div>
+                
+                <div class="card">
+                    <h2>当前状态</h2>
+                    <div class="stat-group">
+                        <div class="stat">
+                            <strong>当前时间:</strong> <span id="current-time">2024-07-20 08:15</span>
+                        </div>
+                        <div class="stat">
+                            <strong>电池电量:</strong> <span id="battery-level">35%</span>
+                        </div>
+                        <div class="stat">
+                            <strong>电网负载:</strong> <span id="grid-load">65%</span>
+                        </div>
+                        <div class="stat">
+                            <strong>当前电价:</strong> <span id="current-price">0.85元/度</span>
+                        </div>
+                    </div>
+                    
+                    <button class="emergency-switch" id="emergency-mode">
+                        启用紧急模式 (SOC < 20%)
+                    </button>
+                </div>
+                
+                <div class="card">
+                    <h2>推荐充电站</h2>
+                    <div id="recommendations">
+                        <!-- 推荐列表将动态生成 -->
+                        <div class="recommendation">
+                            <div class="score-indicator" style="background-color: #2ecc71; color: white;">
+                                98
+                            </div>
+                            <div class="details">
+                                <h3>城东快充站 <span class="label label-green">快充</span> <span class="label label-blue">低谷电价</span></h3>
+                                <div class="stat-group">
+                                    <div class="stat">
+                                        <strong>距离:</strong> 2.5公里
+                                    </div>
+                                    <div class="stat">
+                                        <strong>等待时间:</strong> 约5分钟
+                                    </div>
+                                    <div class="stat">
+                                        <strong>充电费用:</strong> 约35元
+                                    </div>
+                                    <div class="stat">
+                                        <strong>可用功率:</strong> 120kW
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="recommendation">
+                            <div class="score-indicator" style="background-color: #3498db; color: white;">
+                                85
+                            </div>
+                            <div class="details">
+                                <h3>科技园区充电站 <span class="label label-blue">低谷电价</span></h3>
+                                <div class="stat-group">
+                                    <div class="stat">
+                                        <strong>距离:</strong> 1.2公里
+                                    </div>
+                                    <div class="stat">
+                                        <strong>等待时间:</strong> 约15分钟
+                                    </div>
+                                    <div class="stat">
+                                        <strong>充电费用:</strong> 约32元
+                                    </div>
+                                    <div class="stat">
+                                        <strong>可用功率:</strong> 90kW
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>系统评估指标</h2>
+                    <div class="charts">
+                        <div class="chart">
+                            <h3>用户满意度</h3>
+                            <div id="user-satisfaction-chart"></div>
+                        </div>
+                        <div class="chart">
+                            <h3>运营商利润</h3>
+                            <div id="operator-profit-chart"></div>
+                        </div>
+                        <div class="chart">
+                            <h3>电网友好度</h3>
+                            <div id="grid-friendliness-chart"></div>
+                        </div>
+                        <div class="chart">
+                            <h3>充电站负载热力图</h3>
+                            <div id="charger-load-heatmap"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return html
+    
+    def generate_operator_dashboard(self):
+        """生成运营商看板HTML"""
+        html = """
+        <!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>EV充电运营商管理系统</title>
+            <style>
+                body {
+                    font-family: 'Arial', sans-serif;
+                    margin: 0;
+                    padding: 0;
+                    background-color: #f0f2f5;
+                }
+                .container {
+                    max-width: 1400px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }
+                .header {
+                    background-color: #001529;
+                    color: white;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin-bottom: 20px;
+                }
+                .dashboard {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 20px;
+                }
+                .card {
+                    background-color: white;
+                    border-radius: 5px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                    padding: 20px;
+                }
+                .card h2 {
+                    margin-top: 0;
+                    border-bottom: 1px solid #eee;
+                    padding-bottom: 10px;
+                }
+                .stat-value {
+                    font-size: 36px;
+                    font-weight: bold;
+                    margin: 10px 0;
+                }
+                .stat-label {
+                    color: #666;
+                }
+                .chart {
+                    height: 300px;
+                }
+                .profit-settings {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 15px;
+                }
+                .slider-group {
+                    margin-bottom: 10px;
+                }
+                .slider-label {
+                    display: block;
+                    margin-bottom: 5px;
+                }
+                .slider {
+                    width: 100%;
+                }
+                .slider-value {
+                    display: inline-block;
+                    width: 50px;
+                    text-align: right;
+                }
+                .apply-button {
+                    background-color: #1890ff;
+                    color: white;
+                    border: none;
+                    padding: 10px 15px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    align-self: flex-start;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                }
+                th, td {
+                    padding: 12px 15px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f5f5f5;
+                    font-weight: bold;
+                }
+                tr {
+                    border-bottom: 1px solid #ddd;
+                }
+                tr:hover {
+                    background-color: #f9f9f9;
+                }
+                .status-indicator {
+                    display: inline-block;
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 50%;
+                    margin-right: 5px;
+                }
+                .status-healthy {
+                    background-color: #52c41a;
+                }
+                .status-warning {
+                    background-color: #faad14;
+                }
+                .status-critical {
+                    background-color: #f5222d;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>充电运营管理系统</h1>
+                    <p>实时监控与调度控制平台</p>
+                </div>
+                
+                <div class="dashboard">
+                    <div class="card">
+                        <h2>运营概览</h2>
+                        <div>
+                            <div class="stat-label">今日总充电次数</div>
+                            <div class="stat-value">347</div>
+                        </div>
+                        <div>
+                            <div class="stat-label">总充电时长</div>
+                            <div class="stat-value">728<span style="font-size: 20px;">小时</span></div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2>收益统计</h2>
+                        <div>
+                            <div class="stat-label">今日收入</div>
+                            <div class="stat-value">¥12,845</div>
+                        </div>
+                        <div>
+                            <div class="stat-label">利润率</div>
+                            <div class="stat-value">27.8%</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2>充电桩状态</h2>
+                        <div>
+                            <div class="stat-label">在线充电桩</div>
+                            <div class="stat-value">42<span style="font-size: 20px;">/45</span></div>
+                        </div>
+                        <div>
+                            <div class="stat-label">平均利用率</div>
+                            <div class="stat-value">68.4%</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2>用户体验</h2>
+                        <div>
+                            <div class="stat-label">平均等待时间</div>
+                            <div class="stat-value">12<span style="font-size: 20px;">分钟</span></div>
+                        </div>
+                        <div>
+                            <div class="stat-label">用户满意度</div>
+                            <div class="stat-value">4.7<span style="font-size: 20px;">/5.0</span></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>利润与电网负载平衡</h2>
+                    <div class="chart" id="profit-load-chart"></div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-top: 20px;">
+                    <div class="card">
+                        <h2>充电桩状态监控</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>充电桩ID</th>
+                                    <th>位置</th>
+                                    <th>类型</th>
+                                    <th>当前负载</th>
+                                    <th>健康状态</th>
+                                    <th>队列长度</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>CQ_1001</td>
+                                    <td>城东商圈</td>
+                                    <td>快充</td>
+                                    <td>78%</td>
+                                    <td><span class="status-indicator status-healthy"></span>良好 (92%)</td>
+                                    <td>2</td>
+                                </tr>
+                                <tr>
+                                    <td>CQ_1002</td>
+                                    <td>西区工业园</td>
+                                    <td>快充</td>
+                                    <td>45%</td>
+                                    <td><span class="status-indicator status-healthy"></span>良好 (89%)</td>
+                                    <td>0</td>
+                                </tr>
+                                <tr>
+                                    <td>CQ_1003</td>
+                                    <td>南湖科技园</td>
+                                    <td>慢充</td>
+                                    <td>95%</td>
+                                    <td><span class="status-indicator status-warning"></span>注意 (74%)</td>
+                                    <td>3</td>
+                                </tr>
+                                <tr>
+                                    <td>CQ_1004</td>
+                                    <td>北城商务区</td>
+                                    <td>快充</td>
+                                    <td>62%</td>
+                                    <td><span class="status-indicator status-healthy"></span>良好 (86%)</td>
+                                    <td>1</td>
+                                </tr>
+                                <tr>
+                                    <td>CQ_1005</td>
+                                    <td>中央车站</td>
+                                    <td>快充</td>
+                                    <td>90%</td>
+                                    <td><span class="status-indicator status-critical"></span>异常 (65%)</td>
+                                    <td>4</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="card">
+                        <h2>价格策略模拟</h2>
+                        <div class="profit-settings">
+                            <div class="slider-group">
+                                <label class="slider-label">峰时电价加价率 (%)</label>
+                                <input type="range" min="5" max="30" value="12" class="slider" id="peak-price-markup">
+                                <span class="slider-value">12%</span>
+                            </div>
+                            
+                            <div class="slider-group">
+                                <label class="slider-label">谷时电价折扣率 (%)</label>
+                                <input type="range" min="0" max="40" value="20" class="slider" id="valley-price-discount">
+                                <span class="slider-value">20%</span>
+                            </div>
+                            
+                            <div class="slider-group">
+                                <label class="slider-label">充电服务费 (元/度)</label>
+                                <input type="range" min="0" max="1" step="0.1" value="0.3" class="slider" id="service-fee">
+                                <span class="slider-value">0.3</span>
+                            </div>
+                            
+                            <button class="apply-button">应用并模拟结果</button>
+                            
+                            <div style="margin-top: 20px;">
+                                <div class="stat-label">预计日利润变化</div>
+                                <div class="stat-value" style="color: #52c41a;">+8.5%</div>
+                                
+                                <div class="stat-label">预计用户满意度变化</div>
+                                <div class="stat-value" style="color: #f5222d;">-2.1%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-top: 20px;">
+                    <h2>电网协同监控</h2>
+                    <div class="chart" id="grid-load-chart"></div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return html
+    
     def create_evaluation_report(self, simulation_results):
         """
         创建评价指标体系报告

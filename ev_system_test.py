@@ -7,16 +7,15 @@ import json
 import pandas as pd
 from tqdm import tqdm
 
-# 导入自定义模块
 from ev_charging_scheduler import ChargingEnvironment, ChargingScheduler, ChargingVisualizationDashboard
 from ev_integration_scheduler import IntegratedChargingSystem
+from pylab import mpl
+mpl.rcParams["font.sans-serif"] = ["SimHei"] # 设置显示中文字体 宋体
+mpl.rcParams["axes.unicode_minus"] = False #字体更改后，会导致坐标轴中的部分字符无法正常显示，此时需要设置正常显示负号
 
 
 class SystemTest(unittest.TestCase):
-    """充电调度系统单元测试"""
-    
     def setUp(self):
-        """测试前的设置"""
         # 创建输出目录
         os.makedirs("test_output", exist_ok=True)
         
@@ -71,7 +70,6 @@ class SystemTest(unittest.TestCase):
         self.system.dashboard = self.dashboard
     
     def test_environment_initialization(self):
-        """测试环境初始化"""
         self.assertEqual(self.env.grid_id, self.test_config["environment"]["grid_id"])
         self.assertEqual(len(self.env.chargers), self.test_config["environment"]["charger_count"])
         self.assertEqual(len(self.env.users), self.test_config["environment"]["user_count"])
@@ -85,7 +83,6 @@ class SystemTest(unittest.TestCase):
         print("环境初始化测试通过")
     
     def test_state_representation(self):
-        """测试状态表示"""
         state = self.env.get_current_state()
         
         # 检查状态格式
@@ -114,7 +111,6 @@ class SystemTest(unittest.TestCase):
         print("状态表示测试通过")
     
     def test_environment_step(self):
-        """测试环境步进"""
         # 获取初始状态
         initial_state = self.env.get_current_state()
         initial_time = datetime.fromisoformat(initial_state["timestamp"])
@@ -148,7 +144,6 @@ class SystemTest(unittest.TestCase):
         print("环境步进测试通过")
     
     def test_scheduler_recommendations(self):
-        """测试调度器推荐功能"""
         # 获取当前状态
         state = self.env.get_current_state()
         
@@ -174,7 +169,6 @@ class SystemTest(unittest.TestCase):
         print("调度器推荐功能测试通过")
     
     def test_scheduling_decision(self):
-        """测试调度决策功能"""
         # 获取当前状态
         state = self.env.get_current_state()
         
@@ -205,7 +199,6 @@ class SystemTest(unittest.TestCase):
         print("调度决策功能测试通过")
     
     def test_short_simulation(self):
-        """测试短时间模拟"""
         # 运行一个短时间的模拟
         metrics, avg_metrics = self.scheduler.run_simulation(num_steps=10)
         
@@ -227,7 +220,6 @@ class SystemTest(unittest.TestCase):
         print("短时间模拟测试通过")
     
     def test_visualization_dashboard(self):
-        """测试可视化仪表盘生成"""
         # 生成用户界面HTML
         user_dashboard = self.dashboard.generate_user_interface()
         self.assertIsInstance(user_dashboard, str)
@@ -250,7 +242,6 @@ class SystemTest(unittest.TestCase):
         print("可视化仪表盘生成测试通过")
     
     def test_integrated_system(self):
-        """测试集成系统功能"""
         # 运行短时间模拟
         metrics, _ = self.system.run_simulation(days=1, output_metrics=True)
         
@@ -270,15 +261,7 @@ class SystemTest(unittest.TestCase):
 
 
 class SimulationEvaluator:
-    """充电调度系统仿真评价"""
-    
     def __init__(self, config_path=None):
-        """
-        初始化仿真评价器
-        
-        参数:
-            config_path: 配置文件路径
-        """
         # 加载配置
         if config_path and os.path.exists(config_path):
             with open(config_path, 'r') as f:
@@ -364,7 +347,6 @@ class SimulationEvaluator:
         }
     
     def evaluate_strategies(self):
-        """评估不同调度策略"""
         print("开始评估不同调度策略...")
         
         strategies = self.config["simulation"]["strategies"]
@@ -412,7 +394,6 @@ class SimulationEvaluator:
         return self.results["strategy_comparison"]
     
     def _visualize_strategy_evaluation(self):
-        """可视化策略评估结果"""
         output_dir = self.config["evaluation"]["output_dir"]
         
         results = self.results["strategy_comparison"]
@@ -486,7 +467,6 @@ class SimulationEvaluator:
         plt.close()
     
     def evaluate_scenarios(self):
-        """评估不同场景"""
         print("开始评估不同场景...")
         
         scenarios = self.config["simulation"]["scenarios"]
@@ -557,7 +537,6 @@ class SimulationEvaluator:
         return self.results["scenario_comparison"]
     
     def _visualize_scenario_evaluation(self):
-        """可视化场景评估结果"""
         output_dir = self.config["evaluation"]["output_dir"]
         
         results = self.results["scenario_comparison"]
@@ -618,7 +597,6 @@ class SimulationEvaluator:
         plt.close()
     
     def cross_evaluate(self):
-        """交叉评估不同策略在不同场景下的表现"""
         print("开始交叉评估不同策略在不同场景下的表现...")
         
         strategies = self.config["simulation"]["strategies"]
@@ -679,7 +657,6 @@ class SimulationEvaluator:
         return self.results["cross_evaluation"]
     
     def _visualize_cross_evaluation(self):
-        """可视化交叉评估结果"""
         output_dir = self.config["evaluation"]["output_dir"]
         
         results = self.results["cross_evaluation"]
@@ -690,18 +667,14 @@ class SimulationEvaluator:
         # 为每个指标绘制热力图
         for metric, data in metrics.items():
             plt.figure(figsize=(12, 8))
-            
-            # 创建热力图
+
             im = plt.imshow(data, cmap='YlGnBu')
-            
-            # 添加颜色条
+
             plt.colorbar(im, label=f'{metric}值')
-            
-            # 设置坐标轴
+
             plt.xticks(range(len(scenario_names)), scenario_names, rotation=45)
             plt.yticks(range(len(strategy_names)), strategy_names)
-            
-            # 添加数据标签
+
             for i in range(len(strategy_names)):
                 for j in range(len(scenario_names)):
                     text = plt.text(j, i, f"{data[i, j]:.3f}",
@@ -738,7 +711,6 @@ class SimulationEvaluator:
 
 
     def generate_comprehensive_report(self):
-            """生成综合评价报告"""
             print("生成综合评价报告...")
             
             output_dir = self.config["evaluation"]["output_dir"]

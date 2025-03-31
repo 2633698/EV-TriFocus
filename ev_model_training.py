@@ -8,20 +8,12 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
+from pylab import mpl
+mpl.rcParams["font.sans-serif"] = ["SimHei"] # 设置显示中文字体 宋体
+mpl.rcParams["axes.unicode_minus"] = False #字体更改后，会导致坐标轴中的部分字符无法正常显示，此时需要设置正常显示负号
 
 class MultiTaskModel(nn.Module):
-    """
-    多任务学习模型，同时优化用户满意度、运营商利润和电网友好度
-    """
     def __init__(self, input_dim, hidden_dim=128, task_hidden_dim=64):
-        """
-        初始化多任务学习模型
-        
-        参数:
-            input_dim: 输入特征维度
-            hidden_dim: 共享层隐藏单元数
-            task_hidden_dim: 任务特定层隐藏单元数
-        """
         super(MultiTaskModel, self).__init__()
         
         # 共享特征提取层
@@ -63,7 +55,6 @@ class MultiTaskModel(nn.Module):
         )
         
     def forward(self, x):
-        """前向传播"""
         shared_features = self.shared_layers(x)
         
         user_satisfaction = self.user_satisfaction_head(shared_features)
@@ -74,17 +65,7 @@ class MultiTaskModel(nn.Module):
 
 
 class PolicyGradientAgent(nn.Module):
-    """基于策略梯度的强化学习智能体"""
-    
     def __init__(self, state_dim, action_dim, hidden_dim=128):
-        """
-        初始化策略梯度智能体
-        
-        参数:
-            state_dim: 状态空间维度
-            action_dim: 动作空间维度
-            hidden_dim: 隐藏层维度
-        """
         super(PolicyGradientAgent, self).__init__()
         
         self.policy_network = nn.Sequential(
@@ -110,24 +91,12 @@ class PolicyGradientAgent(nn.Module):
         self.rewards = []
         
     def forward(self, state):
-        """前向传播"""
         action_probs = self.policy_network(state)
         state_value = self.value_network(state)
         
         return action_probs, state_value
         
     def select_action(self, state):
-        """
-        根据状态选择动作
-        
-        参数:
-            state: 当前状态
-            
-        返回:
-            action: 选择的动作
-            log_prob: 动作的对数概率
-            value: 状态值估计
-        """
         state = torch.FloatTensor(state)
         action_probs, state_value = self(state)
         
@@ -142,12 +111,6 @@ class PolicyGradientAgent(nn.Module):
         return action.item(), m.log_prob(action), state_value
         
     def update_policy(self, gamma=0.99):
-        """
-        使用累积奖励更新策略网络
-        
-        参数:
-            gamma: 折扣因子
-        """
         # 计算折扣累积奖励
         R = 0
         returns = []
@@ -188,17 +151,7 @@ class PolicyGradientAgent(nn.Module):
 
 
 class DataGenerator:
-    """模拟数据生成器，用于生成训练数据"""
-    
     def __init__(self, num_users=500, num_chargers=50, num_samples=10000):
-        """
-        初始化数据生成器
-        
-        参数:
-            num_users: 模拟用户数量
-            num_chargers: 模拟充电桩数量
-            num_samples: 生成的样本数量
-        """
         self.num_users = num_users
         self.num_chargers = num_chargers
         self.num_samples = num_samples
@@ -221,7 +174,6 @@ class DataGenerator:
         self.chargers = self._generate_chargers()
         
     def _generate_users(self):
-        """生成用户数据"""
         users = []
         
         for i in range(self.num_users):
@@ -244,7 +196,6 @@ class DataGenerator:
         return users
     
     def _generate_chargers(self):
-        """生成充电桩数据"""
         chargers = []
         
         for i in range(self.num_chargers):
@@ -270,7 +221,6 @@ class DataGenerator:
         return chargers
     
     def generate_samples(self):
-        """生成训练样本"""
         X = []  # 特征
         y_satisfaction = []  # 用户满意度标签
         y_profit = []  # 运营商利润标签
@@ -382,22 +332,6 @@ class DataGenerator:
 def train_model(X_train, y_train_satisfaction, y_train_profit, y_train_grid, 
                 X_val, y_val_satisfaction, y_val_profit, y_val_grid, 
                 input_dim, batch_size=32, epochs=50):
-    """
-    训练多任务模型
-    
-    参数:
-        X_train: 训练特征
-        y_train_*: 训练标签
-        X_val: 验证特征
-        y_val_*: 验证标签
-        input_dim: 输入特征维度
-        batch_size: 批次大小
-        epochs: 训练轮数
-    
-    返回:
-        model: 训练好的模型
-        history: 训练历史记录
-    """
     # 创建模型
     model = MultiTaskModel(input_dim=input_dim)
     optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -510,17 +444,6 @@ def train_model(X_train, y_train_satisfaction, y_train_profit, y_train_grid,
 
 
 def evaluate_model(model, X_test, y_test_satisfaction, y_test_profit, y_test_grid):
-    """
-    评估模型性能
-    
-    参数:
-        model: 训练好的模型
-        X_test: 测试特征
-        y_test_*: 测试标签
-    
-    返回:
-        metrics: 评估指标
-    """
     model.eval()
     
     # 转换为PyTorch张量
@@ -582,12 +505,6 @@ def evaluate_model(model, X_test, y_test_satisfaction, y_test_profit, y_test_gri
 
 
 def plot_learning_curves(history):
-    """
-    绘制学习曲线
-    
-    参数:
-        history: 训练历史记录
-    """
     epochs = range(1, len(history['train_loss']) + 1)
     
     plt.figure(figsize=(15, 10))
@@ -635,18 +552,6 @@ def plot_learning_curves(history):
 
 
 def train_policy_gradient_agent(env, agent, num_episodes=1000, gamma=0.99):
-    """
-    训练策略梯度智能体
-    
-    参数:
-        env: 充电环境
-        agent: 策略梯度智能体
-        num_episodes: 训练轮数
-        gamma: 折扣因子
-    
-    返回:
-        episode_rewards: 每个回合的累积奖励
-    """
     episode_rewards = []
     
     for episode in tqdm(range(num_episodes)):
@@ -688,7 +593,6 @@ def train_policy_gradient_agent(env, agent, num_episodes=1000, gamma=0.99):
 
 
 def main():
-    """训练与评估流程"""
     # 生成模拟数据
     print("生成训练数据...")
     data_gen = DataGenerator(num_samples=50000)
@@ -719,7 +623,7 @@ def main():
         X_temp, y_temp_grid, test_size=0.5, random_state=42
     )
     
-    # 训练多任务模型
+    # It5训练多任务模型
     print("训练多任务模型...")
     input_dim = X.shape[1]
     model, history = train_model(

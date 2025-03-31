@@ -8,8 +8,7 @@ import os
 import logging
 from tqdm import tqdm
 
-# 导入自定义模块
-from ev_charging_scheduler import ChargingEnvironment, ChargingScheduler, ChargingVisualizationDashboard
+from ev_charging_scheduler import ChargingEnvironment, ChargingScheduler
 from ev_model_training import MultiTaskModel
 
 
@@ -19,12 +18,7 @@ class IntegratedChargingSystem:
     """
     
     def __init__(self, config_path=None):
-        """
-        初始化集成充电系统
-        
-        参数:
-            config_path: 配置文件路径，如果为None则使用默认配置
-        """
+
         # 配置日志
         logging.basicConfig(
             level=logging.INFO,
@@ -65,7 +59,7 @@ class IntegratedChargingSystem:
                     }
                 },
                 "visualization": {
-                    "dashboard_port": 8050,
+                    
                     "update_interval": 15,  # 秒
                     "output_dir": "output"
                 }
@@ -93,8 +87,7 @@ class IntegratedChargingSystem:
         else:
             self.logger.info("未找到预训练模型或配置为不使用模型，将使用启发式规则进行调度")
         
-        # 初始化可视化面板
-        self.dashboard = ChargingVisualizationDashboard(self.scheduler)
+        
         
         # 初始化性能指标记录
         self.metrics_history = {
@@ -114,12 +107,9 @@ class IntegratedChargingSystem:
         self.logger.info("系统初始化完成")
     
     def load_pretrained_model(self, model_path):
-        """
-        加载预训练的多任务模型
-        
-        参数:
-            model_path: 模型文件路径
-        """
+
+        model_path = self.config["model"]["model_path"]
+        self.logger.info(f"检查模型文件: {model_path}, 存在: {os.path.exists(model_path)}")
         try:
             # 创建模型实例
             model_config = self.config["model"]
@@ -141,19 +131,13 @@ class IntegratedChargingSystem:
             return True
         except Exception as e:
             self.logger.error(f"加载模型失败: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())  # 打印完整堆栈
             return False
+
     
     def run_simulation(self, days=None, output_metrics=True):
-        """
-        运行充电调度模拟
-        
-        参数:
-            days: 模拟天数，如果为None则使用配置中的值
-            output_metrics: 是否输出指标
-        
-        返回:
-            metrics: 模拟结果指标
-        """
+        """运行充电调度模拟"""
         if days is None:
             days = self.env_config.get("simulation_days", 7)
         
@@ -162,6 +146,21 @@ class IntegratedChargingSystem:
         num_steps = days * steps_per_day
         
         self.logger.info(f"开始运行充电调度模拟，模拟天数: {days}天，总步数: {num_steps}步")
+        
+        # 确保环境和调度器正确初始化
+        if not hasattr(self, 'env') or self.env is None:
+            self.env = ChargingEnvironment(self.env_config)
+        
+        if not hasattr(self, 'scheduler') or self.scheduler is None:
+            self.scheduler = ChargingScheduler({
+                "grid_id": self.env_config["grid_id"],
+                "charger_count": self.env_config["charger_count"],
+                "user_count": self.env_config["user_count"]
+            })
+            # 如有必要，重新加载预训练模型
+            if hasattr(self, 'model') and self.model is not None:
+                self.scheduler.user_model = self.model
+                self.scheduler.is_trained = True
         
         # 运行模拟
         metrics, avg_metrics = self.scheduler.run_simulation(num_steps=num_steps)
@@ -196,12 +195,7 @@ class IntegratedChargingSystem:
         
         # 绘制指标变化图
         self.scheduler.visualize_results(metrics)
-        
-        # 生成评价报告
-        report = self.dashboard.create_evaluation_report((metrics, avg_metrics))
-        
-        with open(f"{output_dir}/evaluation_report.md", "w") as f:
-            f.write(report)
+        plt.figure(figsize=(12, 6))
         
         # 打印平均指标
         self.logger.info(f"模拟完成，{days}天平均指标:")
@@ -574,12 +568,7 @@ class IntegratedChargingSystem:
         return analysis
     
     def _visualize_user_behavior(self, analysis):
-        """
-        可视化用户行为分析结果
-        
-        参数:
-            analysis: 用户行为分析结果
-        """
+
         output_dir = self.config["visualization"]["output_dir"]
         
         # 绘制每小时充电需求
@@ -642,15 +631,7 @@ class IntegratedChargingSystem:
         plt.close()
     
     def analyze_grid_impact(self, num_days=7):
-        """
-        分析充电调度策略对电网的影响
-        
-        参数:
-            num_days: 分析的天数
-        
-        返回:
-            analysis: 电网影响分析结果
-        """
+
         self.logger.info(f"开始分析充电调度策略对电网的影响 ({num_days}天)")
         
         # 运行带调度的模拟

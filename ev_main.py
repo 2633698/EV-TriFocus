@@ -7,27 +7,24 @@ import logging
 from pylab import mpl
 mpl.rcParams["font.sans-serif"] = ["SimHei"] # 设置显示中文字体 宋体
 mpl.rcParams["axes.unicode_minus"] = False #字体更改后，会导致坐标轴中的部分字符无法正常显示，此时需要设置正常显示负号
-
-# 导入自定义模块
-# from ev_charging_scheduler import ChargingEnvironment, ChargingScheduler, ChargingVisualizationDashboard
+from ev_charging_scheduler import ChargingEnvironment, ChargingScheduler, ChargingVisualizationDashboard
 from ev_model_training import DataGenerator, train_model, evaluate_model
 from ev_integration_scheduler import IntegratedChargingSystem
 from ev_system_test import run_system_tests, run_comprehensive_evaluation
 def setup_logging(log_level=logging.INFO, log_file="ev_charging_system.log"):
-    """设置日志配置"""
     logging.basicConfig(
         level=log_level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler(log_file),
+            logging.FileHandler(log_file, encoding="utf-8"),
             logging.StreamHandler()
         ]
     )
     return logging.getLogger("EVChargingSystem")
 
 
+
 def parse_arguments():
-    """解析命令行参数"""
     parser = argparse.ArgumentParser(description="电动汽车有序充电调度策略系统")
     
     parser.add_argument("--mode", type=str, default="simulate", 
@@ -55,12 +52,10 @@ def parse_arguments():
 
 
 def load_config(config_path):
-    """加载配置文件"""
     if os.path.exists(config_path):
         with open(config_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     else:
-        # 创建默认配置
         default_config = {
             "environment": {
                 "grid_id": "DEFAULT001",
@@ -84,8 +79,6 @@ def load_config(config_path):
                 }
             },
             "visualization": {
-                "dashboard_port": 8050,
-                "update_interval": 15,
                 "output_dir": "output"
             },
             "strategies": {
@@ -134,52 +127,49 @@ def run_simulation(config, args, logger):
     if args.strategy in config["strategies"]:
         config["scheduler"]["optimization_weights"] = config["strategies"][args.strategy]
     
+
     # 创建集成系统
-    system = IntegratedChargingSystem()
-    system.config = config
+    system = IntegratedChargingSystem(config_path=args.config)  # 直接传入配置文件路径
+
+    # 在更新配置后，显式重新初始化环境和调度器
+    system.env = ChargingEnvironment(system.config["environment"])
+    system.scheduler = ChargingScheduler({
+        "grid_id": system.config["environment"]["grid_id"],
+        "charger_count": system.config["environment"]["charger_count"],
+        "user_count": system.config["environment"]["user_count"]
+    })
     system.config["visualization"]["output_dir"] = args.output_dir
     
-    # 运行模拟
     metrics, avg_metrics = system.run_simulation(days=args.days)
     
-    # 分析用户行为
     user_behavior = system.analyze_user_behavior(num_days=args.days)
     
-    # 分析电网影响
     grid_impact = system.analyze_grid_impact(num_days=args.days)
     
-    # 生成可视化仪表盘
-    dashboards = system.generate_dashboards()
     
     logger.info(f"模拟完成，结果保存在: {args.output_dir}")
-    logger.info(f"用户仪表盘: {dashboards['user_dashboard']}")
-    logger.info(f"运营商仪表盘: {dashboards['operator_dashboard']}")
-    
+
     return metrics, avg_metrics, user_behavior, grid_impact
 
 
 def train_decision_model(config, args, logger):
-    """训练决策模型"""
     logger.info("开始训练决策模型")
     
     # 创建输出目录
     model_dir = os.path.dirname(config["model"]["model_path"])
     os.makedirs(model_dir, exist_ok=True)
     
-    # 生成训练数据
     logger.info("生成训练数据...")
     data_gen = DataGenerator(num_samples=50000)
     X, y_satisfaction, y_profit, y_grid = data_gen.generate_samples()
     
-    # 划分数据集
     from sklearn.model_selection import train_test_split
     
     X_train, X_temp, y_train_satisfaction, y_temp_satisfaction = train_test_split(
         X, y_satisfaction, test_size=0.3, random_state=42
     )
     
-    X_val, X_test, y_val_satisfaction, y_test_satisfaction = train_test_split(
-        X_temp, y_temp_satisfaction, test_size=0.5, random_state=42
+    X_val, X_test, y_val_satisfaction, y_test_satisfaction = train_test_split(        X_temp, y_temp_satisfaction, test_size=0.5, random_state=42
     )
     
     _, _, y_train_profit, y_temp_profit = train_test_split(
@@ -197,8 +187,7 @@ def train_decision_model(config, args, logger):
     _, _, y_val_grid, y_test_grid = train_test_split(
         X_temp, y_temp_grid, test_size=0.5, random_state=42
     )
-    
-    # 训练模型
+
     logger.info("开始训练模型...")
     input_dim = X.shape[1]
     model, history = train_model(
@@ -206,25 +195,21 @@ def train_decision_model(config, args, logger):
         X_val, y_val_satisfaction, y_val_profit, y_val_grid,
         input_dim, batch_size=64, epochs=50
     )
-    
-    # 评估模型
+
     logger.info("评估模型性能...")
     metrics = evaluate_model(
         model, X_test, y_test_satisfaction, y_test_profit, y_test_grid
     )
-    
-    # 保存模型
+
     import torch
     torch.save(model.state_dict(), config["model"]["model_path"])
     logger.info(f"模型已保存到: {config['model']['model_path']}")
-    
-    # 输出评估指标
+
     logger.info("模型评估指标:")
     logger.info(f"用户满意度 - MSE: {metrics['mse']['satisfaction']:.4f}, MAE: {metrics['mae']['satisfaction']:.4f}, R²: {metrics['r2']['satisfaction']:.4f}")
     logger.info(f"运营商利润 - MSE: {metrics['mse']['profit']:.4f}, MAE: {metrics['mae']['profit']:.4f}, R²: {metrics['r2']['profit']:.4f}")
     logger.info(f"电网友好度 - MSE: {metrics['mse']['grid']:.4f}, MAE: {metrics['mae']['grid']:.4f}, R²: {metrics['r2']['grid']:.4f}")
-    
-    # 绘制学习曲线
+
     plt.figure(figsize=(15, 10))
     
     plt.subplot(2, 2, 1)
@@ -267,13 +252,11 @@ def train_decision_model(config, args, logger):
 def compare_strategies(config, args, logger):
     """比较不同调度策略"""
     logger.info("开始比较不同调度策略")
-    
-    # 创建集成系统
+
     system = IntegratedChargingSystem()
     system.config = config
     system.config["visualization"]["output_dir"] = args.output_dir
-    
-    # 构建策略列表
+
     strategies = []
     for name, weights in config["strategies"].items():
         strategies.append({
@@ -286,10 +269,8 @@ def compare_strategies(config, args, logger):
             "use_model": config["scheduler"]["use_trained_model"]
         })
     
-    # 比较策略
     comparison = system.compare_scheduling_strategies(strategies)
-    
-    # 输出比较结果
+
     logger.info("策略比较结果:")
     for i, strategy in enumerate(comparison["strategy_names"]):
         logger.info(f"策略: {strategy}")
@@ -303,55 +284,30 @@ def compare_strategies(config, args, logger):
     return comparison
 
 
-def run_visualization(config, args, logger):
-    """生成可视化结果"""
-    logger.info("生成可视化结果")
-    
-    # 创建集成系统
-    system = IntegratedChargingSystem()
-    system.config = config
-    system.config["visualization"]["output_dir"] = args.output_dir
-    
-    # 生成仪表盘
-    dashboards = system.generate_dashboards()
-    
-    logger.info(f"可视化结果已生成:")
-    logger.info(f"用户仪表盘: {dashboards['user_dashboard']}")
-    logger.info(f"运营商仪表盘: {dashboards['operator_dashboard']}")
-    
-    return dashboards
-
 
 def main():
-    """主函数：运行指定模式的任务"""
-    # 解析命令行参数
+
+
     args = parse_arguments()
-    
-    # 设置日志
+
     log_level = getattr(logging, args.log_level)
     logger = setup_logging(log_level=log_level)
-    
-    # 加载配置
+
     config = load_config(args.config)
-    
-    # 更新输出目录
+
     config["visualization"]["output_dir"] = args.output_dir
     os.makedirs(args.output_dir, exist_ok=True)
     
     logger.info(f"运行模式: {args.mode}")
-    
-    # 根据不同模式执行相应任务
+    if args.mode == "train" or args.mode == "all":
+        train_decision_model(config, args, logger)
     if args.mode == "simulate" or args.mode == "all":
         run_simulation(config, args, logger)
     
-    if args.mode == "train" or args.mode == "all":
-        train_decision_model(config, args, logger)
+ 
     
     if args.mode == "evaluate" or args.mode == "all":
-        compare_strategies(config, args, logger)
-    
-    if args.mode == "visualize" or args.mode == "all":
-        run_visualization(config, args, logger)
+        compare_strategies(config, args, logger)    
     
     if args.mode == "test" or args.mode == "all":
         logger.info("运行系统测试...")
