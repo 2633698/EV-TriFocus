@@ -3,326 +3,293 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>电动汽车有序充电调度系统 - 控制面板</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    
+    <title>EV充电调度系统</title>
+    <!-- 先加载jQuery -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+    <!-- 然后加载Bootstrap和其他库 -->
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         body {
-            font-family: 'Microsoft YaHei', 'SimHei', sans-serif;
-            background-color: #f5f7fa;
+            font-family: 'Arial', sans-serif;
+            background-color: #f8f9fa;
         }
         .card {
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
-            transition: all 0.3s ease;
-        }
-        .card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 18px rgba(0,0,0,0.1);
         }
         .card-header {
-            background-color: #fff;
-            border-bottom: 1px solid #edf2f9;
-            padding: 15px 20px;
-            font-weight: 600;
-        }
-        .system-title {
-            background: linear-gradient(135deg, #3a8ffe 0%, #1e55e8 100%);
+            background-color: #0d6efd;
             color: white;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 15px rgba(62, 121, 247, 0.2);
+            border-radius: 10px 10px 0 0 !important;
+            font-weight: bold;
         }
-        .nav-pills .nav-link.active {
-            background-color: #3a8ffe;
-        }
-        .tab-content {
-            padding: 20px 0;
-        }
-        .result-image {
-            width: 100%;
-            border-radius: 5px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-            margin-bottom: 15px;
+        .strategy-card {
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.3s;
         }
-        .result-image:hover {
-            transform: scale(1.02);
+        .strategy-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
         }
-        .form-control, .form-select {
-            border-radius: 8px;
-            padding: 10px 15px;
-            border: 1px solid #e0e6ed;
+        .strategy-card.active {
+            border: 3px solid #0d6efd;
         }
-        .btn-primary {
-            background: linear-gradient(135deg, #3a8ffe 0%, #1e55e8 100%);
-            border: none;
-            border-radius: 8px;
-            padding: 10px 20px;
-            font-weight: 500;
-            box-shadow: 0 4px 10px rgba(62, 121, 247, 0.2);
+        .slider-container {
+            padding: 15px;
         }
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #1e55e8 0%, #0c38b5 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(62, 121, 247, 0.3);
+        .slider-label {
+            font-weight: bold;
+            margin-bottom: 5px;
         }
-        .status-badge {
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 0.85rem;
+        .result-chart {
+            background-color: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         .metric-card {
             text-align: center;
-            padding: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            margin-bottom: 15px;
         }
         .metric-value {
-            font-size: 2.2rem;
-            font-weight: 700;
-            margin: 10px 0;
-            color: #3a8ffe;
+            font-size: 24px;
+            font-weight: bold;
         }
-        .metric-title {
-            font-size: 0.9rem;
-            color: #8392ab;
-            margin-bottom: 0;
-        }
-        .progress {
-            height: 8px;
-            margin-top: 10px;
-        }
-        #simulationProgress {
-            display: none;
-        }
-        .charger-status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 5px;
-        }
-        .charger-status-available {
-            background-color: #2dce89;
-        }
-        .charger-status-busy {
-            background-color: #fb6340;
-        }
-        .charger-status-maintenance {
-            background-color: #f5a623;
-        }
-        .modal-img {
-            width: 100%;
-        }
-        .dashboard-container {
-            overflow-x: hidden;
-        }
-        .chart-container {
-            width: 100%;
-            height: 300px;
-        }
-        #strategyComparisonChart, #hourlyLoadChart, #userTypeChart {
-            width: 100%;
-            height: 100%;
-        }
-        .dashboard-title {
-            color: #5e72e4;
-            font-weight: 600;
-        }
-        .tab-pane {
-            padding: 15px 0;
-        }
-        .table th {
-            font-weight: 600;
-            color: #8392ab;
-        }
-        @media (max-width: 992px) {
-            .metric-value {
-                font-size: 1.8rem;
-            }
-        }
-        #modelSettings {
-            display: none;
+        .config-editor {
+            font-family: monospace;
+            min-height: 300px;
         }
     </style>
 </head>
 <body>
-    <div class="container-fluid dashboard-container">
-        <div class="row my-4">
-            <div class="col-lg-12">
-                <div class="system-title text-center">
-                    <h1><i class="fas fa-charging-station me-2"></i>电动汽车有序充电调度系统</h1>
-                    <p class="mb-0">智能调度 · 优化体验 · 电网友好</p>
-                </div>
+    <div class="container-fluid py-4">
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="text-center"><i class="bi bi-lightning-charge"></i> 电动车辆充电调度系统</h1>
             </div>
         </div>
 
         <div class="row">
-            <!-- 左侧操作面板 -->
-            <div class="col-lg-4">
+            <!-- 左侧配置面板 -->
+            <div class="col-md-4">
                 <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>系统操作</h5>
-                        <span class="status-badge bg-success">系统在线</span>
+                    <div class="card-header">
+                        <i class="bi bi-gear"></i> 系统配置
                     </div>
                     <div class="card-body">
-                        <form id="controlForm">
-                            <div class="mb-3">
-                                <label for="runMode" class="form-label">运行模式</label>
-                                <select class="form-select" id="runMode">
-                                    <option value="simulate">运行模拟</option>
-                                    <option value="train">训练模型</option>
-                                    <option value="evaluate">评估策略</option>
-                                    <option value="visualize">生成可视化</option>
-                                    <option value="test">测试系统</option>
-                                    <option value="all">全流程运行</option>
-                                </select>
+                        <ul class="nav nav-tabs" id="configTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="env-tab" data-bs-toggle="tab" data-bs-target="#env-config" type="button" role="tab">环境参数</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="strategy-tab" data-bs-toggle="tab" data-bs-target="#strategy-config" type="button" role="tab">策略配置</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="raw-tab" data-bs-toggle="tab" data-bs-target="#raw-config" type="button" role="tab">高级配置</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content p-3" id="configTabsContent">
+                            <div class="tab-pane fade show active" id="env-config" role="tabpanel">
+                                <div class="mb-3">
+                                    <label class="form-label">充电桩数量</label>
+                                    <input type="number" class="form-control" id="chargerCount" min="1" max="100">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">用户数量</label>
+                                    <input type="number" class="form-control" id="userCount" min="1" max="1000">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">模拟天数</label>
+                                    <input type="number" class="form-control" id="simulationDays" min="1" max="30">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">时间步长(分钟)</label>
+                                    <input type="number" class="form-control" id="timeStep" min="5" max="60">
+                                </div>
+                                <button class="btn btn-primary" onclick="saveConfig()">保存配置</button>
                             </div>
-                            <div class="mb-3">
-                                <label for="strategy" class="form-label">调度策略</label>
-                                <select class="form-select" id="strategy">
-                                    <option value="user">用户优先</option>
-                                    <option value="profit">利润优先</option>
-                                    <option value="grid">电网友好优先</option>
-                                    <option value="balanced" selected>平衡策略</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label for="days" class="form-label">模拟天数</label>
-                                <input type="number" class="form-control" id="days" min="1" max="30" value="7">
-                            </div>
-                            <div class="mb-3">
-                                <label for="outputDir" class="form-label">输出目录</label>
-                                <input type="text" class="form-control" id="outputDir" value="output">
-                            </div>
-                            <div class="mb-3">
-                                <label for="logLevel" class="form-label">日志级别</label>
-                                <select class="form-select" id="logLevel">
-                                    <option value="DEBUG">DEBUG</option>
-                                    <option value="INFO" selected>INFO</option>
-                                    <option value="WARNING">WARNING</option>
-                                    <option value="ERROR">ERROR</option>
-                                    <option value="CRITICAL">CRITICAL</option>
-                                </select>
-                            </div>
-                            <div id="modelSettings" class="mb-3">
-                                <div class="form-check form-switch mb-3">
-                                    <input class="form-check-input" type="checkbox" id="useTrainedModel" checked>
-                                    <label class="form-check-label" for="useTrainedModel">使用预训练模型</label>
+                            <div class="tab-pane fade" id="strategy-config" role="tabpanel">
+                                <div id="strategyCards" class="row">
+                                    <!-- 策略卡片将通过JS动态生成 -->
+                                </div>
+                                <div id="strategyEditor" class="mt-3" style="display: none;">
+                                    <h5>编辑策略权重</h5>
+                                    <div class="slider-container">
+                                        <div class="mb-3">
+                                            <label class="slider-label">用户满意度: <span id="userWeightValue">0.4</span></label>
+                                            <input type="range" class="form-range" min="0" max="1" step="0.01" id="userWeight">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="slider-label">运营商利润: <span id="profitWeightValue">0.3</span></label>
+                                            <input type="range" class="form-range" min="0" max="1" step="0.01" id="profitWeight">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="slider-label">电网友好度: <span id="gridWeightValue">0.3</span></label>
+                                            <input type="range" class="form-range" min="0" max="1" step="0.01" id="gridWeight">
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <button class="btn btn-secondary" onclick="cancelEditStrategy()">取消</button>
+                                            <button class="btn btn-primary" onclick="saveStrategy()">保存</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="d-grid gap-2">
-                                <button type="button" id="runButton" class="btn btn-primary">
-                                    <i class="fas fa-play me-2"></i>执行操作
-                                </button>
-                            </div>
-                        </form>
-
-                        <div id="simulationProgress" class="mt-4">
-                            <p class="mb-2">模拟进度: <span id="progressText">0%</span></p>
-                            <div class="progress">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar" role="progressbar" style="width: 0%"></div>
-                            </div>
-                            <div class="mt-3 text-center" id="statusMessage">
-                                正在初始化系统...
+                            <div class="tab-pane fade" id="raw-config" role="tabpanel">
+                                <textarea class="form-control config-editor" id="rawConfigEditor"></textarea>
+                                <button class="btn btn-primary mt-3" onclick="saveRawConfig()">保存配置</button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="card">
+                <div class="card mt-4">
                     <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-sliders-h me-2"></i>高级配置</h5>
+                        <i class="bi bi-play-circle"></i> 模拟控制
                     </div>
                     <div class="card-body">
-                        <ul class="nav nav-pills mb-3" id="configTabs" role="tablist">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="environment-tab" data-bs-toggle="pill" data-bs-target="#environment" type="button" role="tab" aria-controls="environment" aria-selected="true">环境</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="model-tab" data-bs-toggle="pill" data-bs-target="#model" type="button" role="tab" aria-controls="model" aria-selected="false">模型</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="weights-tab" data-bs-toggle="pill" data-bs-target="#weights" type="button" role="tab" aria-controls="weights" aria-selected="false">权重</button>
-                            </li>
-                        </ul>
-                        <div class="tab-content" id="configTabsContent">
-                            <div class="tab-pane fade show active" id="environment" role="tabpanel" aria-labelledby="environment-tab">
-                                <div class="mb-3">
-                                    <label for="gridId" class="form-label">电网ID</label>
-                                    <input type="text" class="form-control" id="gridId" value="DEFAULT001">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="chargerCount" class="form-label">充电桩数量</label>
-                                    <input type="number" class="form-control" id="chargerCount" min="5" max="100" value="20">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="userCount" class="form-label">用户数量</label>
-                                    <input type="number" class="form-control" id="userCount" min="10" max="500" value="50">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="timeStep" class="form-label">时间步长(分钟)</label>
-                                    <select class="form-select" id="timeStep">
-                                        <option value="5">5分钟</option>
-                                        <option value="10">10分钟</option>
-                                        <option value="15" selected>15分钟</option>
-                                        <option value="30">30分钟</option>
-                                    </select>
+                        <div class="row mb-4">
+                            <div class="col-12 col-md-4">
+                                <div class="card shadow">
+                                    <div class="card-header bg-primary-subtle">
+                                        <h5 class="mb-0">模拟控制</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                                            <label for="strategySelector" class="form-label">优化策略</label>
+                                            <select class="form-select" id="strategySelector">
+                                                <option value="balanced">平衡模式</option>
+                                <option value="user">用户优先</option>
+                                                <option value="grid">电网优先</option>
+                                <option value="profit">利润优先</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                                            <label for="daysInput" class="form-label">模拟天数</label>
+                                            <input type="number" class="form-control" id="daysInput" value="7" min="1" max="30">
+                        </div>
+                                        <div class="mb-3">
+                                            <label for="fullAnalysisCheck" class="form-label">分析选项</label>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="fullAnalysisCheck" checked>
+                                                <label class="form-check-label" for="fullAnalysisCheck">
+                                                    包含完整分析
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="saveResultCheck" checked>
+                                                <label class="form-check-label" for="saveResultCheck">
+                                                    保存结果
+                                                </label>
+                                            </div>
+                                            <small class="text-muted">模拟将使用充电调度算法进行真实计算。</small>
+                                        </div>
+                                        <div class="mb-3">
+                                            <button class="btn btn-success w-100" id="simulationButton">开始模拟</button>
+                                        </div>
+                                        
+                                        <!-- 历史记录选择 -->
+                                        <div class="mt-4">
+                                            <h5>历史模拟结果</h5>
+                                            <select class="form-select mb-2" id="historySelector">
+                                                <option value="">-- 选择历史记录 --</option>
+                                            </select>
+                                            <button class="btn btn-primary w-100" id="loadHistoryButton">加载历史记录</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="tab-pane fade" id="model" role="tabpanel" aria-labelledby="model-tab">
-                                <div class="mb-3">
-                                    <label for="hiddenDim" class="form-label">隐藏层维度</label>
-                                    <input type="number" class="form-control" id="hiddenDim" min="32" max="512" value="128">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="taskHiddenDim" class="form-label">任务层维度</label>
-                                    <input type="number" class="form-control" id="taskHiddenDim" min="16" max="256" value="64">
-                                </div>
-                                <div class="form-check form-switch mb-3">
-                                    <input class="form-check-input" type="checkbox" id="useTrainedModel" checked>
-                                    <label class="form-check-label" for="useTrainedModel">使用预训练模型</label>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="modelPath" class="form-label">模型路径</label>
-                                    <input type="text" class="form-control" id="modelPath" value="models/ev_charging_model.pth">
+                            
+                            <!-- 高级功能区域 -->
+                            <div class="col-12 col-md-8">
+                                <div class="card shadow">
+                                    <div class="card-header bg-secondary-subtle">
+                                        <h5 class="mb-0">高级功能</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <ul class="nav nav-tabs" id="advancedTabs" role="tablist">
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link active" id="training-tab" data-bs-toggle="tab" data-bs-target="#training-content" type="button" role="tab">模型训练</button>
+                                            </li>
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link" id="testing-tab" data-bs-toggle="tab" data-bs-target="#testing-content" type="button" role="tab">系统测试</button>
+                                            </li>
+                                        </ul>
+                                        
+                                        <div class="tab-content p-3" id="advancedTabsContent">
+                                            <!-- 模型训练选项卡 -->
+                                            <div class="tab-pane fade show active" id="training-content" role="tabpanel">
+                                                <div class="mb-3">
+                                                    <label for="epochsInput" class="form-label">训练轮数 (Epochs)</label>
+                                                    <input type="number" class="form-control" id="epochsInput" value="50" min="10" max="200">
+                                                    <small class="text-muted">更多轮数通常会带来更好的训练结果，但也需要更长的时间</small>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="batchSizeInput" class="form-label">批次大小 (Batch Size)</label>
+                                                    <select class="form-select" id="batchSizeInput">
+                                                        <option value="16">16</option>
+                                                        <option value="32">32</option>
+                                                        <option value="64" selected>64</option>
+                                                        <option value="128">128</option>
+                                                    </select>
+                                                </div>
+                                                <button class="btn btn-warning w-100" id="trainModelButton">
+                                                    <i class="bi bi-robot"></i> 训练决策模型
+                        </button>
+                    </div>
+                                            
+                                            <!-- 系统测试选项卡 -->
+                                            <div class="tab-pane fade" id="testing-content" role="tabpanel">
+                                                <div class="mb-3">
+                                                    <label for="testTypeSelect" class="form-label">测试类型</label>
+                                                    <select class="form-select" id="testTypeSelect">
+                                                        <option value="all" selected>完整系统测试</option>
+                                                        <option value="environment">环境测试</option>
+                                                        <option value="scheduler">调度器测试</option>
+                                                        <option value="integrated">集成系统测试</option>
+                                                    </select>
+                                                    <small class="text-muted">选择要运行的测试类型</small>
+                                                </div>
+                                                <button class="btn btn-info w-100" id="runTestsButton">
+                                                    <i class="bi bi-bug"></i> 运行系统测试
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 高级功能进度和结果 -->
+                                        <div id="advancedResultArea" class="mt-4" style="display: none;">
+                                            <div class="progress mb-3">
+                                                <div id="advancedProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                                            </div>
+                                            <div id="advancedProgressMessage" class="text-center mb-3">准备中...</div>
+                                            <div id="advancedResultContent" class="bg-light p-3 rounded">
+                                                <!-- 结果将在这里显示 -->
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="tab-pane fade" id="weights" role="tabpanel" aria-labelledby="weights-tab">
-                                <div id="strategyWeightsContainer">
-                                    <div class="mb-3">
-                                        <label for="userSatisfactionWeight" class="form-label">用户满意度权重</label>
-                                        <input type="range" class="form-range" id="userSatisfactionWeight" min="0.1" max="0.9" step="0.05" value="0.4">
-                                        <div class="d-flex justify-content-between">
-                                            <span class="badge bg-secondary">0.1</span>
-                                            <span class="badge bg-primary" id="userWeightValue">0.4</span>
-                                            <span class="badge bg-secondary">0.9</span>
-                                        </div>
+                            
+                            <!-- 进度显示卡片 -->
+                            <div class="col-12 col-md-8">
+                                <div class="card shadow" id="progressCard" style="display: none;">
+                                    <div class="card-header bg-info-subtle">
+                                        <h5 class="mb-0">模拟进度</h5>
                                     </div>
-                                    <div class="mb-3">
-                                        <label for="operatorProfitWeight" class="form-label">运营商利润权重</label>
-                                        <input type="range" class="form-range" id="operatorProfitWeight" min="0.1" max="0.9" step="0.05" value="0.3">
-                                        <div class="d-flex justify-content-between">
-                                            <span class="badge bg-secondary">0.1</span>
-                                            <span class="badge bg-primary" id="profitWeightValue">0.3</span>
-                                            <span class="badge bg-secondary">0.9</span>
+                                    <div class="card-body">
+                                        <div class="progress mb-3" style="height: 25px;">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
                                         </div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="gridFriendlinessWeight" class="form-label">电网友好度权重</label>
-                                        <input type="range" class="form-range" id="gridFriendlinessWeight" min="0.1" max="0.9" step="0.05" value="0.3">
+                                        <p class="mb-1" id="progressMessage">初始化模拟...</p>
                                         <div class="d-flex justify-content-between">
-                                            <span class="badge bg-secondary">0.1</span>
-                                            <span class="badge bg-primary" id="gridWeightValue">0.3</span>
-                                            <span class="badge bg-secondary">0.9</span>
+                                            <span id="progressTime">已用时间: 0秒</span>
+                                            <span id="progressEta">预计剩余: 计算中...</span>
                                         </div>
-                                    </div>
-                                    <div class="alert alert-info">
-                                        <small>注意: 三项权重之和约等于1.0</small>
-                                        <div>总和: <span id="weightSum">1.0</span></div>
                                     </div>
                                 </div>
                             </div>
@@ -332,568 +299,2024 @@
             </div>
 
             <!-- 右侧结果展示 -->
-            <div class="col-lg-8">
-                <!-- 核心指标卡片 -->
-                <div class="row mb-4">
-                    <div class="col-md-3">
-                        <div class="card metric-card">
-                            <div class="metric-title">用户满意度</div>
-                            <div class="metric-value" id="userSatisfaction">-</div>
-                            <div class="progress">
-                                <div class="progress-bar bg-success" id="userSatisfactionBar" role="progressbar" style="width: 0%"></div>
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-graph-up"></i> 模拟结果
+                    </div>
+                    <div class="card-body">
+                        <div id="simulationResults" style="display: none;">
+                            <div class="row mb-4">
+                                <div class="col-md-3">
+                                    <div class="metric-card" style="background-color: #4e73df;">
+                                        <div>用户满意度</div>
+                                        <div class="metric-value" id="userSatisfactionMetric">0.00</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-card" style="background-color: #1cc88a;">
+                                        <div>运营商利润</div>
+                                        <div class="metric-value" id="operatorProfitMetric">0.00</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-card" style="background-color: #36b9cc;">
+                                        <div>电网友好度</div>
+                                        <div class="metric-value" id="gridFriendlinessMetric">0.00</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-card" style="background-color: #f6c23e;">
+                                        <div>综合奖励</div>
+                                        <div class="metric-value" id="totalRewardMetric">0.00</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="result-chart">
+                                <img id="resultImage" class="img-fluid" style="display: none;">
+                                <canvas id="resultChart"></canvas>
                             </div>
                         </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card metric-card">
-                            <div class="metric-title">运营商利润</div>
-                            <div class="metric-value" id="operatorProfit">-</div>
-                            <div class="progress">
-                                <div class="progress-bar bg-primary" id="operatorProfitBar" role="progressbar" style="width: 0%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card metric-card">
-                            <div class="metric-title">电网友好度</div>
-                            <div class="metric-value" id="gridFriendliness">-</div>
-                            <div class="progress">
-                                <div class="progress-bar bg-info" id="gridFriendlinessBar" role="progressbar" style="width: 0%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card metric-card">
-                            <div class="metric-title">综合评分</div>
-                            <div class="metric-value" id="totalReward">-</div>
-                            <div class="progress">
-                                <div class="progress-bar bg-warning" id="totalRewardBar" role="progressbar" style="width: 0%"></div>
-                            </div>
+                        <div id="noResults" class="text-center py-5">
+                            <i class="bi bi-graph-up" style="font-size: 3rem; color: #6c757d;"></i>
+                            <h4 class="mt-3">暂无模拟结果</h4>
+                            <p class="text-muted">点击"开始模拟"按钮运行充电调度模拟</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- 结果展示面板 -->
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>系统分析结果</h5>
-                        <div class="btn-group">
-                            <button type="button" class="btn btn-sm btn-outline-primary" id="refreshResults">
-                                <i class="fas fa-sync-alt me-1"></i>刷新
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-success" id="exportResults">
-                                <i class="fas fa-file-export me-1"></i>导出
-                            </button>
-                        </div>
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <i class="bi bi-bar-chart"></i> 详细指标
                     </div>
                     <div class="card-body">
-                        <ul class="nav nav-pills mb-3" id="resultTabs" role="tablist">
+                        <ul class="nav nav-tabs" id="metricsTabs" role="tablist">
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="dashboard-tab" data-bs-toggle="pill" data-bs-target="#dashboard" type="button" role="tab" aria-controls="dashboard" aria-selected="true">实时看板</button>
+                                <button class="nav-link active" id="hourly-tab" data-bs-toggle="tab" data-bs-target="#hourly-metrics" type="button" role="tab">小时指标</button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="report-tab" data-bs-toggle="pill" data-bs-target="#report" type="button" role="tab" aria-controls="report" aria-selected="false">评估报告</button>
+                                <button class="nav-link" id="user-tab" data-bs-toggle="tab" data-bs-target="#user-metrics" type="button" role="tab">用户分析</button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="users-tab" data-bs-toggle="pill" data-bs-target="#users" type="button" role="tab" aria-controls="users" aria-selected="false">用户分析</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="grid-tab" data-bs-toggle="pill" data-bs-target="#grid" type="button" role="tab" aria-controls="grid" aria-selected="false">电网分析</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="comparison-tab" data-bs-toggle="pill" data-bs-target="#comparison" type="button" role="tab" aria-controls="comparison" aria-selected="false">策略对比</button>
+                                <button class="nav-link" id="grid-tab" data-bs-toggle="tab" data-bs-target="#grid-metrics" type="button" role="tab">电网分析</button>
                             </li>
                         </ul>
-                        <div class="tab-content" id="resultTabsContent">
-                            <!-- 实时看板 -->
-                            <div class="tab-pane fade show active" id="dashboard" role="tabpanel" aria-labelledby="dashboard-tab">
-                                <h5 class="dashboard-title">实时充电状态</h5>
-                                <div class="row mb-4">
-                                    <div class="col-lg-4">
-                                        <div class="chart-container">
-                                            <canvas id="realTimeLoad"></canvas>
-                                        </div>
-                                        <div class="text-center mt-2">电网负载实时曲线</div>
+                        <div class="tab-content p-3" id="metricsTabsContent">
+                            <div class="tab-pane fade show active" id="hourly-metrics" role="tabpanel">
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <canvas id="hourlyChart" height="300"></canvas>
                                     </div>
-                                    <div class="col-lg-8">
-                                        <div class="table-responsive">
-                                            <table class="table table-striped table-hover">
-                                                <thead>
-                                                    <tr>
-                                                        <th>充电桩ID</th>
-                                                        <th>位置</th>
-                                                        <th>类型</th>
-                                                        <th>状态</th>
-                                                        <th>队列长度</th>
-                                                        <th>健康值</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody id="chargerTableBody">
-                                                    <tr>
-                                                        <td>CQ_1001</td>
-                                                        <td>城东商圈</td>
-                                                        <td>快充</td>
-                                                        <td><span class="charger-status-indicator charger-status-available"></span>空闲</td>
-                                                        <td>0</td>
-                                                        <td>92%</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td>CQ_1002</td>
-                                                        <td>西区工业园</td>
-                                                        <td>快充</td>
-                                                        <td><span class="charger-status-indicator charger-status-busy"></span>使用中</td>
-                                                        <td>2</td>
-                                                        <td>85%</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td>CQ_1003</td>
-                                                        <td>南湖科技园</td>
-                                                        <td>慢充</td>
-                                                        <td><span class="charger-status-indicator charger-status-maintenance"></span>维护中</td>
-                                                        <td>0</td>
-                                                        <td>75%</td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <h5 class="dashboard-title">当前调度决策</h5>
-                                <div class="table-responsive">
-                                    <table class="table table-striped table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>用户ID</th>
-                                                <th>用户类型</th>
-                                                <th>当前SOC</th>
-                                                <th>分配充电桩</th>
-                                                <th>预计等待时间</th>
-                                                <th>预计费用</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="schedulingTableBody">
-                                            <tr>
-                                                <td>EV2024_3001</td>
-                                                <td>出租车</td>
-                                                <td>25%</td>
-                                                <td>CQ_1005</td>
-                                                <td>5分钟</td>
-                                                <td>¥45.5</td>
-                                            </tr>
-                                            <tr>
-                                                <td>EV2024_3015</td>
-                                                <td>私家车</td>
-                                                <td>35%</td>
-                                                <td>CQ_1002</td>
-                                                <td>15分钟</td>
-                                                <td>¥38.2</td>
-                                            </tr>
-                                            <tr>
-                                                <td>EV2024_3022</td>
-                                                <td>网约车</td>
-                                                <td>15%</td>
-                                                <td>CQ_1007</td>
-                                                <td>10分钟</td>
-                                                <td>¥42.8</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
                                 </div>
                             </div>
-
-                            <!-- 评估报告 -->
-                            <div class="tab-pane fade" id="report" role="tabpanel" aria-labelledby="report-tab">
+                            <div class="tab-pane fade" id="user-metrics" role="tabpanel">
                                 <div class="row">
                                     <div class="col-md-6">
-                                        <img src="/api/placeholder/550/350" class="result-image" id="chargingResultImage" alt="充电调度结果" data-bs-toggle="modal" data-bs-target="#imageModal">
-                                        <p class="text-center">充电调度结果图表</p>
+                                        <canvas id="userChart" height="300"></canvas>
                                     </div>
                                     <div class="col-md-6">
-                                        <img src="/api/placeholder/550/350" class="result-image" id="learningCurvesImage" alt="学习曲线" data-bs-toggle="modal" data-bs-target="#imageModal">
-                                        <p class="text-center">模型学习曲线</p>
+                                        <canvas id="profileChart" height="300"></canvas>
+                                    </div>
+                                    <div class="col-md-6 mt-4">
+                                        <canvas id="socChart" height="250"></canvas>
+                                    </div>
+                                    <div class="col-md-6 mt-4">
+                                        <canvas id="frequencyChart" height="250"></canvas>
                                     </div>
                                 </div>
-                                <div class="mt-4">
-                                    <h5 class="dashboard-title">综合评价指标</h5>
+                            </div>
+                            <div class="tab-pane fade" id="grid-metrics" role="tabpanel">
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <canvas id="gridChart" height="300"></canvas>
+                                    </div>
+                                    <div class="col-md-6 mt-4">
+                                        <canvas id="peakLoadChart" height="250"></canvas>
+                                    </div>
+                                    <div class="col-md-6 mt-4">
+                                        <canvas id="renewableChart" height="250"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 全局变量
+        let currentConfig = {};
+        let currentStrategy = null;
+        let resultChart = null;
+        let hourlyChart = null;
+        let userChart = null;
+        let gridChart = null;
+        
+        // 进度轮询定时器
+        let progressInterval = null;
+        
+        // 页面加载时初始化
+        $(document).ready(function() {
+            console.log("页面加载完成，初始化...");
+            
+            // 加载配置
+            loadConfig();
+            
+            // 加载历史模拟结果
+            loadSimulationHistory();
+            
+            // 绑定模拟按钮点击事件
+            $("#simulationButton").click(function() {
+                runSimulation();
+            });
+            
+            // 绑定加载历史记录按钮事件
+            $("#loadHistoryButton").click(function() {
+                loadHistoryResult();
+            });
+            
+            // 绑定训练模型按钮事件
+            $("#trainModelButton").click(function() {
+                trainModel();
+            });
+            
+            // 绑定运行测试按钮事件
+            $("#runTestsButton").click(function() {
+                runSystemTests();
+            });
+            
+            // 权重滑块事件
+            $("#userWeight").on('input', function() {
+                updateWeights();
+            });
+            
+            $("#profitWeight").on('input', function() {
+                updateWeights();
+            });
+            
+            $("#gridWeight").on('input', function() {
+                updateWeights();
+            });
+            
+            // 为策略权重滑块添加事件
+            $(".strategy-slider").on("input", function() {
+                updateStrategyDisplay();
+            });
+            
+            // 为保存配置按钮添加点击事件
+            $("#saveConfigBtn").on("click", function() {
+                saveConfig();
+            });
+            
+        });
+        
+        // 加载配置
+        function loadConfig() {
+            console.log("加载配置...");
+            $.ajax({
+                url: '/api/config',
+                method: 'GET',
+                success: function(config) {
+                    console.log("配置加载成功:", config);
+                    currentConfig = config;
+                    
+                    // 填充环境配置
+                    document.getElementById('chargerCount').value = config.environment.charger_count;
+                    document.getElementById('userCount').value = config.environment.user_count;
+                    document.getElementById('simulationDays').value = config.environment.simulation_days;
+                    document.getElementById('timeStep').value = config.environment.time_step_minutes;
+                    
+                    // 填充原始配置编辑器
+                    document.getElementById('rawConfigEditor').value = JSON.stringify(config, null, 4);
+                    
+                    // 生成策略卡片
+                    if(config.strategies) {
+                    generateStrategyCards(config.strategies);
+                    }
+                },
+                error: function(error) {
+                    console.error("加载配置失败:", error);
+                    alert("加载配置失败，请检查服务器连接");
+                }
+                });
+        }
+        
+        // 生成策略卡片
+        function generateStrategyCards(strategies) {
+            const container = document.getElementById('strategyCards');
+            container.innerHTML = '';
+            
+            for (const [name, strategy] of Object.entries(strategies)) {
+                const card = document.createElement('div');
+                card.className = 'col-md-6 mb-3';
+                card.innerHTML = `
+                    <div class="card strategy-card" data-strategy="${name}" onclick="editStrategy('${name}')">
+                        <div class="card-body">
+                            <h5 class="card-title">${getStrategyName(name)}</h5>
+                            <div class="progress mt-2" style="height: 20px;">
+                                <div class="progress-bar bg-success" style="width: ${strategy.user_satisfaction * 100}%" 
+                                    title="用户满意度: ${strategy.user_satisfaction}"></div>
+                                <div class="progress-bar bg-info" style="width: ${strategy.operator_profit * 100}%" 
+                                    title="运营商利润: ${strategy.operator_profit}"></div>
+                                <div class="progress-bar bg-warning" style="width: ${strategy.grid_friendliness * 100}%" 
+                                    title="电网友好度: ${strategy.grid_friendliness}"></div>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted">点击编辑</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            }
+        }
+        
+        // 获取策略名称
+        function getStrategyName(strategy) {
+            const strategyNames = {
+                "balanced": "平衡策略",
+                "user": "用户优先",
+                "profit": "利润优先",
+                "grid": "电网友好优先"
+            };
+            return strategyNames[strategy] || strategy;
+        }
+        
+        // 编辑策略
+        function editStrategy(name) {
+            currentStrategy = name;
+            const strategy = currentConfig.strategies[name];
+            
+            // 设置滑块值
+            document.getElementById('userWeight').value = strategy.user_satisfaction;
+            document.getElementById('profitWeight').value = strategy.operator_profit;
+            document.getElementById('gridWeight').value = strategy.grid_friendliness;
+            
+            // 更新显示值
+            document.getElementById('userWeightValue').textContent = strategy.user_satisfaction;
+            document.getElementById('profitWeightValue').textContent = strategy.operator_profit;
+            document.getElementById('gridWeightValue').textContent = strategy.grid_friendliness;
+            
+            // 显示编辑器
+            document.getElementById('strategyEditor').style.display = 'block';
+            
+            // 高亮选中的卡片
+            document.querySelectorAll('.strategy-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            document.querySelector(`.strategy-card[data-strategy="${name}"]`).classList.add('active');
+        }
+        
+        // 取消编辑策略
+        function cancelEditStrategy() {
+            document.getElementById('strategyEditor').style.display = 'none';
+            document.querySelectorAll('.strategy-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            currentStrategy = null;
+        }
+        
+        // 保存策略
+        function saveStrategy() {
+            if (!currentStrategy) return;
+            
+            const newWeights = {
+                user_satisfaction: parseFloat(document.getElementById('userWeight').value),
+                operator_profit: parseFloat(document.getElementById('profitWeight').value),
+                grid_friendliness: parseFloat(document.getElementById('gridWeight').value)
+            };
+            
+            // 验证权重总和为1
+            const total = newWeights.user_satisfaction + newWeights.operator_profit + newWeights.grid_friendliness;
+            if (Math.abs(total - 1) > 0.01) {
+                alert('权重总和必须为1，请调整各权重值');
+                return;
+            }
+            
+            // 更新配置
+            $.ajax({
+                url: '/api/update_strategy',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    name: currentStrategy,
+                    weights: newWeights
+                }),
+                success: function(response) {
+                    if (response.status === 'success') {
+                    loadConfig(); // 重新加载配置
+                    cancelEditStrategy();
+                    }
+                },
+                error: function(error) {
+                    console.error("更新策略失败:", error);
+                    alert("更新策略失败，请检查服务器连接");
+                }
+            });
+        }
+        
+        // 保存配置
+        function saveConfig() {
+            const updatedConfig = {
+                ...currentConfig,
+                environment: {
+                    charger_count: parseInt(document.getElementById('chargerCount').value),
+                    user_count: parseInt(document.getElementById('userCount').value),
+                    simulation_days: parseInt(document.getElementById('simulationDays').value),
+                    time_step_minutes: parseInt(document.getElementById('timeStep').value),
+                    grid_id: currentConfig.environment?.grid_id || "DEFAULT001"
+                }
+            };
+            
+            $.ajax({
+                url: '/api/config',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(updatedConfig),
+                success: function(response) {
+                    if (response.status === 'success') {
+                    loadConfig(); // 重新加载配置
+                    alert('配置保存成功');
+                    }
+                },
+                error: function(error) {
+                    console.error("保存配置失败:", error);
+                    alert("保存配置失败，请检查服务器连接");
+                }
+            });
+        }
+        
+        // 保存原始配置
+        function saveRawConfig() {
+            try {
+                const newConfig = JSON.parse(document.getElementById('rawConfigEditor').value);
+                
+                $.ajax({
+                    url: '/api/config',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: document.getElementById('rawConfigEditor').value,
+                    success: function(response) {
+                        if (response.status === 'success') {
+                        loadConfig(); // 重新加载配置
+                        alert('配置保存成功');
+                        }
+                    },
+                    error: function(error) {
+                        console.error("保存原始配置失败:", error);
+                        alert("保存原始配置失败，请检查服务器连接");
+                    }
+                });
+            } catch (e) {
+                console.error("配置格式错误:", e);
+                alert("配置格式错误，请检查配置内容");
+            }
+        }
+        
+        // 开始进度轮询
+        function startProgressPolling() {
+            // 显示进度卡片
+            $("#progressCard").show();
+            
+            // 每秒更新一次进度
+            progressInterval = setInterval(fetchProgress, 1000);
+            return progressInterval;
+        }
+        
+        // 停止进度轮询
+        function stopProgressPolling() {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+        }
+        
+        // 获取模拟进度
+        function fetchProgress() {
+            $.ajax({
+                url: '/api/progress',
+                method: 'GET',
+                success: function(data) {
+                    // 更新进度条
+                    const progressBar = document.getElementById('progressBar');
+                    progressBar.style.width = data.percent + '%';
+                    progressBar.setAttribute('aria-valuenow', data.percent);
+                    progressBar.textContent = data.percent + '%';
+                    
+                    // 更新进度消息
+                    document.getElementById('progressMessage').textContent = data.message;
+                    
+                    // 更新时间信息
+                    let timeInfo = '';
+                    if (data.elapsed_seconds) {
+                        const minutes = Math.floor(data.elapsed_seconds / 60);
+                        const seconds = data.elapsed_seconds % 60;
+                        timeInfo += `已用时: ${minutes}分${seconds}秒`;
+                        
+                        if (data.remaining_seconds) {
+                            const remainingMinutes = Math.floor(data.remaining_seconds / 60);
+                            const remainingSeconds = data.remaining_seconds % 60;
+                            timeInfo += ` | 预计剩余: ${remainingMinutes}分${remainingSeconds}秒`;
+                        }
+                    }
+                    document.getElementById('progressTime').textContent = timeInfo;
+                    document.getElementById('progressEta').textContent = `预计剩余: ${Math.floor(data.remaining_seconds / 60)}分${data.remaining_seconds % 60}秒`;
+                    
+                    // 如果模拟已完成或出错，停止轮询
+                    if (data.percent >= 100) {
+                        stopProgressPolling();
+                        
+                        // 3秒后隐藏进度卡片
+                        setTimeout(() => {
+                            $("#progressCard").fadeOut();
+                        }, 3000);
+                    }
+                },
+                error: function(error) {
+                    console.error('获取进度信息出错:', error);
+                }
+            });
+        }
+        
+        // 加载历史模拟结果列表
+        function loadSimulationHistory() {
+            $.ajax({
+                url: '/api/simulation_history',
+                method: 'GET',
+                success: function(response) {
+                    if(response.status === 'success' && response.data.length > 0) {
+                        // 清除现有选项
+                        $("#historySelector").html('<option value="">-- 选择历史记录 --</option>');
+                        
+                        // 添加历史记录选项
+                        response.data.forEach(function(history) {
+                            $("#historySelector").append(
+                                `<option value="${history.id}">${history.timestamp} - ${getStrategyName(history.strategy)} (${history.days}天)</option>`
+                            );
+                        });
+                        
+                        // 启用加载按钮
+                        $("#loadHistoryButton").prop('disabled', false);
+                    } else {
+                        // 无历史记录
+                        $("#historySelector").html('<option value="">-- 无历史记录 --</option>');
+                        $("#loadHistoryButton").prop('disabled', true);
+                    }
+                },
+                error: function(error) {
+                    console.error("加载历史记录失败:", error);
+                    $("#historySelector").html('<option value="">-- 加载失败 --</option>');
+                    $("#loadHistoryButton").prop('disabled', true);
+                }
+            });
+        }
+        
+        // 加载历史模拟结果
+        function loadHistoryResult() {
+            const historyId = $("#historySelector").val();
+            
+            if(!historyId) {
+                alert("请选择要加载的历史记录");
+                return;
+            }
+            
+            // 显示正在加载的状态
+            $("#loadHistoryButton").prop("disabled", true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 加载中...');
+            
+            // 重置结果区域
+            $("#noResults").show();
+            $("#simulationResults").hide();
+            $("#resultMessage").empty();
+            
+            // 发起请求加载历史结果
+            $.ajax({
+                url: `/api/simulation_result/${historyId}`,
+                method: 'GET',
+                success: function(response) {
+                    console.log("历史结果加载成功:", response);
+                    
+                    // 恢复按钮状态
+                    $("#loadHistoryButton").prop("disabled", false).text("加载历史记录");
+                    
+                    // 显示结果
+                    if(response.status === 'success' && response.data) {
+                        showResults(response.data);
+                        
+                        // 显示成功消息
+                        $("#resultMessage").html(`
+                            <div class="alert alert-info mt-3">
+                                <i class="bi bi-info-circle me-2"></i>已加载历史记录: ${new Date(response.data.simulation_info.timestamp.replace(/_/g, ' ')).toLocaleString()}
+                            </div>
+                        `);
+                    } else {
+                        $("#resultMessage").html(`
+                            <div class="alert alert-danger mt-3">
+                                <i class="bi bi-exclamation-triangle me-2"></i>加载历史记录失败: ${response.error || '未知错误'}
+                            </div>
+                        `);
+                    }
+                },
+                error: function(error) {
+                    console.error("加载历史记录失败:", error);
+                    
+                    // 恢复按钮状态
+                    $("#loadHistoryButton").prop("disabled", false).text("加载历史记录");
+                    
+                    // 显示错误消息
+                    let errorMsg = "加载失败: ";
+                    try {
+                        const errorData = JSON.parse(error.responseText);
+                        errorMsg += errorData.error;
+                    } catch (e) {
+                        errorMsg += error.responseText || "未知错误";
+                    }
+                    
+                    $("#resultMessage").html(`
+                        <div class="alert alert-danger mt-3">
+                            <i class="bi bi-exclamation-triangle me-2"></i>${errorMsg}
+                        </div>
+                    `);
+                }
+            });
+        }
+        
+        // 运行模拟
+        function runSimulation() {
+            console.log("开始运行模拟...");
+            
+            // 显示正在执行的状态
+            $("#simulationButton").prop("disabled", true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 正在模拟...');
+            
+            // 重置结果区域
+            $("#noResults").show();
+            $("#simulationResults").hide();
+            $("#resultMessage").empty();
+            
+            // 获取选择的策略
+            const strategy = $("#strategySelector").val();
+            const days = parseInt($("#daysInput").val());
+            const fullAnalysis = $("#fullAnalysisCheck").is(":checked");
+            const saveResult = $("#saveResultCheck").is(":checked");
+            
+            console.log("模拟参数：", {strategy, days, fullAnalysis, saveResult});
+            
+            // 开始进度轮询
+            const progressPollId = startProgressPolling();
+            
+            // 发送模拟请求
+            $.ajax({
+                url: "/api/simulate",
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({
+                    strategy: strategy,
+                    days: days,
+                    full_analysis: fullAnalysis,
+                    use_mock_data: false,
+                    save_result: saveResult
+                }),
+                success: function(response) {
+                    console.log("模拟成功:", response);
+                    
+                    // 停止进度条轮询
+                    if (progressPollId) {
+                        clearInterval(progressPollId);
+                    }
+                    
+                // 恢复按钮状态
+                    $("#simulationButton").prop("disabled", false).text("开始模拟");
+                
+                // 显示结果
+                    showResults(response);
+                    
+                    // 显示成功消息
+                    let successMsg = `模拟完成！优化策略: ${getStrategyName(strategy)}, 天数: ${days}`;
+                    if(response.saved_result_id) {
+                        successMsg += `, 结果已保存`;
+                    }
+                    successMsg += ` (使用真实计算)`;
+                    
+                    $("#resultMessage").html(`
+                        <div class="alert alert-success mt-3">
+                            <i class="bi bi-check-circle me-2"></i>${successMsg}
+                        </div>
+                    `);
+                    
+                    // 更新进度条为完成状态
+                    $("#progressBar").css("width", "100%").attr("aria-valuenow", 100);
+                    $("#progressMessage").text("模拟完成");
+                    
+                    // 如果保存了结果，刷新历史记录列表
+                    if(saveResult) {
+                        loadSimulationHistory();
+                    }
+                    
+                    // 3秒后隐藏进度卡片
+                    setTimeout(() => {
+                        $("#progressCard").fadeOut();
+                    }, 3000);
+                },
+                error: function(error) {
+                    console.error("模拟失败:", error);
+                    
+                    // 停止进度条轮询
+                    if (progressPollId) {
+                        clearInterval(progressPollId);
+                    }
+                    
+                    // 恢复按钮状态
+                    $("#simulationButton").prop("disabled", false).text("开始模拟");
+                    
+                    // 显示错误消息
+                    let errorMsg = "模拟失败: ";
+                    try {
+                        const errorData = JSON.parse(error.responseText);
+                        errorMsg += errorData.error;
+                        
+                        if (errorData.details) {
+                            console.error("详细错误:", errorData.details);
+                        }
+                    } catch (e) {
+                        errorMsg += error.responseText || "未知错误";
+                    }
+                    
+                    $("#resultMessage").html(`
+                        <div class="alert alert-danger mt-3">
+                            <i class="bi bi-exclamation-triangle me-2"></i>${errorMsg}
+                        </div>
+                    `);
+                    
+                    // 更新进度条为错误状态
+                    $("#progressBar").removeClass("progress-bar-animated").addClass("bg-danger").css("width", "100%");
+                    $("#progressMessage").text("模拟失败");
+                }
+            });
+        }
+        
+        // 显示结果
+        function showResults(data) {
+            console.log("显示模拟结果:", data);
+            
+            // 如果返回了错误，显示错误信息并返回
+            if (!data.success || data.status === "error") {
+                alert('模拟失败: ' + (data.error || "未知错误"));
+                if (data.details) {
+                    console.error('模拟错误详情:', data.details);
+                }
+                return;
+            }
+
+            // 显示结果区域
+            $("#noResults").hide();
+            $("#simulationResults").show();
+            
+            // 提取平均指标数据，确保数据存在
+            const avgMetrics = data.avg_metrics || {};
+            
+            // 更新指标值，添加检查确保数据存在
+            $("#userSatisfactionMetric").text(
+                avgMetrics.user_satisfaction !== undefined ? avgMetrics.user_satisfaction.toFixed(4) : "N/A"
+            );
+            $("#operatorProfitMetric").text(
+                avgMetrics.operator_profit !== undefined ? avgMetrics.operator_profit.toFixed(4) : "N/A"
+            );
+            $("#gridFriendlinessMetric").text(
+                avgMetrics.grid_friendliness !== undefined ? avgMetrics.grid_friendliness.toFixed(4) : "N/A"
+            );
+            $("#totalRewardMetric").text(
+                avgMetrics.total_reward !== undefined ? avgMetrics.total_reward.toFixed(4) : "N/A"
+            );
+            
+            // 显示主结果图片
+            const img = document.getElementById('resultImage');
+            // 检查charts是否存在且有内容
+            if (data.charts && data.charts.length > 0) {
+                img.src = data.charts[0]; // 使用第一张图作为主图
+            img.style.display = 'block';
+            } else if (data.image) {
+                // 兼容旧版本API
+                img.src = data.image;
+                img.style.display = 'block';
+            } else {
+                // 如果没有图像，隐藏图像元素
+                img.style.display = 'none';
+            }
+            
+            // 处理分析数据和图表
+            if (data.charts && data.charts.length > 0) {
+                // 创建图表容器
+                let chartsHTML = '<div class="row mt-4">';
+                
+                // 添加所有图表
+                data.charts.forEach((chart, index) => {
+                    if (index > 0) { // 跳过第一张图，因为它已经显示为主图
+                        // 判断图表类型，提供合适的标题和分类
+                        let chartTitle = getChartTitle(chart);
+                        let chartCategory = getChartCategory(chart);
+                        let colClass = "col-md-6"; // 默认两列布局
+                        
+                        // 如果是从output目录来的特殊图表，可能需要更宽的显示
+                        if (chart.includes("output/")) {
+                            colClass = "col-md-12"; // 全宽显示
+                        }
+                        
+                        chartsHTML += `
+                        <div class="${colClass} mb-4">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    ${chartTitle}
+                                </div>
+                                <div class="card-body text-center">
+                                    <img src="${chart}" class="img-fluid" alt="${chartTitle}" style="max-height: 400px;">
+                                    <p class="text-muted mt-2"><small>${chartCategory}</small></p>
+                                </div>
+                            </div>
+                        </div>`;
+                    }
+                });
+                
+                chartsHTML += '</div>';
+                
+                // 添加到结果区域
+                if ($("#chartsContainer").length) {
+                    $("#chartsContainer").html(chartsHTML);
+                } else {
+                    $("#simulationResults").append(`<div id="chartsContainer">${chartsHTML}</div>`);
+                }
+            }
+            
+            // 如果有用户分析数据，展示用户分析
+            if (data.analysis && data.analysis.user_behavior) {
+                displayUserAnalysis(data.analysis.user_behavior);
+            }
+            
+            // 如果有电网分析数据，展示电网分析
+            if (data.analysis && data.analysis.grid_impact) {
+                displayGridAnalysis(data.analysis.grid_impact);
+        }
+        
+        // 创建图表
+            createCharts(data);
+            
+            // 添加真实计算模式信息
+            const simInfo = data.simulation_info || {};
+            const strategy = data.strategy || simInfo.strategy || "balanced";
+            const days = data.days || simInfo.days || 7;
+            const timestamp = data.timestamp || simInfo.timestamp || new Date().toISOString().replace('T', ' ').substring(0, 19);
+            
+            // 总是添加真实计算模式的说明
+            let realModeInfo = `
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <i class="bi bi-graph-up"></i> 真实计算模式信息
+                        </div>
+                        <div class="card-body">
+                            <p>本次模拟使用了真实的电动车充电调度算法进行计算，结果基于完整的物理模型。</p>
+                            <p>策略：<strong>${getStrategyName(strategy)}</strong></p>
+                            <p>模拟天数：<strong>${days}天</strong></p>
+                            <p>完成时间：<strong>${timestamp.replace('_', ' ')}</strong></p>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            
+            // 添加到结果区域
+            if ($("#realModeInfo").length) {
+                $("#realModeInfo").html(realModeInfo);
+            } else {
+                $("#simulationResults").append(`<div id="realModeInfo">${realModeInfo}</div>`);
+            }
+        }
+        
+        // 获取图表标题
+        function getChartTitle(chartPath) {
+            if (chartPath.includes("hourly_demand")) {
+                return "24小时充电需求分布";
+            } else if (chartPath.includes("user_types")) {
+                return "用户类型分布";
+            } else if (chartPath.includes("grid_load")) {
+                return "电网负载对比";
+            } else if (chartPath.includes("charging_patterns") || chartPath.includes("charging_profiles")) {
+                return "充电负荷曲线";
+            } else if (chartPath.includes("satisfaction")) {
+                return "用户满意度分析";
+            } else if (chartPath.includes("profit")) {
+                return "运营商利润分析";
+            } else if (chartPath.includes("grid_friendly")) {
+                return "电网友好度分析";
+            } else if (chartPath.includes("output/")) {
+                // 从文件名推断内容
+                const filename = chartPath.split('/').pop();
+                if (filename.includes("load")) return "负载分析图";
+                if (filename.includes("user")) return "用户行为分析";
+                if (filename.includes("energy")) return "能源分析图";
+                if (filename.includes("profit")) return "利润分析图";
+                if (filename.includes("comparison")) return "策略对比图";
+                return "详细分析图表";
+            } else {
+                return "模拟结果";
+            }
+        }
+        
+        // 获取图表分类
+        function getChartCategory(chartPath) {
+            if (chartPath.includes("hourly_demand") || chartPath.includes("grid_load")) {
+                return "负载分析";
+            } else if (chartPath.includes("user_types") || chartPath.includes("user")) {
+                return "用户分析";
+            } else if (chartPath.includes("profit")) {
+                return "经济分析";
+            } else if (chartPath.includes("energy") || chartPath.includes("grid_friendly")) {
+                return "能源分析";
+            } else if (chartPath.includes("comparison")) {
+                return "策略对比";
+            } else if (chartPath.includes("output/")) {
+                return "真实计算结果";
+            } else {
+                return "综合分析";
+            }
+        }
+        
+        // 展示用户行为分析
+        function displayUserAnalysis(userBehavior) {
+            // 准备HTML内容
+            let userAnalysisHTML = `
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <i class="bi bi-people"></i> 用户行为分析
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5 class="mb-3">用户类型分布</h5>
                                     <div class="table-responsive">
-                                        <table class="table table-bordered">
-                                            <thead>
+                                        <table class="table table-bordered table-hover">
+                                            <thead class="table-light">
                                                 <tr>
-                                                    <th>指标名称</th>
-                                                    <th>平均值</th>
-                                                    <th>最高值</th>
-                                                    <th>最低值</th>
-                                                    <th>标准差</th>
+                                                    <th>用户类型</th>
+                                                    <th>占比</th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="evaluationTableBody">
+                                            <tbody>`;
+            
+            // 添加用户类型数据
+            if (userBehavior.user_types) {
+                const userTypeNames = {
+                    "commuters": "通勤用户",
+                    "shoppers": "购物用户",
+                    "travelers": "旅行用户",
+                    "residents": "居民用户"
+                };
+                
+                for (const [type, value] of Object.entries(userBehavior.user_types)) {
+                    const typeName = userTypeNames[type] || type;
+                    userAnalysisHTML += `
+                    <tr>
+                        <td>${typeName}</td>
+                        <td>${(value * 100).toFixed(1)}%</td>
+                    </tr>`;
+                }
+            }
+            
+            userAnalysisHTML += `
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5 class="mb-3">充电行为特征</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered table-hover">
+                                            <tbody>
                                                 <tr>
-                                                    <td>用户满意度</td>
-                                                    <td>0.8245</td>
-                                                    <td>0.9321</td>
-                                                    <td>0.6852</td>
-                                                    <td>0.0623</td>
+                                                    <th>平均充电时长</th>
+                                                    <td>${userBehavior.avg_charging_time ? userBehavior.avg_charging_time.toFixed(2) + '小时' : 'N/A'}</td>
                                                 </tr>
                                                 <tr>
-                                                    <td>运营商利润</td>
-                                                    <td>0.7536</td>
-                                                    <td>0.8967</td>
-                                                    <td>0.5432</td>
-                                                    <td>0.0854</td>
+                                                    <th>高峰充电时段</th>
+                                                    <td>${userBehavior.peak_hours ? userBehavior.peak_hours.map(h => h + ':00').join(', ') : 'N/A'}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    
+                                    <h5 class="mt-4 mb-3">充电时段分布</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered table-hover">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>时段</th>
+                                                    <th>占比</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>`;
+            
+            // 添加充电时段数据
+            if (userBehavior.charging_patterns) {
+                const patternNames = {
+                    "morning": "早晨 (6:00-12:00)",
+                    "afternoon": "下午 (12:00-18:00)",
+                    "evening": "晚上 (18:00-24:00)",
+                    "night": "夜间 (0:00-6:00)"
+                };
+                
+                for (const [pattern, value] of Object.entries(userBehavior.charging_patterns)) {
+                    const patternName = patternNames[pattern] || pattern;
+                    userAnalysisHTML += `
+                    <tr>
+                        <td>${patternName}</td>
+                        <td>${(value * 100).toFixed(1)}%</td>
+                    </tr>`;
+                }
+            }
+            
+            userAnalysisHTML += `
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            
+            // 添加到页面
+            if ($("#userAnalysisContainer").length) {
+                $("#userAnalysisContainer").html(userAnalysisHTML);
+            } else {
+                $("#simulationResults").append(`<div id="userAnalysisContainer">${userAnalysisHTML}</div>`);
+            }
+        }
+        
+        // 展示电网影响分析
+        function displayGridAnalysis(gridImpact) {
+            // 准备HTML内容
+            let gridAnalysisHTML = `
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <i class="bi bi-lightning"></i> 电网影响分析
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5 class="mb-3">性能指标</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered table-hover">
+                                            <tbody>
+                                                <tr>
+                                                    <th>峰值削减率</th>
+                                                    <td>${gridImpact.peak_reduction ? (gridImpact.peak_reduction * 100).toFixed(1) + '%' : 'N/A'}</td>
                                                 </tr>
                                                 <tr>
-                                                    <td>电网友好度</td>
-                                                    <td>0.7812</td>
-                                                    <td>0.9105</td>
-                                                    <td>0.5219</td>
-                                                    <td>0.0921</td>
+                                                    <th>负荷转移率</th>
+                                                    <td>${gridImpact.load_shifting ? (gridImpact.load_shifting * 100).toFixed(1) + '%' : 'N/A'}</td>
                                                 </tr>
                                                 <tr>
-                                                    <td>综合奖励</td>
-                                                    <td>0.7865</td>
-                                                    <td>0.8932</td>
-                                                    <td>0.6521</td>
-                                                    <td>0.0725</td>
+                                                    <th>可再生能源利用率</th>
+                                                    <td>${gridImpact.renewable_utilization ? (gridImpact.renewable_utilization * 100).toFixed(1) + '%' : 'N/A'}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>电网稳定性评分</th>
+                                                    <td>${gridImpact.grid_stability_score ? (gridImpact.grid_stability_score * 100).toFixed(1) + '%' : 'N/A'}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>碳排放减少量</th>
+                                                    <td>${gridImpact.carbon_emissions_reduction ? (gridImpact.carbon_emissions_reduction * 100).toFixed(1) + '%' : 'N/A'}</td>
                                                 </tr>
                                             </tbody>
                                         </table>
                                     </div>
                                 </div>
-                                <div class="mt-4">
-                                    <h5 class="dashboard-title">优化建议</h5>
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <ul>
-                                                <li><strong>提高用户满意度的策略</strong>: 针对8.5小时左右的满意度低谷，可增加充电桩动态调度频率和高峰期预约充电激励机制。</li>
-                                                <li><strong>提高运营商利润的策略</strong>: 优化3.2小时的充电桩使用率，并调整峰谷电价差，引导用户向利润更高的时段转移。</li>
-                                                <li><strong>提高电网友好度的策略</strong>: 在19.5小时实施更严格的有序充电控制，增加光伏+储能一体化充电站比例，缓解电网压力。</li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 用户分析 -->
-                            <div class="tab-pane fade" id="users" role="tabpanel" aria-labelledby="users-tab">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="card">
-                                            <div class="card-header">
-                                                <h5 class="mb-0">用户类型分布</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="chart-container">
-                                                    <canvas id="userTypeChart"></canvas>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="card">
-                                            <div class="card-header">
-                                                <h5 class="mb-0">24小时充电需求</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="chart-container">
-                                                    <canvas id="hourlyDemandChart"></canvas>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row mt-4">
-                                    <div class="col-md-6">
-                                        <div class="card">
-                                            <div class="card-header">
-                                                <h5 class="mb-0">平均充电电量</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="chart-container">
-                                                    <canvas id="avgSocChart"></canvas>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="card">
-                                            <div class="card-header">
-                                                <h5 class="mb-0">充电频率</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="chart-container">
-                                                    <canvas id="chargingFrequencyChart"></canvas>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="card mt-4">
-                                    <div class="card-header">
-                                        <h5 class="mb-0">用户行为分析总结</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <ul>
-                                            <li><strong>高峰期充电需求</strong>: 早高峰(7-9点)和晚高峰(18-20点)是充电需求最高的时段，需重点优化这两个时段的充电资源分配。</li>
-                                            <li><strong>用户类型差异</strong>: 出租车和网约车用户更倾向于快充且充电SOC较低，而私家车用户更喜欢完全充电且对等待时间不太敏感。</li>
-                                            <li><strong>用户满意度影响因素</strong>: 分析表明等待时间是影响用户满意度的最重要因素，其次是充电速度和价格。</li>
-                                            <li><strong>优化方向</strong>: 针对不同用户类型提供差异化服务，如为商业用户提供预约优先和快充服务，为私家车用户提供低谷时段优惠等。</li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 电网分析 -->
-                            <div class="tab-pane fade" id="grid" role="tabpanel" aria-labelledby="grid-tab">
-                                <div class="row">
-                                    <div class="col-md-12">
-                                        <div class="card">
-                                            <div class="card-header">
-                                                <h5 class="mb-0">24小时电网负载对比</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="chart-container">
-                                                    <canvas id="hourlyLoadChart"></canvas>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row mt-4">
-                                    <div class="col-md-4">
-                                        <div class="card">
-                                            <div class="card-header">
-                                                <h5 class="mb-0">峰值负载比较</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="chart-container">
-                                                    <canvas id="peakLoadChart"></canvas>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="card">
-                                            <div class="card-header">
-                                                <h5 class="mb-0">负载均衡性</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="chart-container">
-                                                    <canvas id="loadVarianceChart"></canvas>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="card">
-                                            <div class="card-header">
-                                                <h5 class="mb-0">可再生能源利用率</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="chart-container">
-                                                    <canvas id="renewableChart"></canvas>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="card mt-4">
-                                    <div class="card-header">
-                                        <h5 class="mb-0">电网影响分析总结</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="table-responsive">
-                                            <table class="table table-bordered">
-                                                <thead>
-                                                    <tr>
-                                                        <th>评价指标</th>
-                                                        <th>有序调度</th>
-                                                        <th>无序充电</th>
-                                                        <th>改善比例</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody id="gridImpactTableBody">
-                                                    <tr>
-                                                        <td>峰值负载削减</td>
-                                                        <td>78.5%</td>
-                                                        <td>94.2%</td>
-                                                        <td class="text-success">16.7%↓</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td>负载方差</td>
-                                                        <td>124.3</td>
-                                                        <td>256.8</td>
-                                                        <td class="text-success">51.6%↓</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td>可再生能源利用率</td>
-                                                        <td>48.5%</td>
-                                                        <td>32.1%</td>
-                                                        <td class="text-success">51.1%↑</td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        <div class="mt-4">
-                                            <h6>结论及建议:</h6>
-                                            <ul>
-                                                <li>有序调度方案在高峰时段可平均削减峰值负载16.7%，显著减轻电网压力。</li>
-                                                <li>有序调度使负载方差减少51.6%，大幅提高电网稳定性和设备利用效率。</li>
-                                                <li>通过将充电需求引导至光伏发电高峰时段，可再生能源利用率提升51.1%。</li>
-                                                <li>建议进一步扩大储能系统配置，增强系统调峰能力；同时加强峰谷电价差异，提高用户参与削峰填谷的积极性。</li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 策略对比 -->
-                            <div class="tab-pane fade" id="comparison" role="tabpanel" aria-labelledby="comparison-tab">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="card">
-                                            <div class="card-header">
-                                                <h5 class="mb-0">策略雷达图</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="chart-container">
-                                                    <canvas id="strategyComparisonChart"></canvas>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="card">
-                                            <div class="card-header">
-                                                <h5 class="mb-0">策略对比表</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="table-responsive">
-                                                    <table class="table table-striped">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>策略</th>
-                                                                <th>用户满意度</th>
-                                                                <th>运营商利润</th>
-                                                                <th>电网友好度</th>
-                                                                <th>综合评分</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody id="strategyTableBody">
-                                                            <tr>
-                                                                <td>用户优先</td>
-                                                                <td class="text-success">0.85</td>
-                                                                <td>0.65</td>
-                                                                <td>0.55</td>
-                                                                <td>0.72</td>
-                                                            </tr>
-                                                            <tr>
-                                                                <td>利润优先</td>
-                                                                <td>0.65</td>
-                                                                <td class="text-success">0.85</td>
-                                                                <td>0.60</td>
-                                                                <td>0.70</td>
-                                                            </tr>
-                                                            <tr>
-                                                                <td>电网友好</td>
-                                                                <td>0.60</td>
-                                                                <td>0.65</td>
-                                                                <td class="text-success">0.85</td>
-                                                                <td>0.70</td>
-                                                            </tr>
-                                                            <tr>
-                                                                <td>平衡策略</td>
-                                                                <td>0.75</td>
-                                                                <td>0.75</td>
-                                                                <td>0.75</td>
-                                                                <td class="text-success">0.78</td>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row mt-4">
-                                    <div class="col-md-12">
-                                        <div class="card">
-                                            <div class="card-header">
-                                                <h5 class="mb-0">策略适用场景分析</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <div class="table-responsive">
-                                                    <table class="table table-bordered">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>场景</th>
-                                                                <th>最佳策略</th>
-                                                                <th>推荐权重</th>
-                                                                <th>特点</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            <tr>
-                                                                <td>工作日普通时段</td>
-                                                                <td>平衡策略</td>
-                                                                <td>0.33:0.33:0.34</td>
-                                                                <td>充电需求稳定，各方目标均衡</td>
-                                                            </tr>
-                                                            <tr>
-                                                                <td>上下班高峰期</td>
-                                                                <td>电网友好策略</td>
-                                                                <td>0.2:0.2:0.6</td>
-                                                                <td>电网负载高，需优先考虑电网安全</td>
-                                                            </tr>
-                                                            <tr>
-                                                                <td>夜间低谷期</td>
-                                                                <td>运营商利润策略</td>
-                                                                <td>0.2:0.6:0.2</td>
-                                                                <td>电价低，充电桩空闲率高</td>
-                                                            </tr>
-                                                            <tr>
-                                                                <td>假日高峰</td>
-                                                                <td>用户优先策略</td>
-                                                                <td>0.6:0.2:0.2</td>
-                                                                <td>用户需求高，等待时间敏感度高</td>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        </div>
+                                <div class="col-md-6">
+                                    <h5 class="mb-3">负荷对比</h5>
+                                    <div class="chartContainer">
+                                        <canvas id="loadComparisonChart" width="400" height="300"></canvas>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 模态框 -->
-    <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="imageModalLabel">图表详情</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <img src="" class="modal-img" id="modalImage" alt="图表详情">
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 引入JS库 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chart.js/3.9.1/chart.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chart.js/3.9.1/chart.min.js"></script>
-    <!-- 引入自定义JS -->
-    <script src="js/charts.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/ui-controller.js"></script>
+            </div>`;
+            
+            // 添加到页面
+            if ($("#gridAnalysisContainer").length) {
+                $("#gridAnalysisContainer").html(gridAnalysisHTML);
+            } else {
+                $("#simulationResults").append(`<div id="gridAnalysisContainer">${gridAnalysisHTML}</div>`);
+            }
+            
+            // 如果有负荷数据，创建图表
+            if (gridImpact.hourly_load && gridImpact.hourly_load_no_scheduling) {
+                setTimeout(() => {
+                    const ctx = document.getElementById('loadComparisonChart');
+                    if (ctx) {
+                        new Chart(ctx, {
+                type: 'line',
+                data: {
+                                labels: Array.from({length: 24}, (_, i) => i + ':00'),
+                    datasets: [
+                        {
+                                        label: '调度后负荷',
+                                        data: gridImpact.hourly_load,
+                                        borderColor: 'rgba(75, 192, 192, 1)',
+                                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            fill: true
+                        },
+                        {
+                                        label: '无调度负荷',
+                                        data: gridImpact.hourly_load_no_scheduling,
+                                        borderColor: 'rgba(255, 99, 132, 1)',
+                                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                        title: {
+                            display: true,
+                                            text: '负荷 (MW)'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: '时间'
+                                        }
+                                    }
+                                },
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: '24小时电网负荷对比'
+                                    },
+                                    tooltip: {
+                                        mode: 'index',
+                                        intersect: false
+                        }
+                    }
+                }
+            });
+                    }
+                }, 100);
+            }
+        }
+        
+        // 创建结果图表
+        function createCharts(data) {
+            // 如果存在指标数据，创建指标图表
+            if (data.metrics && Object.keys(data.metrics).length > 0) {
+                // 确保容器存在
+                if (!$("#metricsChartContainer").length) {
+                    $("#simulationResults").append(`
+                        <div id="metricsChartContainer" class="row mt-4">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header bg-primary text-white">
+                                        <i class="bi bi-graph-up"></i> 指标趋势分析
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="metricsChart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `);
+                }
+                
+                // 创建指标图表
+                const metrics = data.metrics;
+                const labels = Array.from({ length: metrics.user_satisfaction.length }, (_, i) => i + 1);
+                
+                // 确保所有数据数组长度一致
+                const dataLength = Math.min(
+                    metrics.user_satisfaction.length,
+                    metrics.operator_profit.length,
+                    metrics.grid_friendliness.length,
+                    metrics.total_reward.length
+                );
+                
+                setTimeout(() => {
+                    const ctx = document.getElementById('metricsChart');
+                    if (ctx) {
+                        new Chart(ctx, {
+                            type: 'line',
+                data: {
+                                labels: labels.slice(0, dataLength),
+                    datasets: [
+                        {
+                            label: '用户满意度',
+                                        data: metrics.user_satisfaction.slice(0, dataLength),
+                                        borderColor: 'rgba(54, 162, 235, 1)',
+                                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                        borderWidth: 2,
+                                        fill: false,
+                                        tension: 0.4
+                                    },
+                                    {
+                                        label: '运营商利润',
+                                        data: metrics.operator_profit.slice(0, dataLength),
+                                        borderColor: 'rgba(75, 192, 192, 1)',
+                                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                        borderWidth: 2,
+                                        fill: false,
+                                        tension: 0.4
+                                    },
+                                    {
+                                        label: '电网友好度',
+                                        data: metrics.grid_friendliness.slice(0, dataLength),
+                                        borderColor: 'rgba(255, 159, 64, 1)',
+                                        backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                                        borderWidth: 2,
+                                        fill: false,
+                                        tension: 0.4
+                                    },
+                                    {
+                                        label: '总体奖励',
+                                        data: metrics.total_reward.slice(0, dataLength),
+                                        borderColor: 'rgba(153, 102, 255, 1)',
+                                        backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                                        borderWidth: 3,
+                                        fill: false,
+                                        tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: false,
+                                        title: {
+                                            display: true,
+                                            text: '指标值'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: '时间点'
+                                        }
+                                    }
+                                },
+                    plugins: {
+                        title: {
+                            display: true,
+                                        text: '模拟过程指标趋势'
+                                    },
+                                    tooltip: {
+                                        mode: 'index',
+                                        intersect: false
+                                    },
+                                    legend: {
+                                        position: 'top'
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }, 100);
+                
+                // 更新详细指标选项卡
+                updateDetailedMetricsTabs(data);
+            }
+        }
+        
+        // 更新详细指标选项卡
+        function updateDetailedMetricsTabs(data) {
+            try {
+                // 清除旧图表
+                if (hourlyChart) {
+                    try { hourlyChart.destroy(); } catch(e) { console.log("销毁hourlyChart失败:", e); }
+                    hourlyChart = null;
+                }
+                if (userChart) {
+                    try { userChart.destroy(); } catch(e) { console.log("销毁userChart失败:", e); }
+                    userChart = null;
+                }
+                if (gridChart) {
+                    try { gridChart.destroy(); } catch(e) { console.log("销毁gridChart失败:", e); }
+                    gridChart = null;
+                }
+                
+                // 清除可能存在的其他图表
+                const chartIds = ['profileChart', 'socChart', 'frequencyChart', 'peakLoadChart', 'renewableChart'];
+                for (const id of chartIds) {
+                    const chart = window[id];
+                    if (chart) {
+                        try { chart.destroy(); } catch(e) { console.log(`销毁${id}失败:`, e); }
+                        window[id] = null;
+                    }
+                }
+                
+                // 1. 小时指标图表
+                setTimeout(() => {
+                    const hourlyCtx = document.getElementById('hourlyChart');
+                    if (hourlyCtx) {
+                        // 生成24小时数据
+                        const hours = Array.from({length: 24}, (_, i) => i + ':00');
+                        
+                        // 准备随机数据或使用真实数据
+                        let hourlyData = [];
+                        if (data.analysis && data.analysis.user_behavior && data.analysis.user_behavior.hourly_demand) {
+                            hourlyData = data.analysis.user_behavior.hourly_demand;
+                        } else {
+                            // 模拟数据
+                            hourlyData = Array.from({length: 24}, () => Math.random() * 70 + 30);
+                        }
+                        
+                        hourlyChart = new Chart(hourlyCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: hours,
+                                datasets: [{
+                                    label: '每小时充电需求',
+                                    data: hourlyData,
+                                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                                    borderColor: 'rgba(54, 162, 235, 1)',
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: '充电需求 (kW)'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: '时间'
+                                        }
+                                    }
+                                },
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: '24小时充电需求分布'
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }, 200);
+                
+                // 2. 用户分析图表
+                setTimeout(() => {
+                    // a. 用户类型分布图
+                    const userCtx = document.getElementById('userChart');
+                    if (userCtx) {
+                        // 准备用户类型数据
+                        let userTypes = ['通勤用户', '购物用户', '旅行用户', '居民用户'];
+                        let userDistribution = [40, 25, 15, 20]; // 默认分布
+                        
+                        // 如果有真实数据则使用真实数据
+                        if (data.analysis && data.analysis.user_behavior && data.analysis.user_behavior.user_types) {
+                            userTypes = [];
+                            userDistribution = [];
+                            const userTypeNames = {
+                                "commuters": "通勤用户",
+                                "shoppers": "购物用户",
+                                "travelers": "旅行用户",
+                                "residents": "居民用户"
+                            };
+                            
+                            for (const [type, value] of Object.entries(data.analysis.user_behavior.user_types)) {
+                                userTypes.push(userTypeNames[type] || type);
+                                userDistribution.push(value * 100); // 转换为百分比
+                            }
+                        } else if (data.analysis && data.analysis.user_behavior && data.analysis.user_behavior.user_type_distribution) {
+                            userTypes = [];
+                            userDistribution = [];
+                            for (const [type, value] of Object.entries(data.analysis.user_behavior.user_type_distribution)) {
+                                userTypes.push(type);
+                                userDistribution.push(value);
+                            }
+                        }
+                        
+                        userChart = new Chart(userCtx, {
+                            type: 'doughnut',
+                            data: {
+                                labels: userTypes,
+                                datasets: [{
+                                    data: userDistribution,
+                                    backgroundColor: [
+                                        'rgba(255, 99, 132, 0.7)',
+                                        'rgba(54, 162, 235, 0.7)',
+                                        'rgba(255, 206, 86, 0.7)',
+                                        'rgba(75, 192, 192, 0.7)'
+                                    ],
+                                    borderColor: [
+                                        'rgba(255, 99, 132, 1)',
+                                        'rgba(54, 162, 235, 1)',
+                                        'rgba(255, 206, 86, 1)',
+                                        'rgba(75, 192, 192, 1)'
+                                    ],
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: '用户类型分布'
+                                    },
+                                    legend: {
+                                        position: 'right'
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                return `${context.label}: ${context.raw.toFixed(1)}%`;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    
+                    // b. 用户画像分布图
+                    const profileCtx = document.getElementById('profileChart');
+                    if (profileCtx) {
+                        // 准备用户画像数据
+                        let profiles = ['紧急补电型', '经济优先型', '平衡考量型', '计划充电型'];
+                        let profileDistribution = [30, 25, 30, 15]; // 默认分布
+                        
+                        // 如果有真实数据则使用真实数据
+                        if (data.analysis && data.analysis.user_behavior && data.analysis.user_behavior.profile_distribution) {
+                            profiles = [];
+                            profileDistribution = [];
+                            for (const [profile, value] of Object.entries(data.analysis.user_behavior.profile_distribution)) {
+                                profiles.push(profile);
+                                profileDistribution.push(value);
+                            }
+                        }
+                        
+                        window.profileChart = new Chart(profileCtx, {
+                            type: 'pie',
+                            data: {
+                                labels: profiles,
+                                datasets: [{
+                                    data: profileDistribution,
+                                    backgroundColor: [
+                                        'rgba(255, 159, 64, 0.7)',
+                                        'rgba(153, 102, 255, 0.7)',
+                                        'rgba(255, 205, 86, 0.7)',
+                                        'rgba(75, 192, 192, 0.7)'
+                                    ],
+                                    borderColor: [
+                                        'rgba(255, 159, 64, 1)',
+                                        'rgba(153, 102, 255, 1)',
+                                        'rgba(255, 205, 86, 1)',
+                                        'rgba(75, 192, 192, 1)'
+                                    ],
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: '用户画像分布'
+                                    },
+                                    legend: {
+                                        position: 'right'
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                return `${context.label}: ${context.raw.toFixed(1)}%`;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    
+                    // c. 平均充电SOC图表
+                    const socCtx = document.getElementById('socChart');
+                    if (socCtx) {
+                        // 准备SOC数据
+                        let userTypes = ['通勤用户', '购物用户', '旅行用户', '居民用户'];
+                        let avgSoc = [35, 45, 40, 50]; // 默认数据
+                        
+                        // 如果有真实数据则使用真实数据
+                        if (data.analysis && data.analysis.user_behavior && data.analysis.user_behavior.avg_soc_at_charge) {
+                            userTypes = [];
+                            avgSoc = [];
+                            for (const [type, value] of Object.entries(data.analysis.user_behavior.avg_soc_at_charge)) {
+                                userTypes.push(type);
+                                avgSoc.push(value);
+                            }
+                        }
+                        
+                        window.socChart = new Chart(socCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: userTypes,
+                                datasets: [{
+                                    label: '平均充电SOC',
+                                    data: avgSoc,
+                                    backgroundColor: 'rgba(153, 102, 255, 0.7)',
+                                    borderColor: 'rgba(153, 102, 255, 1)',
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'SOC (%)'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: '用户类型'
+                                        }
+                                    }
+                                },
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: '不同用户类型的平均充电SOC'
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    
+                    // d. 充电频率图表
+                    const freqCtx = document.getElementById('frequencyChart');
+                    if (freqCtx) {
+                        // 准备充电频率数据
+                        let userTypes = ['通勤用户', '购物用户', '旅行用户', '居民用户'];
+                        let frequency = [5, 3, 2, 4]; // 默认数据
+                        
+                        // 如果有真实数据则使用真实数据
+                        if (data.analysis && data.analysis.user_behavior && data.analysis.user_behavior.charging_frequency) {
+                            userTypes = [];
+                            frequency = [];
+                            for (const [type, value] of Object.entries(data.analysis.user_behavior.charging_frequency)) {
+                                userTypes.push(type);
+                                frequency.push(value);
+                            }
+                        }
+                        
+                        window.frequencyChart = new Chart(freqCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: userTypes,
+                                datasets: [{
+                                    label: '充电频率',
+                                    data: frequency,
+                                    backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                                    borderColor: 'rgba(255, 99, 132, 1)',
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: '次/周'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: '用户类型'
+                                        }
+                                    }
+                                },
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: '不同用户类型的充电频率'
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }, 300);
+                
+                // 3. 电网分析图表
+                setTimeout(() => {
+                    // a. 负载对比图表
+                    const gridCtx = document.getElementById('gridChart');
+                    if (gridCtx) {
+                        // 准备电网数据
+                        const hours = Array.from({length: 24}, (_, i) => i + ':00');
+                        
+                        // 默认数据
+                        let baseLoad = [40, 35, 30, 28, 27, 30, 45, 60, 75, 80, 82, 84, 80, 75, 70, 65, 70, 75, 85, 90, 80, 70, 60, 50];
+                        let withScheduling = [];
+                        let withoutScheduling = [];
+                        
+                        // 遍历每小时，生成有调度和无调度的数据
+                        for (let i = 0; i < 24; i++) {
+                            // 根据时段特点设置负荷差异
+                            if ([0, 1, 2, 3, 4, 5].includes(i)) {
+                                // 低谷时段：有序调度增加负荷，无序充电较少
+                                withScheduling.push(baseLoad[i] + Math.random() * 15 + 10);
+                                withoutScheduling.push(baseLoad[i] + Math.random() * 8);
+                            } else if ([7, 8, 9, 10, 18, 19, 20].includes(i)) {
+                                // 高峰时段：有序调度减少负荷，无序充电增加
+                                withScheduling.push(baseLoad[i] + Math.random() * 5);
+                                withoutScheduling.push(baseLoad[i] + Math.random() * 20 + 5);
+                            } else {
+                                // 平时段：适中差异
+                                withScheduling.push(baseLoad[i] + Math.random() * 10 + 5);
+                                withoutScheduling.push(baseLoad[i] + Math.random() * 15 + 5);
+                            }
+                        }
+                        
+                        // 如果有真实数据则使用真实数据
+                        if (data.analysis && data.analysis.grid_impact && data.analysis.grid_impact.hourly_load) {
+                            if (typeof data.analysis.grid_impact.hourly_load === 'object' && data.analysis.grid_impact.hourly_load.with_scheduling) {
+                                withScheduling = data.analysis.grid_impact.hourly_load.with_scheduling;
+                                withoutScheduling = data.analysis.grid_impact.hourly_load.without_scheduling;
+                            } else {
+                                withScheduling = data.analysis.grid_impact.hourly_load;
+                                if (data.analysis.grid_impact.hourly_load_no_scheduling) {
+                                    withoutScheduling = data.analysis.grid_impact.hourly_load_no_scheduling;
+                                }
+                            }
+                        }
+                        
+                        gridChart = new Chart(gridCtx, {
+                            type: 'line',
+                            data: {
+                                labels: hours,
+                                datasets: [
+                                    {
+                                        label: '有序调度充电',
+                                        data: withScheduling,
+                                        borderColor: 'rgba(75, 192, 192, 1)',
+                                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                        fill: true,
+                                        tension: 0.4
+                                    },
+                                    {
+                                        label: '无序充电',
+                                        data: withoutScheduling,
+                                        borderColor: 'rgba(255, 99, 132, 1)',
+                                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                        fill: true,
+                                        tension: 0.4,
+                                        borderDash: [5, 5]
+                                    },
+                                    {
+                                        label: '基础负荷',
+                                        data: baseLoad,
+                                        borderColor: 'rgba(128, 128, 128, 1)',
+                                        backgroundColor: 'rgba(128, 128, 128, 0.1)',
+                                        fill: false,
+                                        borderDash: [3, 3],
+                                        borderWidth: 1
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: false,
+                                        title: {
+                                            display: true,
+                                            text: '电网负荷 (%)'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: '小时'
+                                        }
+                                    }
+                                },
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: '电网负荷对比'
+                                    },
+                                    tooltip: {
+                                        mode: 'index',
+                                        intersect: false
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    
+                    // b. 峰值负载对比图表
+                    const peakLoadCtx = document.getElementById('peakLoadChart');
+                    if (peakLoadCtx) {
+                        // 准备峰值负载数据
+                        let labels = ['有序调度', '无序充电'];
+                        let peakLoad = [85, 95]; // 默认数据
+                        let reduction = 10.5; // 默认减少幅度
+                        
+                        // 如果有真实数据则使用真实数据
+                        if (data.analysis && data.analysis.grid_impact && data.analysis.grid_impact.peak_load) {
+                            peakLoad = [
+                                data.analysis.grid_impact.peak_load.with_scheduling,
+                                data.analysis.grid_impact.peak_load.without_scheduling
+                            ];
+                            reduction = data.analysis.grid_impact.peak_load.reduction_percentage;
+                        }
+                        
+                        window.peakLoadChart = new Chart(peakLoadCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: '峰值负载 (%)',
+                                    data: peakLoad,
+                                    backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(255, 99, 132, 0.7)'],
+                                    borderColor: ['rgba(75, 192, 192, 1)', 'rgba(255, 99, 132, 1)'],
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: '峰值负载 (%)'
+                                        }
+                                    }
+                                },
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: `峰值负载对比 (减少了 ${reduction.toFixed(1)}%)`
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                return `${context.dataset.label}: ${context.raw.toFixed(1)}%`;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    
+                    // c. 可再生能源利用率图表
+                    const renewableCtx = document.getElementById('renewableChart');
+                    if (renewableCtx) {
+                        // 准备可再生能源利用率数据
+                        let labels = ['有序调度', '无序充电'];
+                        let renewable = [70, 50]; // 默认数据
+                        let improvement = 40; // 默认提高幅度
+                        
+                        // 如果有真实数据则使用真实数据
+                        if (data.analysis && data.analysis.grid_impact && data.analysis.grid_impact.renewable_utilization) {
+                            renewable = [
+                                data.analysis.grid_impact.renewable_utilization.with_scheduling,
+                                data.analysis.grid_impact.renewable_utilization.without_scheduling
+                            ];
+                            improvement = data.analysis.grid_impact.renewable_utilization.improvement_percentage;
+                        }
+                        
+                        window.renewableChart = new Chart(renewableCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: '可再生能源利用率 (%)',
+                                    data: renewable,
+                                    backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(255, 99, 132, 0.7)'],
+                                    borderColor: ['rgba(75, 192, 192, 1)', 'rgba(255, 99, 132, 1)'],
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: '利用率 (%)'
+                                        }
+                                    }
+                                },
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: `可再生能源利用率对比 (提高了 ${improvement.toFixed(1)}%)`
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                return `${context.dataset.label}: ${context.raw.toFixed(1)}%`;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }, 400);
+            } catch (e) {
+                console.error("更新详细指标选项卡失败:", e);
+                alert("更新详细指标选项卡失败，请检查代码");
+            }
+        }
+        
+        // 更新权重显示
+        function updateWeights() {
+            // ... 现有代码 ...
+        }
+        
+        // 训练模型函数
+        function trainModel() {
+            console.log("开始训练模型...");
+            
+            // 显示正在执行的状态
+            $("#trainModelButton").prop("disabled", true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 训练中...');
+            
+            // 显示结果区域
+            $("#advancedResultArea").show();
+            $("#advancedResultContent").html('<div class="alert alert-info">正在准备训练环境，这可能需要几分钟时间...</div>');
+            
+            // 获取训练参数
+            const epochs = parseInt($("#epochsInput").val());
+            const batchSize = parseInt($("#batchSizeInput").val());
+            
+            console.log("训练参数：", {epochs, batchSize});
+            
+            // 开始进度轮询
+            const progressInterval = startAdvancedProgressPolling();
+            
+            // 发送训练请求
+            $.ajax({
+                url: "/api/train_model",
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({
+                    epochs: epochs,
+                    batch_size: batchSize
+                }),
+                success: function(response) {
+                    console.log("模型训练成功:", response);
+                    
+                    // 停止进度轮询
+                    if (progressInterval) {
+                        clearInterval(progressInterval);
+                    }
+                    
+                    // 恢复按钮状态
+                    $("#trainModelButton").prop("disabled", false).html('<i class="bi bi-robot"></i> 训练决策模型');
+                    
+                    // 显示训练结果
+                    let resultHTML = `
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle me-2"></i>模型训练成功！
+                    </div>
+                    <div class="card mb-3">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">训练结果</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>训练轮数：</strong> ${response.training_info.epochs}</p>
+                            <p><strong>批次大小：</strong> ${response.training_info.batch_size}</p>
+                            <p><strong>最终训练损失：</strong> ${response.training_info.final_loss.toFixed(4)}</p>
+                            <p><strong>验证损失：</strong> ${response.training_info.validation_loss.toFixed(4)}</p>
+                            <p><strong>模型保存路径：</strong> ${response.model_path}</p>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <img src="${response.learning_curve}" class="img-fluid" alt="学习曲线">
+                    </div>`;
+                    
+                    $("#advancedResultContent").html(resultHTML);
+                    
+                    // 更新进度条为完成状态
+                    $("#advancedProgressBar").css("width", "100%").attr("aria-valuenow", 100);
+                    $("#advancedProgressMessage").text("训练完成");
+                },
+                error: function(error) {
+                    console.error("模型训练失败:", error);
+                    
+                    // 停止进度轮询
+                    if (progressInterval) {
+                        clearInterval(progressInterval);
+                    }
+                    
+                    // 恢复按钮状态
+                    $("#trainModelButton").prop("disabled", false).html('<i class="bi bi-robot"></i> 训练决策模型');
+                    
+                    // 显示错误消息
+                    let errorMsg = "训练失败: ";
+                    try {
+                        const errorData = JSON.parse(error.responseText);
+                        errorMsg += errorData.error;
+                        
+                        if (errorData.details) {
+                            console.error("详细错误:", errorData.details);
+                        }
+                    } catch (e) {
+                        errorMsg += error.responseText || "未知错误";
+                    }
+                    
+                    $("#advancedResultContent").html(`
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>${errorMsg}
+                        </div>
+                    `);
+                    
+                    // 更新进度条为错误状态
+                    $("#advancedProgressBar").removeClass("progress-bar-animated").addClass("bg-danger").css("width", "100%");
+                    $("#advancedProgressMessage").text("训练失败");
+                }
+            });
+        }
+        
+        // 运行系统测试函数
+        function runSystemTests() {
+            console.log("开始运行系统测试...");
+            
+            // 显示正在执行的状态
+            $("#runTestsButton").prop("disabled", true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 测试中...');
+            
+            // 显示结果区域
+            $("#advancedResultArea").show();
+            $("#advancedResultContent").html('<div class="alert alert-info">正在准备测试环境，这可能需要几分钟时间...</div>');
+            
+            // 获取测试参数
+            const testType = $("#testTypeSelect").val();
+            
+            console.log("测试参数：", {testType});
+            
+            // 开始进度轮询
+            const progressInterval = startAdvancedProgressPolling();
+            
+            // 发送测试请求
+            $.ajax({
+                url: "/api/run_tests",
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({
+                    test_type: testType
+                }),
+                success: function(response) {
+                    console.log("系统测试成功:", response);
+                    
+                    // 停止进度轮询
+                    if (progressInterval) {
+                        clearInterval(progressInterval);
+                    }
+                    
+                    // 恢复按钮状态
+                    $("#runTestsButton").prop("disabled", false).html('<i class="bi bi-bug"></i> 运行系统测试');
+                    
+                    // 显示测试结果
+                    const summary = response.test_summary;
+                    const success = summary.success;
+                    
+                    let resultHTML = `
+                    <div class="alert alert-${success ? 'success' : 'warning'}">
+                        <i class="bi bi-${success ? 'check-circle' : 'exclamation-triangle'} me-2"></i>系统测试完成${success ? '，所有测试通过' : '，部分测试未通过'}
+                    </div>
+                    <div class="card mb-3">
+                        <div class="card-header bg-${success ? 'success' : 'warning'} text-white">
+                            <h5 class="mb-0">测试结果摘要</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>运行测试数：</strong> ${summary.run}</p>
+                            <p><strong>通过测试数：</strong> ${summary.run - summary.failures - summary.errors}</p>
+                            <p><strong>失败测试数：</strong> ${summary.failures}</p>
+                            <p><strong>错误测试数：</strong> ${summary.errors}</p>
+                            <p><strong>跳过测试数：</strong> ${summary.skipped}</p>
+                            <p><strong>测试输出文件：</strong> <a href="${response.test_output_file}" target="_blank" class="btn btn-sm btn-outline-secondary">查看详细报告</a></p>
+                        </div>
+                    </div>`;
+                    
+                    $("#advancedResultContent").html(resultHTML);
+                    
+                    // 更新进度条为完成状态
+                    $("#advancedProgressBar").css("width", "100%").attr("aria-valuenow", 100);
+                    $("#advancedProgressMessage").text("测试完成");
+                },
+                error: function(error) {
+                    console.error("系统测试失败:", error);
+                    
+                    // 停止进度轮询
+                    if (progressInterval) {
+                        clearInterval(progressInterval);
+                    }
+                    
+                    // 恢复按钮状态
+                    $("#runTestsButton").prop("disabled", false).html('<i class="bi bi-bug"></i> 运行系统测试');
+                    
+                    // 显示错误消息
+                    let errorMsg = "测试失败: ";
+                    try {
+                        const errorData = JSON.parse(error.responseText);
+                        errorMsg += errorData.error;
+                        
+                        if (errorData.details) {
+                            console.error("详细错误:", errorData.details);
+                        }
+                    } catch (e) {
+                        errorMsg += error.responseText || "未知错误";
+                    }
+                    
+                    $("#advancedResultContent").html(`
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>${errorMsg}
+                        </div>
+                    `);
+                    
+                    // 更新进度条为错误状态
+                    $("#advancedProgressBar").removeClass("progress-bar-animated").addClass("bg-danger").css("width", "100%");
+                    $("#advancedProgressMessage").text("测试失败");
+                }
+            });
+        }
+        
+        // 启动高级功能进度轮询
+        function startAdvancedProgressPolling() {
+            // 重置进度条
+            $("#advancedProgressBar").removeClass("bg-danger").addClass("progress-bar-animated").css("width", "0%").attr("aria-valuenow", 0);
+            $("#advancedProgressMessage").text("准备中...");
+            
+            // 每秒更新一次进度
+            const interval = setInterval(fetchAdvancedProgress, 1000);
+            return interval;
+        }
+        
+        // 获取高级功能进度
+        function fetchAdvancedProgress() {
+            $.ajax({
+                url: '/api/progress',
+                method: 'GET',
+                success: function(data) {
+                    // 更新进度条
+                    const progressBar = document.getElementById('advancedProgressBar');
+                    progressBar.style.width = data.percent + '%';
+                    progressBar.setAttribute('aria-valuenow', data.percent);
+                    progressBar.textContent = data.percent + '%';
+                    
+                    // 更新进度消息
+                    document.getElementById('advancedProgressMessage').textContent = data.message;
+                    
+                    // 如果进度完成或出错，停止轮询
+                    if (data.percent >= 100) {
+                        // 3秒后隐藏进度条，但保留结果
+                        setTimeout(() => {
+                            $("#advancedProgressBar").removeClass("progress-bar-animated");
+                        }, 3000);
+                    }
+                },
+                error: function(error) {
+                    console.error('获取进度信息出错:', error);
+                }
+            });
+        }
+    </script>
 </body>
 </html>

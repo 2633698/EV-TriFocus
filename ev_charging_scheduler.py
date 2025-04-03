@@ -19,19 +19,19 @@ class ChargingEnvironment:
     """充电环境模拟类，包含电网状态、充电桩、用户行为等"""
     
     def __init__(self, config):
-
+        """初始化充电环境"""
         self.config = config
-        self.grid_status = {}
+        self.grid_id = config.get("grid_id", "DEFAULT001")
+        self.time = datetime.now().replace(minute=0, second=0, microsecond=0)  # 整点开始
         self.chargers = {}
-        self.users = {} 
-        self.time = datetime.now()
-        self.grid_id = config.get("grid_id", "0001")  # 地理网格编码
+        self.users = {}
+        self.grid_status = {}
         
-        # 初始化电网状态
+        # 重置电网状态
         self.reset_grid()
         
         # 初始化充电桩
-        self.init_chargers(config.get("charger_count", 10))
+        self.init_chargers(config.get("charger_count", 20))
         
         # 初始化用户
         self.init_users(config.get("user_count", 20))
@@ -39,43 +39,71 @@ class ChargingEnvironment:
     def reset_grid(self):
         """重置电网状态"""
         # 初始化电网负载曲线 (24小时)
-        base_load = np.array([
+        # 尝试从配置中获取，若不存在则使用默认值
+        base_load = np.array(self.config.get("grid", {}).get("base_load", [
             40, 35, 30, 28, 27, 30,  # 0-6点 (凌晨低谷)
             45, 60, 75, 80, 82, 84,  # 6-12点 (早高峰)
             80, 75, 70, 65, 70, 75,  # 12-18点 (工作时段)
             85, 90, 80, 70, 60, 50   # 18-24点 (晚高峰到夜间)
-        ])
+        ]))
         
         # 添加一些随机波动
         noise = np.random.normal(0, 3, 24)
         load_curve = np.clip(base_load + noise, 25, 95)
         
         current_hour = self.time.hour
+        
+        # 从配置中获取其他电网参数
+        grid_config = self.config.get("grid", {})
+        peak_hours = grid_config.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21])
+        valley_hours = grid_config.get("valley_hours", [0, 1, 2, 3, 4, 5])
+        normal_price = grid_config.get("normal_price", 0.85)
+        peak_price = grid_config.get("peak_price", 1.2)
+        valley_price = grid_config.get("valley_price", 0.4)
+        renewable_ratio_range = grid_config.get("renewable_ratio_range", [30, 60])
+        
         self.grid_status = {
             "current_load": load_curve[current_hour],
             "pred_1h_load": load_curve[(current_hour + 1) % 24],
             "pred_load_curve": load_curve.tolist(),
-            "renewable_ratio": np.random.uniform(30, 60),  # 新能源占比
-            "peak_hours": [7, 8, 9, 10, 18, 19, 20, 21],   # 高峰时段
-            "valley_hours": [0, 1, 2, 3, 4, 5],           # 低谷时段
-            "normal_price": 0.85,                          # 基础电价(元/度)
-            "peak_price": 1.2,                             # 高峰电价(元/度)
-            "valley_price": 0.4                            # 低谷电价(元/度)
+            "renewable_ratio": np.random.uniform(renewable_ratio_range[0], renewable_ratio_range[1]),
+            "peak_hours": peak_hours,
+            "valley_hours": valley_hours,
+            "normal_price": normal_price,
+            "peak_price": peak_price,
+            "valley_price": valley_price
         }
     
     def init_chargers(self, count):
         """初始化充电桩"""
-        charger_types = ["fast", "slow"]  # 快充/慢充
+        # 获取充电桩配置
+        charger_config = self.config.get("chargers", {})
+        charger_types_config = charger_config.get("types", {
+            "fast": {"probability": 0.7, "max_power": 120},
+            "slow": {"probability": 0.3, "max_power": 60}
+        })
+        
+        # 计算充电桩类型的概率分布
+        charger_types = list(charger_types_config.keys())
+        type_probs = [charger_types_config[t].get("probability", 0.5) for t in charger_types]
+        # 归一化概率
+        type_probs = np.array(type_probs) / sum(type_probs)
+        
+        # 获取其他参数
+        health_score_range = charger_config.get("health_score_range", [60, 99])
+        solar_probability = charger_config.get("solar_probability", 0.3)
+        storage_probability = charger_config.get("storage_probability", 0.2)
+        
         locations = ["商业区", "住宅区", "工业园", "交通枢纽", "办公区"]
         
         for i in range(count):
             charger_id = f"CQ_{1000+i}"
-            charger_type = np.random.choice(charger_types, p=[0.7, 0.3])  # 70%为快充
-            max_power = 120 if charger_type == "fast" else 60  # 快充120kW，慢充60kW
+            charger_type = np.random.choice(charger_types, p=type_probs)
+            max_power = charger_types_config[charger_type].get("max_power", 60)
             
-            # 健康状态评分 (0-100)
+            # 健康状态评分 (范围从配置获取)
             health_score = np.random.normal(85, 10)
-            health_score = np.clip(health_score, 60, 99)
+            health_score = np.clip(health_score, health_score_range[0], health_score_range[1])
             
             # 基础故障率
             failure_rate = (100 - health_score) / 500  # 健康分数越低，故障率越高
@@ -93,21 +121,27 @@ class ChargingEnvironment:
                     "lng": np.random.uniform(104.0, 104.2)
                 },
                 "failure_rate": failure_rate,
-                "has_solar": np.random.random() < 0.3,  # 30%的充电桩接入光伏
-                "has_storage": np.random.random() < 0.2,  # 20%的充电桩接入储能
+                "has_solar": np.random.random() < solar_probability,
+                "has_storage": np.random.random() < storage_probability,
                 "utilization_rate": np.random.uniform(0.5, 0.9),  # 历史利用率
                 "avg_waiting_time": np.random.randint(5, 30)  # 平均等待时间(分钟)
             }
     
     def init_users(self, count):
         """初始化用户"""
-        user_types = ["出租车", "私家车", "网约车", "物流车"]
-        preference_profiles = {
+        # 获取用户配置
+        user_config = self.config.get("users", {})
+        user_types = user_config.get("types", ["出租车", "私家车", "网约车", "物流车"])
+        preference_profiles = user_config.get("profiles", {
             "紧急补电型": {"time_sensitivity": 0.9, "price_sensitivity": 0.2, "range_anxiety": 0.8},
             "经济优先型": {"time_sensitivity": 0.3, "price_sensitivity": 0.9, "range_anxiety": 0.4},
             "平衡考量型": {"time_sensitivity": 0.5, "price_sensitivity": 0.5, "range_anxiety": 0.5},
             "计划充电型": {"time_sensitivity": 0.4, "price_sensitivity": 0.7, "range_anxiety": 0.3}
-        }
+        })
+        
+        # 获取SOC范围和最大续航里程范围
+        soc_range = user_config.get("soc_range", [10, 90])
+        max_range = user_config.get("max_range", [300, 500])
         
         for i in range(count):
             user_id = f"EV2024_{3000+i}"
@@ -115,7 +149,7 @@ class ChargingEnvironment:
             profile_type = np.random.choice(list(preference_profiles.keys()))
             profile = preference_profiles[profile_type]
             
-            soc = np.random.randint(10, 90)  # 当前电量百分比
+            soc = np.random.randint(soc_range[0], soc_range[1])  # 当前电量百分比
             
             # 为不同类型用户设置不同的参数
             if user_type == "出租车":
@@ -138,7 +172,7 @@ class ChargingEnvironment:
                 "time_sensitivity": profile["time_sensitivity"],
                 "price_sensitivity": profile["price_sensitivity"],
                 "range_anxiety": profile["range_anxiety"],
-                "max_range": np.random.randint(300, 500),  # 车辆最大续航里程
+                "max_range": np.random.randint(max_range[0], max_range[1]),
                 "current_position": {
                     "lat": np.random.uniform(30.5, 30.7),
                     "lng": np.random.uniform(104.0, 104.2)
@@ -223,7 +257,7 @@ class ChargingEnvironment:
         # 模拟用户能量消耗
         for user_id, user in self.users.items():
             # 假设用户消耗电量与行驶距离成正比，我们可以通过历史数据或者随机数来模拟消耗
-            energy_consumed = np.random.uniform(1, 3)  # 用户每 15 分钟消耗电量范围 3%-7%
+            energy_consumed = np.random.uniform(3, 7)  # 用户每 15 分钟消耗电量范围 1%-3%
             user["soc"] = max(0, user["soc"] - energy_consumed)  # 确保电量不为负
 
         # 根据调度动作更新充电桩队列
@@ -356,11 +390,25 @@ class ChargingEnvironment:
             operator_profit = min(1.0, operator_profit / (len(actions) * 10))
             grid_friendliness = max(-1.0, min(1.0, grid_friendliness / len(actions)))
         
+        # 从配置中获取奖励权重
+        weights = self.config.get("scheduler", {}).get("optimization_weights", {
+            "user_satisfaction": 0.4, 
+            "operator_profit": 0.3, 
+            "grid_friendliness": 0.3
+        })
+        
+        # 计算总奖励
+        total_reward = (
+            weights.get("user_satisfaction", 0.4) * user_satisfaction + 
+            weights.get("operator_profit", 0.3) * operator_profit + 
+            weights.get("grid_friendliness", 0.3) * (1 + grid_friendliness) / 2
+        )
+        
         return {
             "user_satisfaction": user_satisfaction,
             "operator_profit": operator_profit,
             "grid_friendliness": grid_friendliness,
-            "total_reward": 0.4 * user_satisfaction + 0.3 * operator_profit + 0.3 * (1 + grid_friendliness) / 2
+            "total_reward": total_reward
         }
 
 
@@ -403,10 +451,11 @@ class ChargingScheduler:
         # 电网特征: 当前负载 + 预测负载 + 新能源占比 + 电价 + 是否高峰/低谷
         # 交互特征: 距离 + 等待时间预估
         # 总维度: 6 + 6 + 5 + 2 = 19
-        input_dim = 19
+        input_dim = config.get("model", {}).get("input_dim", 19)
+        hidden_dim = config.get("model", {}).get("hidden_dim", 64)
         
         # 初始化用户行为模型
-        self.user_model = UserModel(input_dim)
+        self.user_model = UserModel(input_dim, hidden_dim)
         self.optimizer = optim.Adam(self.user_model.parameters(), lr=0.001)
         
         # 历史数据存储
@@ -847,8 +896,8 @@ class ChargingScheduler:
                     decisions[user["user_id"]] = best_charger
         
         return decisions
-
-    def run_simulation(self, num_steps=96):  # 默认模拟24小时 (15分钟/步)
+    
+    def run_simulation(self, num_steps=96, progress_callback=None):  # 默认模拟24小时 (15分钟/步)
         """
         运行充电调度模拟
         返回:
@@ -870,6 +919,10 @@ class ChargingScheduler:
 
             for key in metrics:
                 metrics[key].append(rewards[key])
+            
+            # 如果提供了进度回调，则调用
+            if progress_callback:
+                progress_callback(step + 1, num_steps)
             
             if done:
                 break
@@ -941,7 +994,7 @@ class ChargingScheduler:
         plt.tight_layout()
         plt.savefig("charging_scheduler_results.png")
         plt.close()
-
+        
 
 class ChargingVisualizationDashboard:
     """

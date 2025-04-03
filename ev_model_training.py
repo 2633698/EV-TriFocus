@@ -588,6 +588,7 @@ def train_policy_gradient_agent(env, agent, num_episodes=1000, gamma=0.99):
             avg_reward = np.mean(episode_rewards[-50:])
             print(f"Episode {episode+1}, Avg Reward: {avg_reward:.2f}")
     
+    
     return episode_rewards
 
 
@@ -649,6 +650,8 @@ def main():
     # 保存模型
     torch.save(model.state_dict(), "ev_charging_model.pth")
     print("模型已保存为 'ev_charging_model.pth'")
+    
+    
     
     return model, history, metrics
 
