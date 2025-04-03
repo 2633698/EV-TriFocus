@@ -232,11 +232,11 @@ class DataGenerator:
             charger = np.random.choice(self.chargers)
             
             # 随机生成状态特征
-            soc = np.random.randint(10, 90)  # 当前电量百分比
-            hour = np.random.randint(0, 24)  # 当前小时
-            grid_load = np.random.uniform(0.3, 0.9)  # 电网负载率
-            queue_length = np.random.randint(0, 5)  # 排队长度
-            distance = np.random.uniform(0.5, 15)  # 距离(km)
+            soc = np.random.randint(10, 90)
+            hour = np.random.randint(0, 24)
+            grid_load = np.random.uniform(0.3, 0.9)
+            queue_length = np.random.randint(0, 5)
+            distance = np.random.uniform(0.5, 15) 
             
             # 确定当前是否高峰/低谷时段
             is_peak = 1.0 if hour in [7, 8, 9, 10, 18, 19, 20, 21] else 0.0
@@ -244,11 +244,11 @@ class DataGenerator:
             
             # 确定当前电价
             if is_peak:
-                current_price = 1.2  # 高峰电价
+                current_price = 1.2
             elif is_valley:
-                current_price = 0.4  # 低谷电价
+                current_price = 0.4
             else:
-                current_price = 0.85  # 平段电价
+                current_price = 0.85
             
             # 计算等待时间 (分钟)
             avg_wait_time = np.random.randint(5, 15)
@@ -258,30 +258,30 @@ class DataGenerator:
             features = [
                 # 用户特征
                 soc / 100,  # 电池电量百分比 (归一化到0-1)
-                user["time_sensitivity"],  # 时间敏感度
-                user["price_sensitivity"],  # 价格敏感度
-                user["range_anxiety"],  # 里程焦虑度
-                1.0 if user["type"] == "出租车" else 0.0,  # 是否为出租车
-                1.0 if user["type"] == "物流车" else 0.0,  # 是否为物流车
+                user["time_sensitivity"],
+                user["price_sensitivity"],
+                user["range_anxiety"],
+                1.0 if user["type"] == "出租车" else 0.0,
+                1.0 if user["type"] == "物流车" else 0.0,
                 
                 # 充电桩特征
-                charger["health_score"] / 100,  # 健康分数
-                charger["max_power"] / 120,  # 最大功率 (归一化)
-                1.0 if charger["type"] == "fast" else 0.0,  # 是否为快充
-                1.0 if charger["has_solar"] else 0.0,  # 是否有光伏
-                1.0 if charger["has_storage"] else 0.0,  # 是否有储能
+                charger["health_score"] / 100,
+                charger["max_power"] / 120,
+                1.0 if charger["type"] == "fast" else 0.0,
+                1.0 if charger["has_solar"] else 0.0,
+                1.0 if charger["has_storage"] else 0.0,
                 
                 # 环境特征
-                hour / 24,  # 一天中的小时 (归一化)
-                grid_load,  # 电网负载
-                is_peak,  # 是否高峰时段
-                is_valley,  # 是否低谷时段
-                current_price / 1.2,  # 当前电价 (归一化到峰值电价)
+                hour / 24,
+                grid_load,
+                is_peak,
+                is_valley,
+                current_price / 1.2,
                 
                 # 交互特征
-                queue_length / 10,  # 队列长度 (归一化)
-                min(wait_time, 60) / 60,  # 等待时间 (归一化到1小时)
-                min(distance, 20) / 20,  # 距离 (归一化到20km)
+                queue_length / 10,
+                min(wait_time, 60) / 60,
+                min(distance, 20) / 20,
             ]
             
             X.append(features)
@@ -349,8 +349,7 @@ def train_model(X_train, y_train_satisfaction, y_train_profit, y_train_grid,
         'profit_loss': [],
         'grid_loss': []
     }
-    
-    # 转换为PyTorch张量
+
     X_train = torch.FloatTensor(X_train)
     y_train_satisfaction = torch.FloatTensor(y_train_satisfaction).view(-1, 1)
     y_train_profit = torch.FloatTensor(y_train_profit).view(-1, 1)
@@ -428,14 +427,14 @@ def train_model(X_train, y_train_satisfaction, y_train_profit, y_train_grid,
             
             val_loss = 0.4 * val_loss_satisfaction + 0.3 * val_loss_profit + 0.3 * val_loss_grid
         
-        # 记录训练历史
+        # 记录验证损失
         history['train_loss'].append(epoch_loss)
         history['val_loss'].append(val_loss.item())
         history['satisfaction_loss'].append(epoch_satisfaction_loss)
         history['profit_loss'].append(epoch_profit_loss)
         history['grid_loss'].append(epoch_grid_loss)
-        
-        # 打印训练进度
+
+        # 打印训练和验证损失
         if (epoch + 1) % 5 == 0:
             print(f"Epoch {epoch+1}/{epochs}, Train Loss: {epoch_loss:.4f}, Val Loss: {val_loss.item():.4f}")
             print(f"  Satisfaction Loss: {epoch_satisfaction_loss:.4f}, Profit Loss: {epoch_profit_loss:.4f}, Grid Loss: {epoch_grid_loss:.4f}")

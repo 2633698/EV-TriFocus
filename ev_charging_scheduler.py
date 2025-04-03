@@ -21,10 +21,10 @@ class ChargingEnvironment:
     def __init__(self, config):
 
         self.config = config
-        self.grid_status = {}  # 电网状态
-        self.chargers = {}     # 充电桩信息
-        self.users = {}        # 用户信息
-        self.time = datetime.now()  # 当前时间
+        self.grid_status = {}
+        self.chargers = {}
+        self.users = {} 
+        self.time = datetime.now()
         self.grid_id = config.get("grid_id", "0001")  # 地理网格编码
         
         # 初始化电网状态
@@ -223,7 +223,7 @@ class ChargingEnvironment:
         # 模拟用户能量消耗
         for user_id, user in self.users.items():
             # 假设用户消耗电量与行驶距离成正比，我们可以通过历史数据或者随机数来模拟消耗
-            energy_consumed = np.random.uniform(3, 7)  # 用户每 15 分钟消耗电量范围 3%-7%
+            energy_consumed = np.random.uniform(1, 3)  # 用户每 15 分钟消耗电量范围 3%-7%
             user["soc"] = max(0, user["soc"] - energy_consumed)  # 确保电量不为负
 
         # 根据调度动作更新充电桩队列
@@ -322,7 +322,6 @@ class ChargingEnvironment:
                 # 设备折旧成本
                 depreciation_cost = charge_amount * 0.05  # 假设每kWh折旧0.05元
                 
-                # 运营商利润
                 charger_profit = charging_fee - grid_cost - depreciation_cost
                 operator_profit += charger_profit
                 
@@ -371,7 +370,6 @@ class UserModel(nn.Module):
     def __init__(self, input_dim, hidden_dim=64):
         """
         初始化用户行为模型
-        
         参数:
             input_dim: 输入特征维度
             hidden_dim: 隐藏层维度
@@ -395,9 +393,6 @@ class ChargingScheduler:
     def __init__(self, config):
         """
         初始化充电调度策略
-        
-        参数:
-            config: 配置参数字典
         """
         self.config = config
         self.env = ChargingEnvironment(config)
@@ -458,8 +453,7 @@ class ChargingScheduler:
         
         # 简化的距离计算 (球面坐标系下的欧氏距离近似)
         distance = np.sqrt((user_lat - charger_lat)**2 + (user_lng - charger_lng)**2) * 111  # 1经纬度约111km
-        
-        # 估计等待时间 (分钟)
+
         wait_time = charger["queue_length"] * charger["avg_waiting_time"]
         
         # 当前是否为高峰或低谷时段
@@ -473,24 +467,24 @@ class ChargingScheduler:
             user["soc"] / 100,  # 电池电量百分比 (归一化到0-1)
             user["max_wait_time"] / 60,  # 最大等待时间 (归一化到小时)
             user["preferred_power"] / 120,  # 首选功率 (归一化到最大功率)
-            user.get("time_sensitivity", 0.5),  # 时间敏感度
-            user.get("price_sensitivity", 0.5),  # 价格敏感度
-            user.get("range_anxiety", 0.5),  # 里程焦虑度
+            user.get("time_sensitivity", 0.5),
+            user.get("price_sensitivity", 0.5),
+            user.get("range_anxiety", 0.5),
             
             # 充电桩特征
-            charger["health_score"] / 100,  # 健康分数
-            charger["available_power"] / 120,  # 可用功率
+            charger["health_score"] / 100,
+            charger["available_power"] / 120,
             charger["queue_length"] / 10,  # 队列长度 (归一化到最大队列10)
-            charger["avg_waiting_time"] / 30,  # 平均等待时间
-            1.0 if charger["charger_type"] == "fast" else 0.0,  # 是否为快充
-            1.0 if charger.get("has_solar", False) else 0.0,  # 是否有光伏
+            charger["avg_waiting_time"] / 30,
+            1.0 if charger["charger_type"] == "fast" else 0.0,
+            1.0 if charger.get("has_solar", False) else 0.0,
             
             # 电网特征
-            grid_status["current_load"] / 100,  # 当前负载
-            grid_status["pred_1h_load"] / 100,  # 预测负载
-            grid_status["renewable_ratio"] / 100,  # 新能源占比
+            grid_status["current_load"] / 100,
+            grid_status["pred_1h_load"] / 100,
+            grid_status["renewable_ratio"] / 100,
             grid_status["current_price"] / 1.2,  # 当前电价 (归一化到峰值电价)
-            is_peak,  # 是否高峰时段
+            is_peak,
             
             # 交互特征
             min(distance, 20) / 20,  # 距离 (归一化到20km)
@@ -576,11 +570,11 @@ class ChargingScheduler:
             weights = {"user": 0.3, "profit": 0.3, "grid": 0.4}
         
         for charger in chargers:
-            # 提取特征
+
             features = self.preprocess_features(user, charger, grid_status, current_time)
             
             if self.is_trained:
-                # 使用训练好的模型预测用户偏好
+
                 with torch.no_grad():
                     features = features.unsqueeze(0)
                     # 解包返回的元组，只取第一个值（用户满意度）
@@ -595,17 +589,13 @@ class ChargingScheduler:
                 charger_lat, charger_lng = charger["position"]["lat"], charger["position"]["lng"]
                 distance = np.sqrt((user_lat - charger_lat)**2 + (user_lng - charger_lng)**2) * 111
                 
-                # 等待时间估计
                 wait_time = charger["queue_length"] * charger["avg_waiting_time"]
-                
-                # 功率匹配度
+
                 power_match = min(charger["available_power"], user["preferred_power"]) / user["preferred_power"]
                 
-                # 综合评分计算 (启发式规则)
                 time_factor = 1 - min(wait_time / user["max_wait_time"], 1) if user["max_wait_time"] > 0 else 0
                 distance_factor = 1 - min(distance / 20, 1)  # 最远考虑20km
-                
-                # 用户类型特定权重
+
                 user_type = user.get("type", "私家车")  # 如果没有type键，默认为"私家车"
                 if user_type == "出租车":
                     weights = {"time": 0.5, "distance": 0.3, "power": 0.2}
@@ -624,12 +614,12 @@ class ChargingScheduler:
             current_hour = current_time.hour
             
             # 确定当前电价
-            if current_hour in [7, 8, 9, 10, 18, 19, 20, 21]:  # 高峰时段
-                current_price = grid_status.get("peak_price", 1.2)  # 提供默认值
-            elif current_hour in [0, 1, 2, 3, 4, 5]:  # 低谷时段
-                current_price = grid_status.get("valley_price", 0.4)  # 提供默认值
+            if current_hour in [7, 8, 9, 10, 18, 19, 20, 21]:
+                current_price = grid_status.get("peak_price", 1.2)
+            elif current_hour in [0, 1, 2, 3, 4, 5]:
+                current_price = grid_status.get("valley_price", 0.4)
             else:
-                current_price = grid_status.get("normal_price", 0.85)  # 提供默认值
+                current_price = grid_status.get("normal_price", 0.85)
             
             # 简化的利润计算
             # 2. 运营商利润计算
@@ -652,9 +642,6 @@ class ChargingScheduler:
             grid_cost = charge_amount * current_price
 
             # 设备折旧成本 - 考虑不同桩类型的折旧差异
-            #if charger["type"] == "fast":
-            #    depreciation_rate = 0.06  # 快充桩折旧率更高
-            #else:
             depreciation_rate = 0.04  # 慢充桩折旧率低
 
             depreciation_cost = charge_amount * depreciation_rate
@@ -685,18 +672,17 @@ class ChargingScheduler:
             grid_score = 1 - grid_penalty + renewable_bonus
             grid_score = max(0, min(1, grid_score))  # 限制在0-1范围内
 
-            # 计算综合评分 (用户满意度、运营商利润和电网友好度三者平衡)
-            # 根据不同场景调整权重
+            # 计算综合评分
             if grid_load > 0.8:  # 电网高负载情况下，电网友好度权重提高
-                if current_hour in [7, 8, 9, 10, 18, 19, 20, 21]:  # 高峰期高负载
-                    weights = {"user": 0.25, "profit": 0.25, "grid": 0.5}  # 大幅增加电网友好度权重
+                if current_hour in [7, 8, 9, 10, 18, 19, 20, 21]:
+                    weights = {"user": 0.25, "profit": 0.25, "grid": 0.5}
                 else:
                     weights = {"user": 0.3, "profit": 0.3, "grid": 0.4}
-            elif current_hour in [0, 1, 2, 3, 4, 5]:  # 低谷时段主动鼓励充电
+            elif current_hour in [0, 1, 2, 3, 4, 5]:
                 weights = {"user": 0.35, "profit": 0.4, "grid": 0.25}  # 增加利润权重，鼓励运营商引导用户低谷充电
-            elif user["soc"] < 20:  # 用户电量低的情况，用户满意度权重提高
+            elif user["soc"] < 20:
                 weights = {"user": 0.5, "profit": 0.3, "grid": 0.2}
-            else:  # 默认平衡权重
+            else:
                 weights = {"user": 0.35, "profit": 0.35, "grid": 0.3}
             
             combined_score = (
@@ -724,13 +710,6 @@ class ChargingScheduler:
     def make_recommendation(self, user_id, state):
         """
         为指定用户生成充电桩推荐列表
-        
-        参数:
-            user_id: 用户ID
-            state: 当前环境状态
-        
-        返回:
-            recommendations: 排序后的充电桩推荐列表
         """
         # 从状态中获取用户信息
         user_info = None
@@ -741,8 +720,7 @@ class ChargingScheduler:
         
         if not user_info:
             return []
-        
-        # 将状态中的充电桩列表转换为字典格式
+
         chargers_dict = {charger["charger_id"]: charger for charger in state["chargers"]}
         
         # 预筛选可行充电桩
@@ -753,7 +731,7 @@ class ChargingScheduler:
         
         # 如果用户SOC低于10%，增加应急模式处理
         if user_info["soc"] < 10:
-            # 计算用户到每个充电桩的距离
+
             for charger in feasible_chargers:
                 user_lat, user_lng = user_info["position"]["lat"], user_info["position"]["lng"]
                 charger_lat, charger_lng = charger["position"]["lat"], charger["position"]["lng"]
@@ -779,12 +757,6 @@ class ChargingScheduler:
     def collect_experience(self, user_id, recommended_chargers, selected_charger_id, satisfaction_score):
         """
         收集用户选择行为数据，用于模型训练
-        
-        参数:
-            user_id: 用户ID
-            recommended_chargers: 推荐的充电桩列表
-            selected_charger_id: 用户最终选择的充电桩ID
-            satisfaction_score: 用户满意度评分
         """
         # 找到用户选择的充电桩在推荐列表中的排名
         selected_rank = None
@@ -858,10 +830,6 @@ class ChargingScheduler:
     def make_scheduling_decision(self, state):
         """
         为所有待充电用户做出调度决策
-        
-        参数:
-            state: 当前环境状态
-        
         返回:
             decisions: 调度决策，包含用户ID到充电桩ID的映射
         """
@@ -883,10 +851,6 @@ class ChargingScheduler:
     def run_simulation(self, num_steps=96):  # 默认模拟24小时 (15分钟/步)
         """
         运行充电调度模拟
-        
-        参数:
-            num_steps: 模拟步数
-        
         返回:
             metrics: 模拟结果指标
         """
@@ -898,36 +862,29 @@ class ChargingScheduler:
         }
         
         for step in range(num_steps):
-            # 获取当前状态
             state = self.env.get_current_state()
-            
-            # 做出调度决策
+
             decisions = self.make_scheduling_decision(state)
-            
-            # 执行决策并获取奖励
+
             rewards, next_state, done = self.env.step(decisions)
-            
-            # 记录指标
+
             for key in metrics:
                 metrics[key].append(rewards[key])
             
             if done:
                 break
-        
-        # 计算平均指标
+
         avg_metrics = {}
         for key in metrics:
             avg_metrics[key] = np.mean(metrics[key])
         
         return metrics, avg_metrics
     def update_load_forecast(self, current_load, hour):
-        """更新负载预测模型"""
-        # 初始化历史负载数据结构
+
         if not hasattr(self, 'historical_loads'):
             self.historical_loads = {hour: [] for hour in range(24)}
             self.load_forecast = np.zeros(24)
-        
-        # 添加当前负载到历史数据
+
         self.historical_loads[hour].append(current_load)
         
         # 保留最近7天的数据
@@ -942,9 +899,6 @@ class ChargingScheduler:
     def visualize_results(self, metrics):
         """
         可视化模拟结果
-        
-        参数:
-            metrics: 模拟结果指标
         """
         # 创建时间轴 (假设每步15分钟)
         time_steps = len(metrics["user_satisfaction"])
@@ -990,7 +944,10 @@ class ChargingScheduler:
 
 
 class ChargingVisualizationDashboard:
-    """充电调度可视化交互系统"""
+    """
+    充电调度可视化交互系统
+    暂时只是静态页面，不可用
+    """
     
     def __init__(self, scheduler):
         """
@@ -1579,24 +1536,18 @@ class ChargingVisualizationDashboard:
 
 
 def main():
-    """主函数：运行整个系统"""
-    # 配置参数
     config = {
         "grid_id": "0258",
         "charger_count": 15,
         "user_count": 30,
     }
-    
-    # 创建充电调度器
+
     scheduler = ChargingScheduler(config)
-    
-    # 运行模拟
+
     simulation_results = scheduler.run_simulation(num_steps=96)  # 模拟24小时
-    
-    # 可视化结果
+
     scheduler.visualize_results(simulation_results[0])
-    
-    # 创建评价报告
+
     dashboard = ChargingVisualizationDashboard(scheduler)
     evaluation_report = dashboard.create_evaluation_report(simulation_results)
     
