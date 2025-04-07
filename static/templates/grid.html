@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电网面板 - EV充电调度仿真系统</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Main Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-charging-station me-2"></i>EV充电调度仿真系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">上帝视角</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/user">用户面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/operator">运营商面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/grid">电网面板</a>
+                    </li>
+                </ul>
+                <div class="ms-auto d-flex align-items-center text-light">
+                    <div id="system-time" class="me-3">
+                        <i class="far fa-clock me-1"></i>
+                        <span id="current-system-time">2023-01-01 00:00</span>
+                    </div>
+                    <button class="btn btn-sm btn-outline-light me-2" data-bs-toggle="modal" data-bs-target="#gridHelpModal">
+                        <i class="fas fa-question-circle"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Global Status -->
+    <div class="container-fluid mt-5 pt-3">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h4>电网面板 <span class="badge bg-info">模拟视角</span></h4>
+                <p class="text-muted">从电网运营商角度体验充电调度系统</p>
+            </div>
+            <div class="col-md-6 text-end">
+                <button class="btn btn-success me-2" id="btn-start-simulation">
+                    <i class="fas fa-play"></i> 开始模拟
+                </button>
+                <button class="btn btn-warning me-2" id="btn-pause-simulation" disabled>
+                    <i class="fas fa-pause"></i> 暂停
+                </button>
+                <button class="btn btn-danger" id="btn-reset-simulation">
+                    <i class="fas fa-stop"></i> 重置
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container-fluid">
+        <!-- Grid Status Overview Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="text-muted">当前总负载</h6>
+                                <h3 id="current-load">65<span class="small">%</span></h3>
+                            </div>
+                            <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                                <i class="fas fa-bolt fa-2x text-info"></i>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span class="text-muted">实际负载: 72.5 MW</span>
+                            <span class="text-success">
+                                <i class="fas fa-check-circle"></i> 正常
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="text-muted">可再生能源占比</h6>
+                                <h3 id="renewable-ratio">42<span class="small">%</span></h3>
+                            </div>
+                            <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                                <i class="fas fa-leaf fa-2x text-success"></i>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span class="text-muted">目标: 50%</span>
+                            <span class="text-warning">
+                                <i class="fas fa-arrow-up"></i> 3.5%
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="text-muted">峰值负载率</h6>
+                                <h3 id="peak-load-ratio">73<span class="small">%</span></h3>
+                            </div>
+                            <div class="rounded-circle bg-danger bg-opacity-10 p-3">
+                                <i class="fas fa-chart-line fa-2x text-danger"></i>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span class="text-muted">昨日: 78%</span>
+                            <span class="text-success">
+                                <i class="fas fa-arrow-down"></i> 5%
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="text-muted">负载平衡指数</h6>
+                                <h3 id="load-balance-index">0.85</h3>
+                            </div>
+                            <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+                                <i class="fas fa-balance-scale fa-2x text-primary"></i>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span class="text-muted">目标: ≥0.9</span>
+                            <span class="text-success">
+                                <i class="fas fa-arrow-up"></i> 0.03
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Load Monitoring -->
+            <div class="col-md-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">负载监控</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-9">
+                                <canvas id="real-time-load-chart" height="300"></canvas>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="d-flex flex-column h-100">
+                                    <div class="mb-3 flex-grow-1">
+                                        <div class="p-3 rounded bg-light h-100">
+                                            <h6>当前状态</h6>
+                                            <div class="d-flex align-items-center mt-3">
+                                                <div class="rounded-circle bg-success me-2" style="width: 15px; height: 15px;"></div>
+                                                <span>系统正常</span>
+                                            </div>
+                                            <div class="my-2">
+                                                <span class="text-muted small">当前小时负载: 65%</span>
+                                            </div>
+                                            <div>
+                                                <span class="text-muted small">预测下一小时: 68%</span>
+                                            </div>
+                                            <hr>
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted small">基础负载:</span>
+                                                <span class="small">54%</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="text-muted small">EV充电负载:</span>
+                                                <span class="small">11%</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <span class="text-muted small">总负载:</span>
+                                                <span class="small">65%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <select class="form-select mb-2" id="load-time-range">
+                                            <option value="24h" selected>24小时视图</option>
+                                            <option value="7d">7天视图</option>
+                                            <option value="30d">30天视图</option>
+                                        </select>
+                                        <button class="btn btn-outline-primary btn-sm w-100">
+                                            <i class="fas fa-download me-1"></i>导出数据
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h6>负载构成分析</h6>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <canvas id="load-composition-chart" height="200"></canvas>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card bg-light h-100">
+                                        <div class="card-body">
+                                            <h6>区域负载分布</h6>
+                                            <div class="mt-3">
+                                                <div class="d-flex justify-content-between mb-2">
+                                                    <span>城东区</span>
+                                                    <span>72%</span>
+                                                </div>
+                                                <div class="progress mb-3" style="height: 6px;">
+                                                    <div class="progress-bar bg-warning" style="width: 72%;"></div>
+                                                </div>
+                                                
+                                                <div class="d-flex justify-content-between mb-2">
+                                                    <span>城西区</span>
+                                                    <span>58%</span>
+                                                </div>
+                                                <div class="progress mb-3" style="height: 6px;">
+                                                    <div class="progress-bar bg-info" style="width: 58%;"></div>
+                                                </div>
+                                                
+                                                <div class="d-flex justify-content-between mb-2">
+                                                    <span>城南区</span>
+                                                    <span>65%</span>
+                                                </div>
+                                                <div class="progress mb-3" style="height: 6px;">
+                                                    <div class="progress-bar bg-primary" style="width: 65%;"></div>
+                                                </div>
+                                                
+                                                <div class="d-flex justify-content-between mb-2">
+                                                    <span>城北区</span>
+                                                    <span>81%</span>
+                                                </div>
+                                                <div class="progress mb-3" style="height: 6px;">
+                                                    <div class="progress-bar bg-danger" style="width: 81%;"></div>
+                                                </div>
+                                                
+                                                <div class="d-flex justify-content-between mb-2">
+                                                    <span>工业园区</span>
+                                                    <span>68%</span>
+                                                </div>
+                                                <div class="progress" style="height: 6px;">
+                                                    <div class="progress-bar bg-success" style="width: 68%;"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Charging Load Management -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">充电负载管理</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card bg-light h-100">
+                                    <div class="card-body">
+                                        <h6>EV充电负载概览</h6>
+                                        <div class="text-center my-4">
+                                            <div class="position-relative d-inline-block">
+                                                <canvas id="ev-load-gauge" width="200" height="200"></canvas>
+                                                <div class="position-absolute top-50 start-50 translate-middle">
+                                                    <h3 id="ev-load-percentage">11%</h3>
+                                                    <div class="text-muted small">占总负载</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>当前EV充电负载:</span>
+                                            <span>12.2 MW</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>可调控负载容量:</span>
+                                            <span>9.7 MW</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>紧急削峰容量:</span>
+                                            <span>7.5 MW</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <h6>分时段充电负载</h6>
+                                <canvas id="hourly-ev-load-chart" height="240"></canvas>
+                                
+                                <div class="mt-3">
+                                    <h6>调控策略选择</h6>
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="load-strategy" id="strategy1" checked>
+                                                <label class="form-check-label" for="strategy1">
+                                                    平滑负载曲线
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="load-strategy" id="strategy2">
+                                                <label class="form-check-label" for="strategy2">
+                                                    削峰填谷
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="load-strategy" id="strategy3">
+                                                <label class="form-check-label" for="strategy3">
+                                                    可再生能源优先
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="load-strategy" id="strategy4">
+                                                <label class="form-check-label" for="strategy4">
+                                                    成本最小化
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <button class="btn btn-primary btn-sm">应用策略</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Renewable Energy & Scheduling Effect -->
+            <div class="col-md-4">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">可再生能源管理</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="renewable-energy-chart" height="250"></canvas>
+                        
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>当前太阳能发电:</span>
+                                <span>18.5 MW (25%)</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>当前风能发电:</span>
+                                <span>12.4 MW (17%)</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>充电站可再生能源覆盖率:</span>
+                                <span>36%</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>绿色充电占比:</span>
+                                <span>42%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-success mt-3">
+                            <h6><i class="fas fa-lightbulb me-2"></i>优化建议</h6>
+                            <p class="mb-0 small">当前期间太阳能发电充足，建议增加12-16时充电调度权重，提高可再生能源利用率。</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">调度效果分析</h5>
+                    </div>
+                    <div class="card-body">
+                        <h6>有序调度 vs 无序充电</h6>
+                        <canvas id="scheduling-effect-chart" height="250"></canvas>
+                        
+                        <div class="mt-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="mb-3">关键指标改善</h6>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>峰值负载削减:</span>
+                                        <span class="text-success">12.5%</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>负载方差减少:</span>
+                                        <span class="text-success">18.7%</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>可再生能源利用提升:</span>
+                                        <span class="text-success">15.3%</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>电网稳定性提升:</span>
+                                        <span class="text-success">8.2%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <h6>经济效益分析</h6>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>峰谷电价差收益:</span>
+                                <span>¥5,280/日</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>网损减少收益:</span>
+                                <span>¥3,150/日</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>基础设施投资延迟效益:</span>
+                                <span>¥12,500/日</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">碳排放影响</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <h6>碳排放减少量</h6>
+                        <div class="display-4 my-3">3.8</div>
+                        <p class="lead">吨 CO<sub>2</sub>/日</p>
+                        <div class="progress mt-3" style="height: 8px;">
+                            <div class="progress-bar bg-success" style="width: 75%;"></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-1">
+                            <small>目标: 5.0吨/日</small>
+                            <small>完成: 76%</small>
+                        </div>
+                        
+                        <div class="alert alert-info mt-3 text-start">
+                            <div class="small">
+                                相当于:
+                                <ul class="mb-0">
+                                    <li>种植约190棵树的年吸碳量</li>
+                                    <li>减少约15,200公里的汽车行驶</li>
+                                    <li>约950户家庭一天的用电碳排放</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grid Help Modal -->
+    <div class="modal fade" id="gridHelpModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">电网面板使用帮助</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>欢迎使用电网面板</h6>
+                    <p>电网面板模拟了电网运营商监控和管理电网负载的体验，特别关注电动汽车充电对电网的影响，您可以：</p>
+                    
+                    <ul>
+                        <li>监控实时电网负载和负载构成</li>
+                        <li>管理电动汽车充电负载，应用不同的调控策略</li>
+                        <li>跟踪可再生能源发电和利用情况</li>
+                        <li>分析有序调度与无序充电的对比效果</li>
+                        <li>了解碳排放减少量及其环境意义</li>
+                    </ul>
+                    
+                    <h6>如何使用</h6>
+                    <ol>
+                        <li>点击"开始模拟"开始仿真</li>
+                        <li>通过"负载监控"面板观察电网实时负载情况</li>
+                        <li>在"充电负载管理"面板中选择不同的调控策略</li>
+                        <li>查看"可再生能源管理"面板了解绿色能源利用情况</li>
+                        <li>使用"调度效果分析"评估有序调度带来的收益</li>
+                    </ol>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">明白了</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script src="/static/js/grid.js"></script>
+</body>
+</html>

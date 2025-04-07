@@ -1,0 +1,2190 @@
+{
+    "timestamp": "2025-04-05T12:30:00",
+    "progress": 100.0,
+    "metrics": {
+        "user_satisfaction": 0.3195927214891583,
+        "operator_profit": 0.16138399999999975,
+        "grid_friendliness": -0.09999999999999998,
+        "total_reward": 0.14625228859566322
+    },
+    "grid_load": 80.0,
+    "chargers": [
+        {
+            "charger_id": "CHARGER_0001",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.71964722988369,
+                "lng": 114.24905974780788
+            },
+            "price_multiplier": 1.2,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": "2025-04-05 03:04:00",
+            "queue": [],
+            "daily_revenue": 23.04,
+            "daily_energy": 57.599999999999994,
+            "failure_prob": 0.005,
+            "region": "REGION_1"
+        },
+        {
+            "charger_id": "CHARGER_0002",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.728754701794024,
+                "lng": 114.26469006610131
+            },
+            "price_multiplier": 1.2,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": "2025-04-05 04:06:00",
+            "queue": [],
+            "daily_revenue": 58.559999999999995,
+            "daily_energy": 146.39999999999998,
+            "failure_prob": 0.005,
+            "region": "REGION_1"
+        },
+        {
+            "charger_id": "CHARGER_0003",
+            "type": "slow",
+            "max_power": 60,
+            "position": {
+                "lat": 30.759401744277316,
+                "lng": 114.20973451222385
+            },
+            "price_multiplier": 1.0,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": "2025-04-05 05:23:00",
+            "queue": [],
+            "daily_revenue": 37.92,
+            "daily_energy": 94.8,
+            "failure_prob": 0.005,
+            "region": "REGION_1"
+        },
+        {
+            "charger_id": "CHARGER_0004",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.71657301674206,
+                "lng": 114.21955810999091
+            },
+            "price_multiplier": 1.2,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": "2025-04-05 09:55:00",
+            "queue": [],
+            "daily_revenue": 131.03999999999996,
+            "daily_energy": 164.39999999999998,
+            "failure_prob": 0.005,
+            "region": "REGION_1"
+        },
+        {
+            "charger_id": "CHARGER_0005",
+            "type": "slow",
+            "max_power": 60,
+            "position": {
+                "lat": 30.792707214155786,
+                "lng": 114.28387071668408
+            },
+            "price_multiplier": 1.0,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": null,
+            "queue": [],
+            "daily_revenue": 0,
+            "daily_energy": 0,
+            "failure_prob": 0.005,
+            "region": "REGION_1"
+        },
+        {
+            "charger_id": "CHARGER_0006",
+            "type": "slow",
+            "max_power": 60,
+            "position": {
+                "lat": 30.76132058922138,
+                "lng": 114.25885103182473
+            },
+            "price_multiplier": 1.0,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": null,
+            "queue": [],
+            "daily_revenue": 0,
+            "daily_energy": 0,
+            "failure_prob": 0.005,
+            "region": "REGION_1"
+        },
+        {
+            "charger_id": "CHARGER_0007",
+            "type": "slow",
+            "max_power": 60,
+            "position": {
+                "lat": 30.77542942249125,
+                "lng": 114.25852434613958
+            },
+            "price_multiplier": 1.0,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": null,
+            "queue": [],
+            "daily_revenue": 0,
+            "daily_energy": 0,
+            "failure_prob": 0.005,
+            "region": "REGION_1"
+        },
+        {
+            "charger_id": "CHARGER_0008",
+            "type": "slow",
+            "max_power": 60,
+            "position": {
+                "lat": 30.72336691827679,
+                "lng": 114.27056417316176
+            },
+            "price_multiplier": 1.0,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": null,
+            "queue": [],
+            "daily_revenue": 0,
+            "daily_energy": 0,
+            "failure_prob": 0.005,
+            "region": "REGION_1"
+        },
+        {
+            "charger_id": "CHARGER_0009",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.716412210395017,
+                "lng": 114.2692415848902
+            },
+            "price_multiplier": 1.2,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": null,
+            "queue": [],
+            "daily_revenue": 0,
+            "daily_energy": 0,
+            "failure_prob": 0.005,
+            "region": "REGION_1"
+        },
+        {
+            "charger_id": "CHARGER_0010",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.721091071016602,
+                "lng": 114.28200835591554
+            },
+            "price_multiplier": 1.2,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": "2025-04-05 09:53:00",
+            "queue": [],
+            "daily_revenue": 121.44,
+            "daily_energy": 138.0,
+            "failure_prob": 0.005,
+            "region": "REGION_1"
+        },
+        {
+            "charger_id": "CHARGER_0011",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.626651515009087,
+                "lng": 114.17539838122781
+            },
+            "price_multiplier": 1.2,
+            "status": "occupied",
+            "current_user": "USER_0019",
+            "charging_end_time": "2025-04-05 13:36:00",
+            "queue": [],
+            "daily_revenue": 140.76,
+            "daily_energy": 162.0,
+            "failure_prob": 0.005,
+            "region": "REGION_2"
+        },
+        {
+            "charger_id": "CHARGER_0012",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.613434845180624,
+                "lng": 114.1780043349291
+            },
+            "price_multiplier": 1.2,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": null,
+            "queue": [],
+            "daily_revenue": 0,
+            "daily_energy": 0,
+            "failure_prob": 0.005,
+            "region": "REGION_2"
+        },
+        {
+            "charger_id": "CHARGER_0013",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.666470334869018,
+                "lng": 114.17180265578236
+            },
+            "price_multiplier": 1.2,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": null,
+            "queue": [],
+            "daily_revenue": 0,
+            "daily_energy": 0,
+            "failure_prob": 0.005,
+            "region": "REGION_2"
+        },
+        {
+            "charger_id": "CHARGER_0014",
+            "type": "slow",
+            "max_power": 60,
+            "position": {
+                "lat": 30.69580362898027,
+                "lng": 114.18935127360515
+            },
+            "price_multiplier": 1.0,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": null,
+            "queue": [],
+            "daily_revenue": 0,
+            "daily_energy": 0,
+            "failure_prob": 0.005,
+            "region": "REGION_2"
+        },
+        {
+            "charger_id": "CHARGER_0015",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.683193768430066,
+                "lng": 114.21772902856203
+            },
+            "price_multiplier": 1.2,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": "2025-04-05 02:21:00",
+            "queue": [],
+            "daily_revenue": 28.8,
+            "daily_energy": 72.0,
+            "failure_prob": 0.005,
+            "region": "REGION_2"
+        },
+        {
+            "charger_id": "CHARGER_0016",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.689435974823475,
+                "lng": 114.1578663052056
+            },
+            "price_multiplier": 1.2,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": "2025-04-05 05:09:00",
+            "queue": [],
+            "daily_revenue": 36.0,
+            "daily_energy": 90.0,
+            "failure_prob": 0.005,
+            "region": "REGION_2"
+        },
+        {
+            "charger_id": "CHARGER_0017",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.870810086429316,
+                "lng": 114.33783318995296
+            },
+            "price_multiplier": 1.2,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": "2025-04-05 08:32:00",
+            "queue": [],
+            "daily_revenue": 103.19999999999999,
+            "daily_energy": 133.2,
+            "failure_prob": 0.005,
+            "region": "REGION_3"
+        },
+        {
+            "charger_id": "CHARGER_0018",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.877338273229356,
+                "lng": 114.33122006443638
+            },
+            "price_multiplier": 1.2,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": null,
+            "queue": [],
+            "daily_revenue": 0,
+            "daily_energy": 0,
+            "failure_prob": 0.005,
+            "region": "REGION_3"
+        },
+        {
+            "charger_id": "CHARGER_0019",
+            "type": "fast",
+            "max_power": 120,
+            "position": {
+                "lat": 30.852055135274785,
+                "lng": 114.25374438395869
+            },
+            "price_multiplier": 1.2,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": "2025-04-05 10:40:00",
+            "queue": [],
+            "daily_revenue": 148.79999999999998,
+            "daily_energy": 230.4,
+            "failure_prob": 0.005,
+            "region": "REGION_3"
+        },
+        {
+            "charger_id": "CHARGER_0020",
+            "type": "slow",
+            "max_power": 60,
+            "position": {
+                "lat": 30.897104802898898,
+                "lng": 114.27388689016259
+            },
+            "price_multiplier": 1.0,
+            "status": "available",
+            "current_user": null,
+            "charging_end_time": null,
+            "queue": [],
+            "daily_revenue": 0,
+            "daily_energy": 0,
+            "failure_prob": 0.005,
+            "region": "REGION_3"
+        }
+    ],
+    "users": [
+        {
+            "user_id": "USER_0001",
+            "user_type": "logistics",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.51,
+            "price_sensitivity": 0.87,
+            "range_anxiety": 0.47,
+            "battery_capacity": 62,
+            "max_range": 310,
+            "soc": 80.21099203336543,
+            "current_range": 248.65407530343282,
+            "current_position": {
+                "lat": 30.752423,
+                "lng": 114.283559
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T01:15:00",
+                    "charger_id": "CHARGER_0002",
+                    "location": "Unknown",
+                    "energy_charged": 37.199999999999996,
+                    "cost": 14.879999999999999
+                },
+                {
+                    "timestamp": "2025-04-05T02:30:00",
+                    "charger_id": "CHARGER_0002",
+                    "location": "Unknown",
+                    "energy_charged": 37.199999999999996,
+                    "cost": 14.879999999999999
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0002",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.4,
+            "price_sensitivity": 0.37,
+            "range_anxiety": 0.54,
+            "battery_capacity": 41,
+            "max_range": 205,
+            "soc": 82.63424907294244,
+            "current_range": 169.400210599532,
+            "current_position": {
+                "lat": 30.613298,
+                "lng": 114.109886
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T01:15:00",
+                    "charger_id": "CHARGER_0011",
+                    "location": "Unknown",
+                    "energy_charged": 24.599999999999998,
+                    "cost": 9.84
+                },
+                {
+                    "timestamp": "2025-04-05T02:45:00",
+                    "charger_id": "CHARGER_0011",
+                    "location": "Unknown",
+                    "energy_charged": 24.599999999999998,
+                    "cost": 9.84
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0003",
+            "user_type": "taxi",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.42,
+            "price_sensitivity": 0.81,
+            "range_anxiety": 0.47,
+            "battery_capacity": 46,
+            "max_range": 230,
+            "soc": 84.65298565419275,
+            "current_range": 194.7018670046433,
+            "current_position": {
+                "lat": 30.627242,
+                "lng": 114.327872
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T01:45:00",
+                    "charger_id": "CHARGER_0010",
+                    "location": "Unknown",
+                    "energy_charged": 27.599999999999998,
+                    "cost": 11.04
+                },
+                {
+                    "timestamp": "2025-04-05T03:00:00",
+                    "charger_id": "CHARGER_0010",
+                    "location": "Unknown",
+                    "energy_charged": 27.599999999999998,
+                    "cost": 11.04
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0004",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.62,
+            "price_sensitivity": 0.51,
+            "range_anxiety": 0.63,
+            "battery_capacity": 60,
+            "max_range": 300,
+            "soc": 83.61225051854133,
+            "current_range": 250.836751555624,
+            "current_position": {
+                "lat": 30.657316,
+                "lng": 114.2384
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T01:00:00",
+                    "charger_id": "CHARGER_0015",
+                    "location": "Unknown",
+                    "energy_charged": 36.0,
+                    "cost": 14.4
+                },
+                {
+                    "timestamp": "2025-04-05T02:30:00",
+                    "charger_id": "CHARGER_0015",
+                    "location": "Unknown",
+                    "energy_charged": 36.0,
+                    "cost": 14.4
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0005",
+            "user_type": "logistics",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.57,
+            "price_sensitivity": 0.88,
+            "range_anxiety": 0.74,
+            "battery_capacity": 59,
+            "max_range": 295,
+            "soc": 83.13221383862482,
+            "current_range": 245.24003082394324,
+            "current_position": {
+                "lat": 30.765388,
+                "lng": 114.376679
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T02:15:00",
+                    "charger_id": "CHARGER_0017",
+                    "location": "Unknown",
+                    "energy_charged": 35.4,
+                    "cost": 14.16
+                },
+                {
+                    "timestamp": "2025-04-05T03:15:00",
+                    "charger_id": "CHARGER_0017",
+                    "location": "Unknown",
+                    "energy_charged": 35.4,
+                    "cost": 14.16
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0006",
+            "user_type": "logistics",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.65,
+            "price_sensitivity": 0.5,
+            "range_anxiety": 0.87,
+            "battery_capacity": 58,
+            "max_range": 290,
+            "soc": 79.13398993735153,
+            "current_range": 229.48857081831946,
+            "current_position": {
+                "lat": 30.845732,
+                "lng": 114.250128
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T04:00:00",
+                    "charger_id": "CHARGER_0019",
+                    "location": "Unknown",
+                    "energy_charged": 34.8,
+                    "cost": 13.92
+                },
+                {
+                    "timestamp": "2025-04-05T05:15:00",
+                    "charger_id": "CHARGER_0019",
+                    "location": "Unknown",
+                    "energy_charged": 34.8,
+                    "cost": 13.92
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0007",
+            "user_type": "ride_hailing",
+            "user_profile": "economic",
+            "time_sensitivity": 0.34,
+            "price_sensitivity": 0.86,
+            "range_anxiety": 0.6,
+            "battery_capacity": 60,
+            "max_range": 300,
+            "soc": 89.19402563660805,
+            "current_range": 267.58207690982414,
+            "current_position": {
+                "lat": 30.610314,
+                "lng": 114.106181
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T08:45:00",
+                    "charger_id": "CHARGER_0011",
+                    "location": "Unknown",
+                    "energy_charged": 36.0,
+                    "cost": 43.199999999999996
+                },
+                {
+                    "timestamp": "2025-04-05T10:15:00",
+                    "charger_id": "CHARGER_0011",
+                    "location": "Unknown",
+                    "energy_charged": 36.0,
+                    "cost": 43.199999999999996
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0008",
+            "user_type": "taxi",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.43,
+            "price_sensitivity": 0.6,
+            "range_anxiety": 0.66,
+            "battery_capacity": 48,
+            "max_range": 240,
+            "soc": 84.34415381935928,
+            "current_range": 202.42596916646227,
+            "current_position": {
+                "lat": 30.72747,
+                "lng": 114.240992
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T01:45:00",
+                    "charger_id": "CHARGER_0001",
+                    "location": "Unknown",
+                    "energy_charged": 28.799999999999997,
+                    "cost": 11.52
+                },
+                {
+                    "timestamp": "2025-04-05T03:15:00",
+                    "charger_id": "CHARGER_0001",
+                    "location": "Unknown",
+                    "energy_charged": 28.799999999999997,
+                    "cost": 11.52
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0009",
+            "user_type": "private",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.49,
+            "price_sensitivity": 0.63,
+            "range_anxiety": 0.73,
+            "battery_capacity": 69,
+            "max_range": 345,
+            "soc": 90.87015361912684,
+            "current_range": 313.5020299859876,
+            "current_position": {
+                "lat": 30.714766,
+                "lng": 114.241288
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T01:00:00",
+                    "charger_id": "CHARGER_0004",
+                    "location": "Unknown",
+                    "energy_charged": 41.4,
+                    "cost": 16.56
+                },
+                {
+                    "timestamp": "2025-04-05T02:15:00",
+                    "charger_id": "CHARGER_0004",
+                    "location": "Unknown",
+                    "energy_charged": 41.4,
+                    "cost": 16.56
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0010",
+            "user_type": "logistics",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.72,
+            "price_sensitivity": 0.69,
+            "range_anxiety": 0.8,
+            "battery_capacity": 75,
+            "max_range": 375,
+            "soc": 75.26061393662782,
+            "current_range": 282.2273022623543,
+            "current_position": {
+                "lat": 30.899018,
+                "lng": 114.124505
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T01:15:00",
+                    "charger_id": "CHARGER_0019",
+                    "location": "Unknown",
+                    "energy_charged": 45.0,
+                    "cost": 18.0
+                },
+                {
+                    "timestamp": "2025-04-05T02:30:00",
+                    "charger_id": "CHARGER_0019",
+                    "location": "Unknown",
+                    "energy_charged": 45.0,
+                    "cost": 18.0
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0011",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.84,
+            "price_sensitivity": 0.83,
+            "range_anxiety": 0.42,
+            "battery_capacity": 75,
+            "max_range": 375,
+            "soc": 94.69013897984087,
+            "current_range": 355.08802117440325,
+            "current_position": {
+                "lat": 30.80262,
+                "lng": 114.11996
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T04:15:00",
+                    "charger_id": "CHARGER_0016",
+                    "location": "Unknown",
+                    "energy_charged": 45.0,
+                    "cost": 18.0
+                },
+                {
+                    "timestamp": "2025-04-05T05:15:00",
+                    "charger_id": "CHARGER_0016",
+                    "location": "Unknown",
+                    "energy_charged": 45.0,
+                    "cost": 18.0
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0012",
+            "user_type": "ride_hailing",
+            "user_profile": "economic",
+            "time_sensitivity": 0.32,
+            "price_sensitivity": 0.73,
+            "range_anxiety": 0.79,
+            "battery_capacity": 79,
+            "max_range": 395,
+            "soc": 85.44713423821607,
+            "current_range": 337.5161802409534,
+            "current_position": {
+                "lat": 30.80669,
+                "lng": 114.20178
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T04:15:00",
+                    "charger_id": "CHARGER_0003",
+                    "location": "Unknown",
+                    "energy_charged": 47.4,
+                    "cost": 18.96
+                },
+                {
+                    "timestamp": "2025-04-05T05:30:00",
+                    "charger_id": "CHARGER_0003",
+                    "location": "Unknown",
+                    "energy_charged": 47.4,
+                    "cost": 18.96
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0013",
+            "user_type": "private",
+            "user_profile": "planned",
+            "time_sensitivity": 0.48,
+            "price_sensitivity": 0.81,
+            "range_anxiety": 0.38,
+            "battery_capacity": 75,
+            "max_range": 375,
+            "soc": 38.76121914450614,
+            "current_range": 145.35457179189802,
+            "current_position": {
+                "lat": 30.638444,
+                "lng": 114.210396
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0014",
+            "user_type": "taxi",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.63,
+            "price_sensitivity": 0.76,
+            "range_anxiety": 0.42,
+            "battery_capacity": 52,
+            "max_range": 260,
+            "soc": 35.73517739468496,
+            "current_range": 92.91146122618089,
+            "current_position": {
+                "lat": 30.812188,
+                "lng": 114.152731
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0015",
+            "user_type": "logistics",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.56,
+            "price_sensitivity": 0.59,
+            "range_anxiety": 0.43,
+            "battery_capacity": 59,
+            "max_range": 295,
+            "soc": 90.98268956321384,
+            "current_range": 268.3989342114808,
+            "current_position": {
+                "lat": 30.796225,
+                "lng": 114.262464
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T09:30:00",
+                    "charger_id": "CHARGER_0019",
+                    "location": "Unknown",
+                    "energy_charged": 35.4,
+                    "cost": 42.48
+                },
+                {
+                    "timestamp": "2025-04-05T10:45:00",
+                    "charger_id": "CHARGER_0019",
+                    "location": "Unknown",
+                    "energy_charged": 35.4,
+                    "cost": 42.48
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0016",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.43,
+            "price_sensitivity": 0.9,
+            "range_anxiety": 0.58,
+            "battery_capacity": 51,
+            "max_range": 255,
+            "soc": 32.21746997532433,
+            "current_range": 82.15454843707703,
+            "current_position": {
+                "lat": 30.611425,
+                "lng": 114.253609
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0017",
+            "user_type": "taxi",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.77,
+            "price_sensitivity": 0.36,
+            "range_anxiety": 0.75,
+            "battery_capacity": 60,
+            "max_range": 300,
+            "soc": 90.55490165924424,
+            "current_range": 271.6647049777327,
+            "current_position": {
+                "lat": 30.829744,
+                "lng": 114.215502
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T03:30:00",
+                    "charger_id": "CHARGER_0002",
+                    "location": "Unknown",
+                    "energy_charged": 36.0,
+                    "cost": 14.4
+                },
+                {
+                    "timestamp": "2025-04-05T04:15:00",
+                    "charger_id": "CHARGER_0002",
+                    "location": "Unknown",
+                    "energy_charged": 36.0,
+                    "cost": 14.4
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0018",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.61,
+            "price_sensitivity": 0.7,
+            "range_anxiety": 0.42,
+            "battery_capacity": 76,
+            "max_range": 380,
+            "soc": 30.752453775279772,
+            "current_range": 116.85932434606313,
+            "current_position": {
+                "lat": 30.749671,
+                "lng": 114.270099
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0019",
+            "user_type": "private",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.88,
+            "price_sensitivity": 0.7,
+            "range_anxiety": 0.51,
+            "battery_capacity": 68,
+            "max_range": 340,
+            "soc": 90.28823479510159,
+            "current_range": 306.9799983033454,
+            "current_position": {
+                "lat": 30.626377,
+                "lng": 114.186085
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T12:15:00",
+                    "charger_id": "CHARGER_0011",
+                    "location": "Unknown",
+                    "energy_charged": 40.8,
+                    "cost": 34.68
+                }
+            ],
+            "status": "charging",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0020",
+            "user_type": "taxi",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.74,
+            "price_sensitivity": 0.43,
+            "range_anxiety": 0.86,
+            "battery_capacity": 69,
+            "max_range": 345,
+            "soc": 95.60451026765075,
+            "current_range": 329.8355604233951,
+            "current_position": {
+                "lat": 30.691432,
+                "lng": 114.330022
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T09:15:00",
+                    "charger_id": "CHARGER_0010",
+                    "location": "Unknown",
+                    "energy_charged": 41.4,
+                    "cost": 49.68
+                },
+                {
+                    "timestamp": "2025-04-05T10:00:00",
+                    "charger_id": "CHARGER_0010",
+                    "location": "Unknown",
+                    "energy_charged": 41.4,
+                    "cost": 49.68
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0021",
+            "user_type": "taxi",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.55,
+            "price_sensitivity": 0.83,
+            "range_anxiety": 0.7,
+            "battery_capacity": 55,
+            "max_range": 275,
+            "soc": 32.737737726771485,
+            "current_range": 90.02877874862159,
+            "current_position": {
+                "lat": 30.651593,
+                "lng": 114.190891
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0022",
+            "user_type": "logistics",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.61,
+            "price_sensitivity": 0.79,
+            "range_anxiety": 0.63,
+            "battery_capacity": 52,
+            "max_range": 260,
+            "soc": 89.22961625757321,
+            "current_range": 231.99700226969034,
+            "current_position": {
+                "lat": 30.784784,
+                "lng": 114.345547
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T08:00:00",
+                    "charger_id": "CHARGER_0017",
+                    "location": "Unknown",
+                    "energy_charged": 31.2,
+                    "cost": 37.44
+                },
+                {
+                    "timestamp": "2025-04-05T08:45:00",
+                    "charger_id": "CHARGER_0017",
+                    "location": "Unknown",
+                    "energy_charged": 31.2,
+                    "cost": 37.44
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0023",
+            "user_type": "logistics",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.84,
+            "price_sensitivity": 0.6,
+            "range_anxiety": 0.69,
+            "battery_capacity": 68,
+            "max_range": 340,
+            "soc": 92.69807747218256,
+            "current_range": 315.1734634054207,
+            "current_position": {
+                "lat": 30.741666,
+                "lng": 114.222265
+            },
+            "charging_history": [
+                {
+                    "timestamp": "2025-04-05T09:15:00",
+                    "charger_id": "CHARGER_0004",
+                    "location": "Unknown",
+                    "energy_charged": 40.8,
+                    "cost": 48.959999999999994
+                },
+                {
+                    "timestamp": "2025-04-05T10:00:00",
+                    "charger_id": "CHARGER_0004",
+                    "location": "Unknown",
+                    "energy_charged": 40.8,
+                    "cost": 48.959999999999994
+                }
+            ],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0024",
+            "user_type": "taxi",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.42,
+            "price_sensitivity": 0.41,
+            "range_anxiety": 0.58,
+            "battery_capacity": 76,
+            "max_range": 380,
+            "soc": 32.8960194487714,
+            "current_range": 125.00487390533131,
+            "current_position": {
+                "lat": 30.897044,
+                "lng": 114.228379
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0025",
+            "user_type": "private",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.9,
+            "price_sensitivity": 0.32,
+            "range_anxiety": 0.61,
+            "battery_capacity": 59,
+            "max_range": 295,
+            "soc": 47.79574577791334,
+            "current_range": 140.99745004484436,
+            "current_position": {
+                "lat": 30.764668,
+                "lng": 114.386267
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0026",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.59,
+            "price_sensitivity": 0.81,
+            "range_anxiety": 0.71,
+            "battery_capacity": 54,
+            "max_range": 270,
+            "soc": 52.423080944335716,
+            "current_range": 141.54231854970644,
+            "current_position": {
+                "lat": 30.844331,
+                "lng": 114.198477
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0027",
+            "user_type": "private",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.73,
+            "price_sensitivity": 0.41,
+            "range_anxiety": 0.42,
+            "battery_capacity": 74,
+            "max_range": 370,
+            "soc": 68.62433581921212,
+            "current_range": 253.91004253108485,
+            "current_position": {
+                "lat": 30.760095,
+                "lng": 114.281918
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0028",
+            "user_type": "private",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.66,
+            "price_sensitivity": 0.5,
+            "range_anxiety": 0.75,
+            "battery_capacity": 60,
+            "max_range": 300,
+            "soc": 57.94382339233134,
+            "current_range": 173.83147017699403,
+            "current_position": {
+                "lat": 30.671996,
+                "lng": 114.374438
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0029",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.63,
+            "price_sensitivity": 0.82,
+            "range_anxiety": 0.75,
+            "battery_capacity": 49,
+            "max_range": 245,
+            "soc": 78.56924625933705,
+            "current_range": 192.49465333537577,
+            "current_position": {
+                "lat": 30.747496,
+                "lng": 114.195738
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0030",
+            "user_type": "logistics",
+            "user_profile": "planned",
+            "time_sensitivity": 0.69,
+            "price_sensitivity": 0.63,
+            "range_anxiety": 0.35,
+            "battery_capacity": 80,
+            "max_range": 400,
+            "soc": 46.71714692923521,
+            "current_range": 186.86858771694085,
+            "current_position": {
+                "lat": 30.818834,
+                "lng": 114.323788
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0031",
+            "user_type": "taxi",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.6,
+            "price_sensitivity": 0.33,
+            "range_anxiety": 0.68,
+            "battery_capacity": 78,
+            "max_range": 390,
+            "soc": 64.10467128358039,
+            "current_range": 250.0082180059635,
+            "current_position": {
+                "lat": 30.696908,
+                "lng": 114.147349
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0032",
+            "user_type": "logistics",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.82,
+            "price_sensitivity": 0.76,
+            "range_anxiety": 0.71,
+            "battery_capacity": 64,
+            "max_range": 320,
+            "soc": 44.216861056294796,
+            "current_range": 141.49395538014335,
+            "current_position": {
+                "lat": 30.665373,
+                "lng": 114.323812
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0033",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.88,
+            "price_sensitivity": 0.47,
+            "range_anxiety": 0.57,
+            "battery_capacity": 54,
+            "max_range": 270,
+            "soc": 78.74013384511476,
+            "current_range": 212.59836138180984,
+            "current_position": {
+                "lat": 30.871037,
+                "lng": 114.179639
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0034",
+            "user_type": "logistics",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.42,
+            "price_sensitivity": 0.87,
+            "range_anxiety": 0.44,
+            "battery_capacity": 72,
+            "max_range": 360,
+            "soc": 63.13068379461045,
+            "current_range": 227.2704616605976,
+            "current_position": {
+                "lat": 30.609477,
+                "lng": 114.262598
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0035",
+            "user_type": "private",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.61,
+            "price_sensitivity": 0.71,
+            "range_anxiety": 0.5,
+            "battery_capacity": 56,
+            "max_range": 280,
+            "soc": 66.91703188240317,
+            "current_range": 187.36768927072887,
+            "current_position": {
+                "lat": 30.70277,
+                "lng": 114.242277
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0036",
+            "user_type": "logistics",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.53,
+            "price_sensitivity": 0.67,
+            "range_anxiety": 0.76,
+            "battery_capacity": 75,
+            "max_range": 375,
+            "soc": 61.27964595880639,
+            "current_range": 229.79867234552398,
+            "current_position": {
+                "lat": 30.873565,
+                "lng": 114.265504
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0037",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.44,
+            "price_sensitivity": 0.63,
+            "range_anxiety": 0.86,
+            "battery_capacity": 62,
+            "max_range": 310,
+            "soc": 42.57812655139678,
+            "current_range": 131.99219230933002,
+            "current_position": {
+                "lat": 30.805563,
+                "lng": 114.164934
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0038",
+            "user_type": "private",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.39,
+            "price_sensitivity": 0.3,
+            "range_anxiety": 0.73,
+            "battery_capacity": 59,
+            "max_range": 295,
+            "soc": 81.96994663560484,
+            "current_range": 241.81134257503427,
+            "current_position": {
+                "lat": 30.839383,
+                "lng": 114.263347
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0039",
+            "user_type": "taxi",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.37,
+            "price_sensitivity": 0.31,
+            "range_anxiety": 0.89,
+            "battery_capacity": 72,
+            "max_range": 360,
+            "soc": 40.527948087563665,
+            "current_range": 145.9006131152292,
+            "current_position": {
+                "lat": 30.742343,
+                "lng": 114.304029
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0040",
+            "user_type": "taxi",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.7,
+            "price_sensitivity": 0.36,
+            "range_anxiety": 0.55,
+            "battery_capacity": 56,
+            "max_range": 280,
+            "soc": 57.66193605521191,
+            "current_range": 161.45342095459335,
+            "current_position": {
+                "lat": 30.846742,
+                "lng": 114.31144
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0041",
+            "user_type": "logistics",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.77,
+            "price_sensitivity": 0.66,
+            "range_anxiety": 0.5,
+            "battery_capacity": 45,
+            "max_range": 225,
+            "soc": 38.63429110828401,
+            "current_range": 86.92715499363902,
+            "current_position": {
+                "lat": 30.730022,
+                "lng": 114.107397
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0042",
+            "user_type": "taxi",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.39,
+            "price_sensitivity": 0.43,
+            "range_anxiety": 0.53,
+            "battery_capacity": 47,
+            "max_range": 235,
+            "soc": 65.3871797593437,
+            "current_range": 153.65987243445767,
+            "current_position": {
+                "lat": 30.714987,
+                "lng": 114.348799
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0043",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.67,
+            "price_sensitivity": 0.72,
+            "range_anxiety": 0.61,
+            "battery_capacity": 56,
+            "max_range": 280,
+            "soc": 62.27884959653598,
+            "current_range": 174.38077887030073,
+            "current_position": {
+                "lat": 30.62879,
+                "lng": 114.195987
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0044",
+            "user_type": "ride_hailing",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.77,
+            "price_sensitivity": 0.84,
+            "range_anxiety": 0.77,
+            "battery_capacity": 71,
+            "max_range": 355,
+            "soc": 50.462787022817594,
+            "current_range": 179.14289393100245,
+            "current_position": {
+                "lat": 30.646124,
+                "lng": 114.247274
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0045",
+            "user_type": "ride_hailing",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.83,
+            "price_sensitivity": 0.74,
+            "range_anxiety": 0.67,
+            "battery_capacity": 57,
+            "max_range": 285,
+            "soc": 41.50588332830428,
+            "current_range": 118.2917674856672,
+            "current_position": {
+                "lat": 30.807532,
+                "lng": 114.126919
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0046",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.61,
+            "price_sensitivity": 0.78,
+            "range_anxiety": 0.67,
+            "battery_capacity": 54,
+            "max_range": 270,
+            "soc": 61.38659393838493,
+            "current_range": 165.7438036336393,
+            "current_position": {
+                "lat": 30.661673,
+                "lng": 114.212191
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0047",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.51,
+            "price_sensitivity": 0.89,
+            "range_anxiety": 0.65,
+            "battery_capacity": 63,
+            "max_range": 315,
+            "soc": 64.66834195459326,
+            "current_range": 203.70527715696875,
+            "current_position": {
+                "lat": 30.881077,
+                "lng": 114.172452
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0048",
+            "user_type": "ride_hailing",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.44,
+            "price_sensitivity": 0.5,
+            "range_anxiety": 0.53,
+            "battery_capacity": 49,
+            "max_range": 245,
+            "soc": 57.964454385674756,
+            "current_range": 142.01291324490316,
+            "current_position": {
+                "lat": 30.881779,
+                "lng": 114.350919
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0049",
+            "user_type": "logistics",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.34,
+            "price_sensitivity": 0.41,
+            "range_anxiety": 0.77,
+            "battery_capacity": 51,
+            "max_range": 255,
+            "soc": 58.40548928482174,
+            "current_range": 148.93399767629543,
+            "current_position": {
+                "lat": 30.72225,
+                "lng": 114.169877
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        },
+        {
+            "user_id": "USER_0050",
+            "user_type": "private",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.31,
+            "price_sensitivity": 0.33,
+            "range_anxiety": 0.43,
+            "battery_capacity": 44,
+            "max_range": 220,
+            "soc": 79.44656030608228,
+            "current_range": 174.782432673381,
+            "current_position": {
+                "lat": 30.846361,
+                "lng": 114.174995
+            },
+            "charging_history": [],
+            "status": "idle",
+            "target_charger": null
+        }
+    ],
+    "metrics_history": [
+        {
+            "timestamp": "2025-04-05T00:15:00",
+            "rewards": {
+                "user_satisfaction": 0.023130131565836987,
+                "operator_profit": -1,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.5187479473736651
+            },
+            "grid_load": 47.2,
+            "ev_load": 36.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T00:30:00",
+            "rewards": {
+                "user_satisfaction": 0.020328859566671298,
+                "operator_profit": -1,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.5198684561733314
+            },
+            "grid_load": 54.4,
+            "ev_load": 72.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T00:45:00",
+            "rewards": {
+                "user_satisfaction": 0.016576762485075003,
+                "operator_profit": -1,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.52136929500597
+            },
+            "grid_load": 56.8,
+            "ev_load": 84.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T01:00:00",
+            "rewards": {
+                "user_satisfaction": 0.014191919427564592,
+                "operator_profit": -1,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.5223232322289741
+            },
+            "grid_load": 59.2,
+            "ev_load": 96.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T01:15:00",
+            "rewards": {
+                "user_satisfaction": 0.06820479930107393,
+                "operator_profit": -0.956656,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.47571488027957043
+            },
+            "grid_load": 49.4,
+            "ev_load": 72.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-05T01:30:00",
+            "rewards": {
+                "user_satisfaction": 0.16034653633703821,
+                "operator_profit": -0.896848,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.4209157854651847
+            },
+            "grid_load": 47.0,
+            "ev_load": 60.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-05T01:45:00",
+            "rewards": {
+                "user_satisfaction": 0.15624171811882115,
+                "operator_profit": -0.896848,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.4225577127524715
+            },
+            "grid_load": 54.2,
+            "ev_load": 96.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-05T02:00:00",
+            "rewards": {
+                "user_satisfaction": 0.21199737125870066,
+                "operator_profit": -0.865264,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.39078025149651974
+            },
+            "grid_load": 49.4,
+            "ev_load": 72.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-05T02:15:00",
+            "rewards": {
+                "user_satisfaction": 0.20747498804743492,
+                "operator_profit": -0.865264,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.386589204781026
+            },
+            "grid_load": 49.2,
+            "ev_load": 96.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-05T02:30:00",
+            "rewards": {
+                "user_satisfaction": 0.2369533487897908,
+                "operator_profit": -0.822256,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.3618954604840836
+            },
+            "grid_load": 44.4,
+            "ev_load": 72.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-05T02:45:00",
+            "rewards": {
+                "user_satisfaction": 0.22710732175180204,
+                "operator_profit": -0.756064,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.3459762712992791
+            },
+            "grid_load": 39.6,
+            "ev_load": 48.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-05T03:00:00",
+            "rewards": {
+                "user_satisfaction": 0.22267181031582894,
+                "operator_profit": -0.7422880000000001,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.3436176758736684
+            },
+            "grid_load": 42.0,
+            "ev_load": 60.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-05T03:15:00",
+            "rewards": {
+                "user_satisfaction": 0.21793837205020905,
+                "operator_profit": -0.7268319999999999,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.35287425117991633
+            },
+            "grid_load": 40.0,
+            "ev_load": 60.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-05T03:30:00",
+            "rewards": {
+                "user_satisfaction": 0.21496133940175377,
+                "operator_profit": -0.69088,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.3432794642392985
+            },
+            "grid_load": 36.4,
+            "ev_load": 42.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-05T03:45:00",
+            "rewards": {
+                "user_satisfaction": 0.23108683445763933,
+                "operator_profit": -0.67072,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.33078126621694426
+            },
+            "grid_load": 34.0,
+            "ev_load": 30.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-05T04:00:00",
+            "rewards": {
+                "user_satisfaction": 0.2265999162436214,
+                "operator_profit": -0.67072,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.3325760335025514
+            },
+            "grid_load": 36.4,
+            "ev_load": 42.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-05T04:15:00",
+            "rewards": {
+                "user_satisfaction": 0.25734627059470294,
+                "operator_profit": -0.651232,
+                "grid_friendliness": -0.8,
+                "total_reward": -0.3324310917621188
+            },
+            "grid_load": 33.0,
+            "ev_load": 30.0,
+            "renewable_ratio": 10
+        },
+        {
+            "timestamp": "2025-04-05T04:30:00",
+            "rewards": {
+                "user_satisfaction": 0.31868968442660184,
+                "operator_profit": -0.579328,
+                "grid_friendliness": -0.8,
+                "total_reward": -0.2863225262293593
+            },
+            "grid_load": 29.4,
+            "ev_load": 12.0,
+            "renewable_ratio": 10
+        },
+        {
+            "timestamp": "2025-04-05T04:45:00",
+            "rewards": {
+                "user_satisfaction": 0.3143161363586211,
+                "operator_profit": -0.579328,
+                "grid_friendliness": -0.8,
+                "total_reward": -0.28807194545655157
+            },
+            "grid_load": 33.0,
+            "ev_load": 30.0,
+            "renewable_ratio": 10
+        },
+        {
+            "timestamp": "2025-04-05T05:00:00",
+            "rewards": {
+                "user_satisfaction": 0.3094957772773179,
+                "operator_profit": -0.579328,
+                "grid_friendliness": -0.8,
+                "total_reward": -0.2900000890890728
+            },
+            "grid_load": 33.0,
+            "ev_load": 30.0,
+            "renewable_ratio": 10
+        },
+        {
+            "timestamp": "2025-04-05T05:15:00",
+            "rewards": {
+                "user_satisfaction": 0.30488382094549027,
+                "operator_profit": -0.579328,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.2798448716218038
+            },
+            "grid_load": 36.0,
+            "ev_load": 30.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T05:30:00",
+            "rewards": {
+                "user_satisfaction": 0.3023007381363152,
+                "operator_profit": -0.53464,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.2674717047454739
+            },
+            "grid_load": 31.2,
+            "ev_load": 6.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T05:45:00",
+            "rewards": {
+                "user_satisfaction": 0.2962080202724531,
+                "operator_profit": -0.508096,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.26194559189101874
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T06:00:00",
+            "rewards": {
+                "user_satisfaction": 0.29126801908029143,
+                "operator_profit": -0.508096,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.2639215923678834
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T06:15:00",
+            "rewards": {
+                "user_satisfaction": 0.28613901742401193,
+                "operator_profit": -0.508096,
+                "grid_friendliness": -0.6599999999999999,
+                "total_reward": -0.2359731930303952
+            },
+            "grid_load": 45.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 17
+        },
+        {
+            "timestamp": "2025-04-05T06:30:00",
+            "rewards": {
+                "user_satisfaction": 0.28124040775362213,
+                "operator_profit": -0.508096,
+                "grid_friendliness": -0.6599999999999999,
+                "total_reward": -0.23793263689855113
+            },
+            "grid_load": 45.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 17
+        },
+        {
+            "timestamp": "2025-04-05T06:45:00",
+            "rewards": {
+                "user_satisfaction": 0.27378662667839926,
+                "operator_profit": -0.508096,
+                "grid_friendliness": -0.6599999999999999,
+                "total_reward": -0.24091414932864028
+            },
+            "grid_load": 45.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 17
+        },
+        {
+            "timestamp": "2025-04-05T07:00:00",
+            "rewards": {
+                "user_satisfaction": 0.2713474491480927,
+                "operator_profit": -0.508096,
+                "grid_friendliness": -0.6599999999999999,
+                "total_reward": -0.2418898203407629
+            },
+            "grid_load": 47.4,
+            "ev_load": 12.0,
+            "renewable_ratio": 17
+        },
+        {
+            "timestamp": "2025-04-05T07:15:00",
+            "rewards": {
+                "user_satisfaction": 0.2647837906204027,
+                "operator_profit": -0.508096,
+                "grid_friendliness": -0.45999999999999996,
+                "total_reward": -0.1845152837518389
+            },
+            "grid_load": 62.4,
+            "ev_load": 12.0,
+            "renewable_ratio": 27
+        },
+        {
+            "timestamp": "2025-04-05T07:30:00",
+            "rewards": {
+                "user_satisfaction": 0.26157773292520137,
+                "operator_profit": -0.508096,
+                "grid_friendliness": -0.45999999999999996,
+                "total_reward": -0.18579770682991942
+            },
+            "grid_load": 64.8,
+            "ev_load": 24.0,
+            "renewable_ratio": 27
+        },
+        {
+            "timestamp": "2025-04-05T07:45:00",
+            "rewards": {
+                "user_satisfaction": 0.256591805010427,
+                "operator_profit": -0.508096,
+                "grid_friendliness": -0.45999999999999996,
+                "total_reward": -0.1877920779958292
+            },
+            "grid_load": 64.8,
+            "ev_load": 24.0,
+            "renewable_ratio": 27
+        },
+        {
+            "timestamp": "2025-04-05T08:00:00",
+            "rewards": {
+                "user_satisfaction": 0.2489359865964733,
+                "operator_profit": -0.508096,
+                "grid_friendliness": -0.45999999999999996,
+                "total_reward": -0.19085440536141066
+            },
+            "grid_load": 64.8,
+            "ev_load": 24.0,
+            "renewable_ratio": 27
+        },
+        {
+            "timestamp": "2025-04-05T08:15:00",
+            "rewards": {
+                "user_satisfaction": 0.2708510686270058,
+                "operator_profit": -0.4556800000000001,
+                "grid_friendliness": -0.38,
+                "total_reward": -0.14236357254919768
+            },
+            "grid_load": 79.8,
+            "ev_load": 24.0,
+            "renewable_ratio": 31
+        },
+        {
+            "timestamp": "2025-04-05T08:30:00",
+            "rewards": {
+                "user_satisfaction": 0.2673331385824589,
+                "operator_profit": -0.4556800000000001,
+                "grid_friendliness": 0,
+                "total_reward": -0.029770744567016463
+            },
+            "grid_load": 84.6,
+            "ev_load": 48.0,
+            "renewable_ratio": 31
+        },
+        {
+            "timestamp": "2025-04-05T08:45:00",
+            "rewards": {
+                "user_satisfaction": 0.2652200843197001,
+                "operator_profit": -0.4556800000000001,
+                "grid_friendliness": 0,
+                "total_reward": -0.03061596627211996
+            },
+            "grid_load": 87.0,
+            "ev_load": 60.0,
+            "renewable_ratio": 31
+        },
+        {
+            "timestamp": "2025-04-05T09:00:00",
+            "rewards": {
+                "user_satisfaction": 0.289105273612134,
+                "operator_profit": -0.3427840000000001,
+                "grid_friendliness": 0,
+                "total_reward": 0.012806909444853576
+            },
+            "grid_load": 82.2,
+            "ev_load": 36.0,
+            "renewable_ratio": 31
+        },
+        {
+            "timestamp": "2025-04-05T09:15:00",
+            "rewards": {
+                "user_satisfaction": 0.28444898916669703,
+                "operator_profit": -0.3427840000000001,
+                "grid_friendliness": 0,
+                "total_reward": 0.010944395666678791
+            },
+            "grid_load": 89.6,
+            "ev_load": 48.0,
+            "renewable_ratio": 35
+        },
+        {
+            "timestamp": "2025-04-05T09:30:00",
+            "rewards": {
+                "user_satisfaction": 0.32545033258486966,
+                "operator_profit": -0.2046880000000001,
+                "grid_friendliness": 0,
+                "total_reward": 0.06877373303394785
+            },
+            "grid_load": 84.8,
+            "ev_load": 24.0,
+            "renewable_ratio": 35
+        },
+        {
+            "timestamp": "2025-04-05T09:45:00",
+            "rewards": {
+                "user_satisfaction": 0.34845525161655466,
+                "operator_profit": -0.14521600000000012,
+                "grid_friendliness": 0,
+                "total_reward": 0.09581730064662183
+            },
+            "grid_load": 87.2,
+            "ev_load": 36.0,
+            "renewable_ratio": 35
+        },
+        {
+            "timestamp": "2025-04-05T10:00:00",
+            "rewards": {
+                "user_satisfaction": 0.3441926701720013,
+                "operator_profit": -0.14521600000000012,
+                "grid_friendliness": 0,
+                "total_reward": 0.09411226806880046
+            },
+            "grid_load": 89.6,
+            "ev_load": 48.0,
+            "renewable_ratio": 35
+        },
+        {
+            "timestamp": "2025-04-05T10:15:00",
+            "rewards": {
+                "user_satisfaction": 0.3412157029929872,
+                "operator_profit": -0.007120000000000348,
+                "grid_friendliness": 0,
+                "total_reward": 0.13435028119719478
+            },
+            "grid_load": 86.8,
+            "ev_load": 24.0,
+            "renewable_ratio": 42
+        },
+        {
+            "timestamp": "2025-04-05T10:30:00",
+            "rewards": {
+                "user_satisfaction": 0.33607022093244887,
+                "operator_profit": 0.05335999999999963,
+                "grid_friendliness": 0,
+                "total_reward": 0.15043608837297945
+            },
+            "grid_load": 84.4,
+            "ev_load": 12.0,
+            "renewable_ratio": 42
+        },
+        {
+            "timestamp": "2025-04-05T10:45:00",
+            "rewards": {
+                "user_satisfaction": 0.33127164328102254,
+                "operator_profit": 0.05335999999999963,
+                "grid_friendliness": 0,
+                "total_reward": 0.1485166573124089
+            },
+            "grid_load": 84.4,
+            "ev_load": 12.0,
+            "renewable_ratio": 42
+        },
+        {
+            "timestamp": "2025-04-05T11:00:00",
+            "rewards": {
+                "user_satisfaction": 0.3227742634548023,
+                "operator_profit": 0.1128319999999996,
+                "grid_friendliness": 0,
+                "total_reward": 0.1629593053819208
+            },
+            "grid_load": 82.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 42
+        },
+        {
+            "timestamp": "2025-04-05T11:15:00",
+            "rewards": {
+                "user_satisfaction": 0.32028320739928073,
+                "operator_profit": 0.1128319999999996,
+                "grid_friendliness": 0,
+                "total_reward": 0.16196288295971217
+            },
+            "grid_load": 86.4,
+            "ev_load": 12.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T11:30:00",
+            "rewards": {
+                "user_satisfaction": 0.31535197609498766,
+                "operator_profit": 0.1128319999999996,
+                "grid_friendliness": 0,
+                "total_reward": 0.15999039043799493
+            },
+            "grid_load": 86.4,
+            "ev_load": 12.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T11:45:00",
+            "rewards": {
+                "user_satisfaction": 0.31044310059046176,
+                "operator_profit": 0.1128319999999996,
+                "grid_friendliness": 0,
+                "total_reward": 0.15802684023618457
+            },
+            "grid_load": 86.4,
+            "ev_load": 12.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T12:00:00",
+            "rewards": {
+                "user_satisfaction": 0.30551096218819773,
+                "operator_profit": 0.1128319999999996,
+                "grid_friendliness": 0,
+                "total_reward": 0.15605398487527897
+            },
+            "grid_load": 86.4,
+            "ev_load": 12.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T12:15:00",
+            "rewards": {
+                "user_satisfaction": 0.3005483837225018,
+                "operator_profit": 0.1128319999999996,
+                "grid_friendliness": 0,
+                "total_reward": 0.1540689534890006
+            },
+            "grid_load": 82.4,
+            "ev_load": 12.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T12:30:00",
+            "rewards": {
+                "user_satisfaction": 0.3195927214891583,
+                "operator_profit": 0.16138399999999975,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": 0.14625228859566322
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        }
+    ]
+}

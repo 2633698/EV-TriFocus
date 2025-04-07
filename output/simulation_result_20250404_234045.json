@@ -1,0 +1,925 @@
+{
+    "timestamp": "2025-04-11T00:00:00",
+    "progress": 99.85119047619048,
+    "metrics": {
+        "user_satisfaction": -0.8059999862411397,
+        "operator_profit": -1.0,
+        "grid_friendliness": -0.72,
+        "total_reward": -0.8383999944964559
+    },
+    "grid_load": 50.0,
+    "chargers": [
+        {
+            "id": "CQ_0001",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.784586623765673,
+                "lng": 114.40384029926389
+            },
+            "location": "\u57ce\u4e1c\u5145\u7535\u7ad9",
+            "type": "fast",
+            "health_score": 97,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0002",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.77646538645598,
+                "lng": 114.40367235605953
+            },
+            "location": "\u57ce\u4e1c\u5145\u7535\u7ad9",
+            "type": "fast",
+            "health_score": 78,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0003",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.77612623550531,
+                "lng": 114.3998009488343
+            },
+            "location": "\u57ce\u4e1c\u5145\u7535\u7ad9",
+            "type": "fast",
+            "health_score": 88,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0004",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.782531190488644,
+                "lng": 114.40890350482937
+            },
+            "location": "\u57ce\u4e1c\u5145\u7535\u7ad9",
+            "type": "fast",
+            "health_score": 73,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0005",
+            "status": "failure",
+            "queue_length": 0,
+            "position": {
+                "lat": 30.725204226114453,
+                "lng": 114.1881780955342
+            },
+            "location": "\u897f\u533a\u5de5\u4e1a\u56ed",
+            "type": "fast",
+            "health_score": 69,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0006",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.721551606319704,
+                "lng": 114.17369813039178
+            },
+            "location": "\u897f\u533a\u5de5\u4e1a\u56ed",
+            "type": "fast",
+            "health_score": 70,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0007",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.729206049564777,
+                "lng": 114.1702891760695
+            },
+            "location": "\u897f\u533a\u5de5\u4e1a\u56ed",
+            "type": "slow",
+            "health_score": 73,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0008",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.710334554999847,
+                "lng": 114.1708824167376
+            },
+            "location": "\u897f\u533a\u5de5\u4e1a\u56ed",
+            "type": "fast",
+            "health_score": 74,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0009",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.629893680430165,
+                "lng": 114.3154985692953
+            },
+            "location": "\u5357\u6e56\u79d1\u6280\u56ed",
+            "type": "fast",
+            "health_score": 84,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0010",
+            "status": "failure",
+            "queue_length": 0,
+            "position": {
+                "lat": 30.61964162326751,
+                "lng": 114.32078986598503
+            },
+            "location": "\u5357\u6e56\u79d1\u6280\u56ed",
+            "type": "fast",
+            "health_score": 68,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0011",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.62105420025928,
+                "lng": 114.32776036514713
+            },
+            "location": "\u5357\u6e56\u79d1\u6280\u56ed",
+            "type": "fast",
+            "health_score": 87,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0012",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.621196463739672,
+                "lng": 114.31758231405436
+            },
+            "location": "\u5357\u6e56\u79d1\u6280\u56ed",
+            "type": "slow",
+            "health_score": 84,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0013",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.85473634173347,
+                "lng": 114.25446761462378
+            },
+            "location": "\u5317\u57ce\u5546\u52a1\u533a",
+            "type": "slow",
+            "health_score": 76,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0014",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.841534969010148,
+                "lng": 114.2408685117028
+            },
+            "location": "\u5317\u57ce\u5546\u52a1\u533a",
+            "type": "slow",
+            "health_score": 90,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0015",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.85331969757287,
+                "lng": 114.24236181375237
+            },
+            "location": "\u5317\u57ce\u5546\u52a1\u533a",
+            "type": "slow",
+            "health_score": 83,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0016",
+            "status": "failure",
+            "queue_length": 0,
+            "position": {
+                "lat": 30.850131807578,
+                "lng": 114.24420705055283
+            },
+            "location": "\u5317\u57ce\u5546\u52a1\u533a",
+            "type": "fast",
+            "health_score": 68,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0017",
+            "status": "failure",
+            "queue_length": 0,
+            "position": {
+                "lat": 30.74336561565292,
+                "lng": 114.28926581358482
+            },
+            "location": "\u4e2d\u592e\u8f66\u7ad9",
+            "type": "fast",
+            "health_score": 66,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0018",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.74123315699553,
+                "lng": 114.27321684390085
+            },
+            "location": "\u4e2d\u592e\u8f66\u7ad9",
+            "type": "fast",
+            "health_score": 96,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0019",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.746134868311223,
+                "lng": 114.27753476549218
+            },
+            "location": "\u4e2d\u592e\u8f66\u7ad9",
+            "type": "slow",
+            "health_score": 71,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0020",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.750027257428858,
+                "lng": 114.27901091703879
+            },
+            "location": "\u4e2d\u592e\u8f66\u7ad9",
+            "type": "fast",
+            "health_score": 86,
+            "daily_revenue": 0
+        }
+    ],
+    "users": [
+        {
+            "id": "USER_0001",
+            "soc": 0,
+            "position": {
+                "lat": 30.994046,
+                "lng": 114.272375
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.6,
+            "price_sensitivity": 0.51,
+            "range_anxiety": 0.48
+        },
+        {
+            "id": "USER_0002",
+            "soc": 12.083539349704374,
+            "position": {
+                "lat": 30.655117,
+                "lng": 114.124663
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.32,
+            "price_sensitivity": 0.62,
+            "range_anxiety": 0.69
+        },
+        {
+            "id": "USER_0003",
+            "soc": 13.891424772150412,
+            "position": {
+                "lat": 30.697281,
+                "lng": 114.206873
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.61,
+            "price_sensitivity": 0.76,
+            "range_anxiety": 0.69
+        },
+        {
+            "id": "USER_0004",
+            "soc": 0,
+            "position": {
+                "lat": 30.897467,
+                "lng": 114.355044
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.66,
+            "price_sensitivity": 0.59,
+            "range_anxiety": 0.55
+        },
+        {
+            "id": "USER_0005",
+            "soc": 29.415192198009468,
+            "position": {
+                "lat": 30.825722,
+                "lng": 114.176214
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.68,
+            "price_sensitivity": 0.76,
+            "range_anxiety": 0.8
+        },
+        {
+            "id": "USER_0006",
+            "soc": 21.80778064089323,
+            "position": {
+                "lat": 30.661348,
+                "lng": 114.266154
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.49,
+            "price_sensitivity": 0.5,
+            "range_anxiety": 0.44
+        },
+        {
+            "id": "USER_0007",
+            "soc": 9.176021828633052,
+            "position": {
+                "lat": 30.976242,
+                "lng": 114.32666
+            },
+            "status": "waiting",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.85,
+            "price_sensitivity": 0.88,
+            "range_anxiety": 0.84
+        },
+        {
+            "id": "USER_0008",
+            "soc": 19.505272835980694,
+            "position": {
+                "lat": 30.819339,
+                "lng": 114.03804
+            },
+            "status": "waiting",
+            "user_profile": "economic",
+            "time_sensitivity": 0.33,
+            "price_sensitivity": 0.81,
+            "range_anxiety": 0.59
+        },
+        {
+            "id": "USER_0009",
+            "soc": 18.764293931624756,
+            "position": {
+                "lat": 30.948656,
+                "lng": 114.351773
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.85,
+            "price_sensitivity": 0.34,
+            "range_anxiety": 0.57
+        },
+        {
+            "id": "USER_0010",
+            "soc": 0,
+            "position": {
+                "lat": 30.508488,
+                "lng": 114.177053
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.31,
+            "price_sensitivity": 0.39,
+            "range_anxiety": 0.69
+        },
+        {
+            "id": "USER_0011",
+            "soc": 0,
+            "position": {
+                "lat": 30.829503,
+                "lng": 114.251855
+            },
+            "status": "traveling",
+            "user_profile": "planned",
+            "time_sensitivity": 0.84,
+            "price_sensitivity": 0.7,
+            "range_anxiety": 0.3
+        },
+        {
+            "id": "USER_0012",
+            "soc": 0,
+            "position": {
+                "lat": 30.818303,
+                "lng": 114.474118
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.34,
+            "price_sensitivity": 0.56,
+            "range_anxiety": 0.61
+        },
+        {
+            "id": "USER_0013",
+            "soc": 0,
+            "position": {
+                "lat": 30.78992,
+                "lng": 114.434758
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.48,
+            "price_sensitivity": 0.61,
+            "range_anxiety": 0.53
+        },
+        {
+            "id": "USER_0014",
+            "soc": 22.03193804894791,
+            "position": {
+                "lat": 30.78517,
+                "lng": 114.482223
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.6,
+            "price_sensitivity": 0.75,
+            "range_anxiety": 0.59
+        },
+        {
+            "id": "USER_0015",
+            "soc": 0,
+            "position": {
+                "lat": 30.533967,
+                "lng": 114.297028
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.85,
+            "price_sensitivity": 0.62,
+            "range_anxiety": 0.55
+        },
+        {
+            "id": "USER_0016",
+            "soc": 12.889347576076979,
+            "position": {
+                "lat": 30.97183,
+                "lng": 114.464749
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.44,
+            "price_sensitivity": 0.78,
+            "range_anxiety": 0.58
+        },
+        {
+            "id": "USER_0017",
+            "soc": 0,
+            "position": {
+                "lat": 30.522766,
+                "lng": 114.006761
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.45,
+            "price_sensitivity": 0.59,
+            "range_anxiety": 0.46
+        },
+        {
+            "id": "USER_0018",
+            "soc": 11.063884650558332,
+            "position": {
+                "lat": 30.942497,
+                "lng": 114.323998
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.38,
+            "price_sensitivity": 0.63,
+            "range_anxiety": 0.66
+        },
+        {
+            "id": "USER_0019",
+            "soc": 21.89518233235888,
+            "position": {
+                "lat": 30.872334,
+                "lng": 114.372997
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.61,
+            "price_sensitivity": 0.54,
+            "range_anxiety": 0.75
+        },
+        {
+            "id": "USER_0020",
+            "soc": 0,
+            "position": {
+                "lat": 30.888309,
+                "lng": 114.284782
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.32,
+            "price_sensitivity": 0.41,
+            "range_anxiety": 0.5
+        },
+        {
+            "id": "USER_0021",
+            "soc": 16.72894101095189,
+            "position": {
+                "lat": 30.526973,
+                "lng": 114.359605
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.77,
+            "price_sensitivity": 0.45,
+            "range_anxiety": 0.48
+        },
+        {
+            "id": "USER_0022",
+            "soc": 29.793975367655694,
+            "position": {
+                "lat": 30.541098,
+                "lng": 114.467885
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.46,
+            "price_sensitivity": 0.62,
+            "range_anxiety": 0.75
+        },
+        {
+            "id": "USER_0023",
+            "soc": 24.740186771557617,
+            "position": {
+                "lat": 30.949255,
+                "lng": 114.22103
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.45,
+            "price_sensitivity": 0.54,
+            "range_anxiety": 0.75
+        },
+        {
+            "id": "USER_0024",
+            "soc": 15.951024093013197,
+            "position": {
+                "lat": 30.930525,
+                "lng": 114.052224
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.44,
+            "price_sensitivity": 0.88,
+            "range_anxiety": 0.66
+        },
+        {
+            "id": "USER_0025",
+            "soc": 25.9952259432029,
+            "position": {
+                "lat": 30.824517,
+                "lng": 114.23378
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.49,
+            "price_sensitivity": 0.62,
+            "range_anxiety": 0.5
+        },
+        {
+            "id": "USER_0026",
+            "soc": 15.731714299202524,
+            "position": {
+                "lat": 30.905293,
+                "lng": 114.235845
+            },
+            "status": "waiting",
+            "user_profile": "economic",
+            "time_sensitivity": 0.34,
+            "price_sensitivity": 0.88,
+            "range_anxiety": 0.49
+        },
+        {
+            "id": "USER_0027",
+            "soc": 29.745768623469957,
+            "position": {
+                "lat": 30.992289,
+                "lng": 114.260439
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.52,
+            "price_sensitivity": 0.73,
+            "range_anxiety": 0.5
+        },
+        {
+            "id": "USER_0028",
+            "soc": 19.882114390987702,
+            "position": {
+                "lat": 30.656289,
+                "lng": 114.398198
+            },
+            "status": "waiting",
+            "user_profile": "economic",
+            "time_sensitivity": 0.33,
+            "price_sensitivity": 0.84,
+            "range_anxiety": 0.8
+        },
+        {
+            "id": "USER_0029",
+            "soc": 27.923104467513394,
+            "position": {
+                "lat": 30.930956,
+                "lng": 114.342263
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.6,
+            "price_sensitivity": 0.47,
+            "range_anxiety": 0.31
+        },
+        {
+            "id": "USER_0030",
+            "soc": 29.910324966677276,
+            "position": {
+                "lat": 30.607509,
+                "lng": 114.417548
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.9,
+            "price_sensitivity": 0.47,
+            "range_anxiety": 0.48
+        },
+        {
+            "id": "USER_0031",
+            "soc": 19.66757271939098,
+            "position": {
+                "lat": 30.656459,
+                "lng": 114.092044
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.45,
+            "price_sensitivity": 0.88,
+            "range_anxiety": 0.49
+        },
+        {
+            "id": "USER_0032",
+            "soc": 29.00505441644278,
+            "position": {
+                "lat": 30.584035,
+                "lng": 114.433529
+            },
+            "status": "waiting",
+            "user_profile": "planned",
+            "time_sensitivity": 0.78,
+            "price_sensitivity": 0.72,
+            "range_anxiety": 0.4
+        },
+        {
+            "id": "USER_0033",
+            "soc": 9.815040640341364,
+            "position": {
+                "lat": 30.926199,
+                "lng": 114.094289
+            },
+            "status": "waiting",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.7,
+            "price_sensitivity": 0.88,
+            "range_anxiety": 0.67
+        },
+        {
+            "id": "USER_0034",
+            "soc": 0,
+            "position": {
+                "lat": 30.742786,
+                "lng": 114.307653
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.59,
+            "price_sensitivity": 0.59,
+            "range_anxiety": 0.76
+        },
+        {
+            "id": "USER_0035",
+            "soc": 13.837209593030337,
+            "position": {
+                "lat": 30.904808,
+                "lng": 114.126471
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.55,
+            "price_sensitivity": 0.33,
+            "range_anxiety": 0.7
+        },
+        {
+            "id": "USER_0036",
+            "soc": 0,
+            "position": {
+                "lat": 30.542588,
+                "lng": 114.251883
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.37,
+            "price_sensitivity": 0.51,
+            "range_anxiety": 0.41
+        },
+        {
+            "id": "USER_0037",
+            "soc": 14.632374332995042,
+            "position": {
+                "lat": 30.943504,
+                "lng": 114.018056
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.69,
+            "price_sensitivity": 0.89,
+            "range_anxiety": 0.7
+        },
+        {
+            "id": "USER_0038",
+            "soc": 0,
+            "position": {
+                "lat": 30.666462,
+                "lng": 114.461828
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.59,
+            "price_sensitivity": 0.39,
+            "range_anxiety": 0.67
+        },
+        {
+            "id": "USER_0039",
+            "soc": 27.66488488601376,
+            "position": {
+                "lat": 30.786563,
+                "lng": 114.317405
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.51,
+            "price_sensitivity": 0.47,
+            "range_anxiety": 0.59
+        },
+        {
+            "id": "USER_0040",
+            "soc": 0,
+            "position": {
+                "lat": 30.782282,
+                "lng": 114.25236
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.67,
+            "price_sensitivity": 0.42,
+            "range_anxiety": 0.55
+        },
+        {
+            "id": "USER_0041",
+            "soc": 28.87811753355168,
+            "position": {
+                "lat": 30.635776,
+                "lng": 114.434833
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.44,
+            "price_sensitivity": 0.44,
+            "range_anxiety": 0.78
+        },
+        {
+            "id": "USER_0042",
+            "soc": 28.825191500354403,
+            "position": {
+                "lat": 30.791626,
+                "lng": 114.254521
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.43,
+            "price_sensitivity": 0.35,
+            "range_anxiety": 0.41
+        },
+        {
+            "id": "USER_0043",
+            "soc": 0,
+            "position": {
+                "lat": 30.732293,
+                "lng": 114.447189
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.55,
+            "price_sensitivity": 0.61,
+            "range_anxiety": 0.49
+        },
+        {
+            "id": "USER_0044",
+            "soc": 0,
+            "position": {
+                "lat": 30.754926,
+                "lng": 114.443308
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.46,
+            "price_sensitivity": 0.44,
+            "range_anxiety": 0.84
+        },
+        {
+            "id": "USER_0045",
+            "soc": 29.902535753068754,
+            "position": {
+                "lat": 30.816367,
+                "lng": 114.148774
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.66,
+            "price_sensitivity": 0.54,
+            "range_anxiety": 0.35
+        },
+        {
+            "id": "USER_0046",
+            "soc": 0,
+            "position": {
+                "lat": 30.934813,
+                "lng": 114.061432
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.42,
+            "price_sensitivity": 0.44,
+            "range_anxiety": 0.61
+        },
+        {
+            "id": "USER_0047",
+            "soc": 38.74910692228119,
+            "position": {
+                "lat": 30.515187,
+                "lng": 114.132078
+            },
+            "status": "waiting",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.71,
+            "price_sensitivity": 0.89,
+            "range_anxiety": 0.83
+        },
+        {
+            "id": "USER_0048",
+            "soc": 22.953845599289316,
+            "position": {
+                "lat": 30.954747,
+                "lng": 114.208875
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.67,
+            "price_sensitivity": 0.57,
+            "range_anxiety": 0.37
+        },
+        {
+            "id": "USER_0049",
+            "soc": 0,
+            "position": {
+                "lat": 30.565583,
+                "lng": 114.288357
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.34,
+            "price_sensitivity": 0.52,
+            "range_anxiety": 0.52
+        },
+        {
+            "id": "USER_0050",
+            "soc": 0,
+            "position": {
+                "lat": 30.707407,
+                "lng": 114.19294
+            },
+            "status": "traveling",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.83,
+            "price_sensitivity": 0.67,
+            "range_anxiety": 0.8
+        }
+    ]
+}

@@ -1,409 +1,1853 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
 import numpy as np
 import pandas as pd
-import json
-import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-from pylab import mpl
-mpl.rcParams["font.sans-serif"] = ["SimHei"] # 设置显示中文字体 宋体
-mpl.rcParams["axes.unicode_minus"] = False #字体更改后，会导致坐标轴中的部分字符无法正常显示，此时需要设置正常显示负号
+import random
+import math
+from typing import Dict, List, Tuple, Any
+import logging
+# Import necessary systems
+from ev_multi_agent_system import MultiAgentSystem
+# Assuming MARLSystem is in marl_components, adjust if necessary
+from marl_components import MARLSystem
 
-# 设置随机种子以确保结果可复现
-torch.manual_seed(42)
-np.random.seed(42)
+logger = logging.getLogger(__name__)
 
 class ChargingEnvironment:
-    """充电环境模拟类，包含电网状态、充电桩、用户行为等"""
-    
     def __init__(self, config):
-        """初始化充电环境"""
+        """
+        Initialize the charging environment with the given configuration
+        
+        Args:
+            config: Dictionary containing configuration parameters
+        """
+        # 存储配置以便其他方法访问
         self.config = config
+        
+        # 基本环境参数
         self.grid_id = config.get("grid_id", "DEFAULT001")
-        self.time = datetime.now().replace(minute=0, second=0, microsecond=0)  # 整点开始
-        self.chargers = {}
-        self.users = {}
-        self.grid_status = {}
         
-        # 重置电网状态
-        self.reset_grid()
+        # 站点和充电桩配置
+        self.station_count = config.get("station_count", 20)
+        self.chargers_per_station = config.get("chargers_per_station", 20)
+        self.charger_count = self.station_count * self.chargers_per_station
         
-        # 初始化充电桩
-        self.init_chargers(config.get("charger_count", 20))
+        # 用户和模拟配置
+        self.user_count = config.get("user_count", 1000)
+        self.simulation_days = config.get("simulation_days", 7)
+        self.time_step_minutes = config.get("time_step_minutes", 15)
         
-        # 初始化用户
-        self.init_users(config.get("user_count", 20))
-    
-    def reset_grid(self):
-        """重置电网状态"""
-        # 初始化电网负载曲线 (24小时)
-        # 尝试从配置中获取，若不存在则使用默认值
-        base_load = np.array(self.config.get("grid", {}).get("base_load", [
-            40, 35, 30, 28, 27, 30,  # 0-6点 (凌晨低谷)
-            45, 60, 75, 80, 82, 84,  # 6-12点 (早高峰)
-            80, 75, 70, 65, 70, 75,  # 12-18点 (工作时段)
-            85, 90, 80, 70, 60, 50   # 18-24点 (晚高峰到夜间)
-        ]))
+        # 地区数量
+        self.region_count = config.get("region_count", 5)
         
-        # 添加一些随机波动
-        noise = np.random.normal(0, 3, 24)
-        load_curve = np.clip(base_load + noise, 25, 95)
-        
-        current_hour = self.time.hour
-        
-        # 从配置中获取其他电网参数
-        grid_config = self.config.get("grid", {})
-        peak_hours = grid_config.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21])
-        valley_hours = grid_config.get("valley_hours", [0, 1, 2, 3, 4, 5])
-        normal_price = grid_config.get("normal_price", 0.85)
-        peak_price = grid_config.get("peak_price", 1.2)
-        valley_price = grid_config.get("valley_price", 0.4)
-        renewable_ratio_range = grid_config.get("renewable_ratio_range", [30, 60])
-        
-        self.grid_status = {
-            "current_load": load_curve[current_hour],
-            "pred_1h_load": load_curve[(current_hour + 1) % 24],
-            "pred_load_curve": load_curve.tolist(),
-            "renewable_ratio": np.random.uniform(renewable_ratio_range[0], renewable_ratio_range[1]),
-            "peak_hours": peak_hours,
-            "valley_hours": valley_hours,
-            "normal_price": normal_price,
-            "peak_price": peak_price,
-            "valley_price": valley_price
+        # 地图边界
+        map_bounds_config = config.get("map_bounds", {
+            "min_lat": 30.5, # Default if not provided
+            "max_lat": 31.0,
+            "min_lng": 114.0,
+            "max_lng": 114.5
+        })
+        # Convert to internal naming convention
+        self.map_bounds = {
+            "lat_min": map_bounds_config.get("min_lat", 30.5),
+            "lat_max": map_bounds_config.get("max_lat", 31.0),
+            "lng_min": map_bounds_config.get("min_lng", 114.0),
+            "lng_max": map_bounds_config.get("max_lng", 114.5)
         }
-    
-    def init_chargers(self, count):
-        """初始化充电桩"""
-        # 获取充电桩配置
-        charger_config = self.config.get("chargers", {})
-        charger_types_config = charger_config.get("types", {
-            "fast": {"probability": 0.7, "max_power": 120},
-            "slow": {"probability": 0.3, "max_power": 60}
-        })
         
-        # 计算充电桩类型的概率分布
-        charger_types = list(charger_types_config.keys())
-        type_probs = [charger_types_config[t].get("probability", 0.5) for t in charger_types]
-        # 归一化概率
-        type_probs = np.array(type_probs) / sum(type_probs)
-        
-        # 获取其他参数
-        health_score_range = charger_config.get("health_score_range", [60, 99])
-        solar_probability = charger_config.get("solar_probability", 0.3)
-        storage_probability = charger_config.get("storage_probability", 0.2)
-        
-        locations = ["商业区", "住宅区", "工业园", "交通枢纽", "办公区"]
-        
-        for i in range(count):
-            charger_id = f"CQ_{1000+i}"
-            charger_type = np.random.choice(charger_types, p=type_probs)
-            max_power = charger_types_config[charger_type].get("max_power", 60)
-            
-            # 健康状态评分 (范围从配置获取)
-            health_score = np.random.normal(85, 10)
-            health_score = np.clip(health_score, health_score_range[0], health_score_range[1])
-            
-            # 基础故障率
-            failure_rate = (100 - health_score) / 500  # 健康分数越低，故障率越高
-            
-            self.chargers[charger_id] = {
-                "charger_id": charger_id,
-                "type": charger_type,
-                "max_power": max_power,
-                "available_power": max_power * (health_score / 100),  # 可用功率受健康状态影响
-                "health_score": health_score,
-                "location": np.random.choice(locations),
-                "queue_length": np.random.randint(0, 5),  # 当前排队长度
-                "position": {
-                    "lat": np.random.uniform(30.5, 30.7),  # 模拟某城市经纬度范围
-                    "lng": np.random.uniform(104.0, 104.2)
-                },
-                "failure_rate": failure_rate,
-                "has_solar": np.random.random() < solar_probability,
-                "has_storage": np.random.random() < storage_probability,
-                "utilization_rate": np.random.uniform(0.5, 0.9),  # 历史利用率
-                "avg_waiting_time": np.random.randint(5, 30)  # 平均等待时间(分钟)
-            }
-    
-    def init_users(self, count):
-        """初始化用户"""
-        # 获取用户配置
-        user_config = self.config.get("users", {})
-        user_types = user_config.get("types", ["出租车", "私家车", "网约车", "物流车"])
-        preference_profiles = user_config.get("profiles", {
-            "紧急补电型": {"time_sensitivity": 0.9, "price_sensitivity": 0.2, "range_anxiety": 0.8},
-            "经济优先型": {"time_sensitivity": 0.3, "price_sensitivity": 0.9, "range_anxiety": 0.4},
-            "平衡考量型": {"time_sensitivity": 0.5, "price_sensitivity": 0.5, "range_anxiety": 0.5},
-            "计划充电型": {"time_sensitivity": 0.4, "price_sensitivity": 0.7, "range_anxiety": 0.3}
-        })
-        
-        # 获取SOC范围和最大续航里程范围
-        soc_range = user_config.get("soc_range", [10, 90])
-        max_range = user_config.get("max_range", [300, 500])
-        
-        for i in range(count):
-            user_id = f"EV2024_{3000+i}"
-            user_type = np.random.choice(user_types)
-            profile_type = np.random.choice(list(preference_profiles.keys()))
-            profile = preference_profiles[profile_type]
-            
-            soc = np.random.randint(soc_range[0], soc_range[1])  # 当前电量百分比
-            
-            # 为不同类型用户设置不同的参数
-            if user_type == "出租车":
-                max_wait_time = np.random.randint(5, 15)  # 出租车等待时间短
-                preferred_power = np.random.randint(90, 120)  # 偏好快充
-            elif user_type == "物流车":
-                max_wait_time = np.random.randint(15, 30)
-                preferred_power = np.random.randint(80, 120)
-            else:  # 私家车和网约车
-                max_wait_time = np.random.randint(20, 60)
-                preferred_power = np.random.randint(60, 100)
-            
-            self.users[user_id] = {
-                "user_id": user_id,
-                "type": user_type,
-                "profile": profile_type,
-                "soc": soc,
-                "max_wait_time": max_wait_time,
-                "preferred_power": preferred_power,
-                "time_sensitivity": profile["time_sensitivity"],
-                "price_sensitivity": profile["price_sensitivity"],
-                "range_anxiety": profile["range_anxiety"],
-                "max_range": np.random.randint(max_range[0], max_range[1]),
-                "current_position": {
-                    "lat": np.random.uniform(30.5, 30.7),
-                    "lng": np.random.uniform(104.0, 104.2)
-                },
-                "destination": {
-                    "lat": np.random.uniform(30.5, 30.7),
-                    "lng": np.random.uniform(104.0, 104.2)
-                },
-                "historical_sessions": np.random.randint(1, 50)  # 历史充电次数
-            }
-    
-    def get_current_state(self):
-        """获取当前环境状态"""
-        current_hour = self.time.hour
-
-        # 确定当前电价
-        if current_hour in self.grid_status["peak_hours"]:
-            current_price = self.grid_status["peak_price"]
-        elif current_hour in self.grid_status["valley_hours"]:
-            current_price = self.grid_status["valley_price"]
-        else:
-            current_price = self.grid_status["normal_price"]
-
-        # 构建标准化输出
-        state = {
-            "timestamp": self.time.isoformat(),
-            "grid_id": self.grid_id,
-            "users": [],
-            "chargers": [],
-            "grid_status": {
-                "current_load": self.grid_status["current_load"],
-                "pred_1h_load": self.grid_status["pred_1h_load"],
-                "renewable_ratio": self.grid_status["renewable_ratio"],
-                "current_price": current_price,
-                "is_peak_hour": current_hour in self.grid_status["peak_hours"],
-                "is_valley_hour": current_hour in self.grid_status["valley_hours"]
-            }
-        }
-
-        # 添加用户数据
-        for user_id, user in self.users.items():
-            state["users"].append({
-                "user_id": user_id,
-                "soc": user["soc"],
-                "max_wait_time": user["max_wait_time"],
-                "preferred_power": user["preferred_power"],
-                "position": user["current_position"],
-                "user_type": user["type"],
-                "profile": user["profile"]
-            })
-
-        # 添加充电桩数据
-        for charger_id, charger in self.chargers.items():
-            state["chargers"].append({
-                "charger_id": charger_id,
-                "health_score": charger["health_score"],
-                "available_power": charger["available_power"],
-                "queue_length": charger["queue_length"],
-                "position": charger["position"],
-                "charger_type": charger["type"],
-                "avg_waiting_time": charger["avg_waiting_time"]
-            })
-
-        return state
-
-    
-    def step(self, actions):
-        """
-        根据调度动作执行一个时间步长的模拟
-
-        参数:
-            actions: 调度动作，将用户分配到特定充电桩的决策
-
-        返回:
-            rewards: 根据目标函数计算的奖励值
-            next_state: 执行动作后的新状态
-            done: 模拟是否结束
-        """
-        # 更新环境状态
-        self.time += timedelta(minutes=15)  # 每步模拟15分钟
-
-        # 模拟用户能量消耗
-        for user_id, user in self.users.items():
-            # 假设用户消耗电量与行驶距离成正比，我们可以通过历史数据或者随机数来模拟消耗
-            energy_consumed = np.random.uniform(3, 7)  # 用户每 15 分钟消耗电量范围 1%-3%
-            user["soc"] = max(0, user["soc"] - energy_consumed)  # 确保电量不为负
-
-        # 根据调度动作更新充电桩队列
-        for user_id, charger_id in actions.items():
-            if user_id in self.users and charger_id in self.chargers:
-                # 增加充电桩排队长度
-                self.chargers[charger_id]["queue_length"] += 1
-
-                # 模拟充电过程 (简化处理)
-                user = self.users[user_id]
-                charger = self.chargers[charger_id]
-
-                # 充电时间取决于SOC和充电功率
-                charge_amount = min(100 - user["soc"], 30)  # 最多充30%
-                user["soc"] += charge_amount
-
-                # 更新充电桩状态
-                # 简化模拟：每个用户完成充电后队列减1
-                self.chargers[charger_id]["queue_length"] = max(0, charger["queue_length"] - 1)
-
-                # 小概率发生故障
-                if np.random.random() < charger["failure_rate"]:
-                    self.chargers[charger_id]["health_score"] = max(60, charger["health_score"] - np.random.randint(1, 5))
-                    self.chargers[charger_id]["available_power"] = charger["max_power"] * (charger["health_score"] / 100)
-
-        # 计算奖励
-        rewards = self.calculate_rewards(actions)
-
-        # 获取新状态
-        next_state = self.get_current_state()
-
-        # 检查是否结束模拟
-        done = self.time.hour == 23 and self.time.minute >= 45
-
-        return rewards, next_state, done
-
-    
-    def calculate_rewards(self, actions):
-
-        user_satisfaction = 0
-        operator_profit = 0
-        grid_friendliness = 0
-        
-        # 如果没有动作，返回零奖励
-        if not actions:
-            return {
-                "user_satisfaction": 0.0,
-                "operator_profit": 0.0,
-                "grid_friendliness": 0.0,
-                "total_reward": 0.0
-            }
-        current_hour = self.time.hour
-        
-        # 确定当前电价
-        if current_hour in self.grid_status["peak_hours"]:
-            current_price = self.grid_status["peak_price"]
-            grid_stress_factor = 1.2  # 高峰期电网压力因子
-        elif current_hour in self.grid_status["valley_hours"]:
-            current_price = self.grid_status["valley_price"]
-            grid_stress_factor = 0.4  # 低谷期电网压力因子
-        else:
-            current_price = self.grid_status["normal_price"]
-            grid_stress_factor = 0.8  # 平常时段电网压力因子
-        base_grid_score = 0
-        renewable_factor = self.grid_status["renewable_ratio"] / 100
-        for user_id, charger_id in actions.items():
-            if user_id in self.users and charger_id in self.chargers:
-                user = self.users[user_id]
-                charger = self.chargers[charger_id]
-                
-                # 1. 用户满意度计算
-                # 等待时间因子 (等待时间越短越满意)
-                wait_time = charger["queue_length"] * 10  # 简化：每辆车等待约10分钟
-                wait_time_factor = max(0, 1 - (wait_time / user["max_wait_time"]))
-                
-                # 充电功率匹配因子 (功率越接近用户偏好越满意)
-                power_match = min(charger["available_power"], user["preferred_power"]) / user["preferred_power"]
-                
-                # 价格满意度 (对价格敏感的用户在低谷期更满意)
-                price_satisfaction = 1 - user["price_sensitivity"] * (current_price / self.grid_status["peak_price"])
-                
-                # 用户综合满意度
-                user_weight = 0.4 * wait_time_factor + 0.3 * power_match + 0.3 * price_satisfaction
-                user_satisfaction += user_weight
-                
-                # 2. 运营商利润计算
-                # 充电量 (kWh)
-                charge_amount = min(100 - user["soc"], 30) / 100 * 60  # 假设电池容量60kWh
-                
-                # 充电收入
-                charging_fee = charge_amount * current_price * 1.1  # 运营商加价10%
-                
-                # 电网采购成本
-                grid_cost = charge_amount * current_price
-                
-                # 设备折旧成本
-                depreciation_cost = charge_amount * 0.05  # 假设每kWh折旧0.05元
-                
-                charger_profit = charging_fee - grid_cost - depreciation_cost
-                operator_profit += charger_profit
-                
-                # 3. 电网友好度计算
-                charge_amount = min(100 - user["soc"], 30) / 100 * 60
-                # 当前负载贡献
-                load_contribution = charge_amount / 15  # 15分钟内的功率贡献
-                
-                if current_hour in self.grid_status["valley_hours"]:
-                    # 低谷时段充电奖励
-                    grid_score = load_contribution * 0.5  # 正向奖励
-                elif current_hour in self.grid_status["peak_hours"]:
-                    # 高峰时段充电惩罚，但惩罚程度降低
-                    grid_score = -load_contribution * 0.5 * (self.grid_status["current_load"] / 100)
-                else:
-                    # 平时段适度惩罚
-                    grid_score = -load_contribution * 0.1 * (self.grid_status["current_load"] / 100)
-
-
-
-                # 新能源利用奖励 (有光伏的充电桩在白天充电更友好)
-                if charger["has_solar"] and 8 <= current_hour <= 16:
-                    grid_score += load_contribution * 0.5
-                if self.grid_status["renewable_ratio"] > 40:  # If renewable energy is above 40%
-                    renewable_bonus = load_contribution * (self.grid_status["renewable_ratio"] - 40) / 100
-                    grid_score += renewable_bonus
-                grid_friendliness += grid_score
-                
-        # 归一化处理
-        if actions:
-            user_satisfaction /= len(actions)
-            operator_profit = min(1.0, operator_profit / (len(actions) * 10))
-            grid_friendliness = max(-1.0, min(1.0, grid_friendliness / len(actions)))
-        
-        # 从配置中获取奖励权重
-        weights = self.config.get("scheduler", {}).get("optimization_weights", {
-            "user_satisfaction": 0.4, 
-            "operator_profit": 0.3, 
-            "grid_friendliness": 0.3
-        })
-        
-        # 计算总奖励
-        total_reward = (
-            weights.get("user_satisfaction", 0.4) * user_satisfaction + 
-            weights.get("operator_profit", 0.3) * operator_profit + 
-            weights.get("grid_friendliness", 0.3) * (1 + grid_friendliness) / 2
+        # 当前模拟时间
+        self.current_time = datetime.now().replace(
+            hour=0, minute=0, second=0, microsecond=0
         )
         
+        # 初始化用户、充电桩和电网状态
+        logger.info(f"Initializing environment with {self.user_count} users and {self.charger_count} chargers across {self.station_count} stations")
+        self.users = self._initialize_users()
+        self.chargers = self._initialize_chargers()
+        self.grid_status = self._initialize_grid()
+        self.history = []
+        
+        # 启用无序充电基准对比分析
+        self.uncoordinated_baseline = config.get("enable_uncoordinated_baseline", True)
+        logger.info(f"Uncoordinated charging baseline: {'Enabled' if self.uncoordinated_baseline else 'Disabled'}")
+        
+        # 统计信息
+        self.metrics = {
+            "user_satisfaction": [],
+            "operator_profit": [],
+            "grid_friendliness": [],
+            "total_reward": [],
+            "charging_sessions": 0,
+            "average_waiting_time": 0,
+            "average_charging_time": 0
+        }
+        
+        logger.info("Environment initialization completed successfully")
+        
+    def _initialize_users(self):
+        """
+        初始化模拟用户
+        """
+        user_count = self.config.get("user_count", 1000)
+        map_bounds = self.config.get("map_bounds", {
+            "min_lat": 30.5,
+            "max_lat": 31.0,
+            "min_lng": 114.0,
+            "max_lng": 114.5
+        })
+        
+        logging.info(f"初始化 {user_count} 个用户")
+        
+        if user_count <= 0:
+            logging.warning("用户数量无效，设置为默认值 1000")
+            user_count = 1000
+        
+        # 定义SOC分布
+        soc_ranges = [
+            (0.2, (10, 25)),  # 20%的用户SOC在10-25%之间
+            (0.3, (25, 50)),  # 30%的用户SOC在25-50%之间
+            (0.3, (50, 75)),  # 30%的用户SOC在50-75%之间
+            (0.2, (75, 95))   # 20%的用户SOC在75-95%之间
+        ]
+        
+        # 预定义一些热点区域（商业区、居民区等）
+        # 根据地图边界和区域数量自动生成热点
+        hotspots = []
+        
+        # 确保有一个中心商业区
+        center_lat = (map_bounds["min_lat"] + map_bounds["max_lat"]) / 2
+        center_lng = (map_bounds["min_lng"] + map_bounds["max_lng"]) / 2
+        hotspots.append({
+            "lat": center_lat, 
+            "lng": center_lng, 
+            "desc": "CBD", 
+            "weight": 0.2
+        })
+        
+        # 根据区域动态创建热点位置
+        region_count = self.region_count
+        remaining_weight = 0.8  # 中心占0.2，其余区域分配0.8
+        
+        # 创建更多细分区域，提高分散度
+        actual_regions = region_count * 2  # 增加区域数量
+        
+        # 计算网格布局以均匀分布热点
+        grid_rows = int(math.sqrt(actual_regions))
+        grid_cols = (actual_regions + grid_rows - 1) // grid_rows  # 向上取整
+        
+        lat_step = (map_bounds["max_lat"] - map_bounds["min_lat"]) / grid_rows
+        lng_step = (map_bounds["max_lng"] - map_bounds["min_lng"]) / grid_cols
+        
+        for i in range(actual_regions - 1):  # 除去中心区域
+            # 计算网格位置
+            row = i // grid_cols
+            col = i % grid_cols
+            
+            # 在网格单元内随机分布，但避免与边界和中心过近
+            base_lat = map_bounds["min_lat"] + lat_step * row
+            base_lng = map_bounds["min_lng"] + lng_step * col
+            
+            # 在网格单元内随机分布，但避免靠得太近
+            # 随机位置范围是网格单元的60%-90%，避免过度集中
+            lat_offset = random.uniform(0.6, 0.9) * lat_step
+            lng_offset = random.uniform(0.6, 0.9) * lng_step
+            
+            lat = base_lat + lat_offset
+            lng = base_lng + lng_offset
+            
+            # 确保不会与已有热点太近（最小距离）
+            min_distance = 0.01  # 约1km
+            too_close = False
+            for spot in hotspots:
+                dist = math.sqrt((lat - spot["lat"])**2 + (lng - spot["lng"])**2)
+                if dist < min_distance:
+                    too_close = True
+                    break
+            
+            # 如果太近，尝试新位置
+            if too_close:
+                lat = base_lat + random.uniform(0.1, 0.9) * lat_step
+                lng = base_lng + random.uniform(0.1, 0.9) * lng_step
+            
+            # 区域描述和权重
+            descriptions = ["科技园区", "购物中心", "居民区", "工业园区", "休闲区", "大学城", "商圈", 
+                           "医院", "学校", "办公区", "体育场", "公园", "火车站", "汽车站"]
+            desc = descriptions[i % len(descriptions)]
+            if i < len(descriptions):
+                desc += str(i + 1)
+                
+            # 分配较小权重以避免用户高度集中
+            weight = remaining_weight / (actual_regions * 1.5)
+            
+            hotspots.append({
+                "lat": lat,
+                "lng": lng,
+                "desc": desc,
+                "weight": weight
+            })
+        
+        # 计算热点总权重
+        total_weight = sum(spot["weight"] for spot in hotspots)
+        # 归一化权重
+        for i in range(len(hotspots)):
+            hotspots[i]["weight"] = hotspots[i]["weight"] / total_weight
+        
+        # 车型及其参数
+        vehicle_types = {
+            "sedan": {"battery_capacity": 60, "max_range": 400},
+            "suv": {"battery_capacity": 85, "max_range": 480},
+            "compact": {"battery_capacity": 40, "max_range": 350},
+            "luxury": {"battery_capacity": 100, "max_range": 550},
+            "truck": {"battery_capacity": 120, "max_range": 500}
+        }
+        
+        users = {}
+        
+        for i in range(user_count):
+            user_id = f"user_{i+1}"
+            
+            # 随机车型
+            vehicle_type = random.choice(list(vehicle_types.keys()))
+            
+            # 随机用户类型
+            user_types = ["private", "taxi", "ride_hailing", "logistics"]
+            user_type = random.choice(user_types)
+            
+            # 随机SOC分布
+            rand_val = random.random()
+            cumulative_prob = 0
+            soc_range = (10, 90)
+            for prob, range_val in soc_ranges:
+                cumulative_prob += prob
+                if rand_val <= cumulative_prob:
+                    soc_range = range_val
+                    break
+            
+            soc = random.uniform(soc_range[0], soc_range[1])
+            
+            # 根据用户类型和SOC决定用户偏好
+            # 紧急用户：时间敏感度高，价格敏感度低
+            # 经济用户：价格敏感度高，时间敏感度低
+            # 灵活用户：两者平衡
+            # 焦虑用户：里程焦虑高，寻找方便的充电点
+            user_profiles = ["urgent", "economic", "flexible", "anxious"]
+            
+            # 给不同用户类型分配合理的概率分布
+            profile_probs = []
+            if user_type == "taxi":
+                profile_probs = [0.5, 0.1, 0.3, 0.1]  # 出租车更可能是紧急用户
+            elif user_type == "ride_hailing":
+                profile_probs = [0.4, 0.2, 0.3, 0.1]  # 网约车类似出租车
+            elif user_type == "logistics":
+                profile_probs = [0.3, 0.4, 0.2, 0.1]  # 物流车辆更注重经济性
+            else:  # private
+                profile_probs = [0.2, 0.3, 0.3, 0.2]  # 私家车分布更均匀
+            
+            # SOC低的用户更可能是紧急用户
+            if soc < 30:
+                profile_probs[0] += 0.2  # 增加紧急概率
+                profile_probs = [p / sum(profile_probs) for p in profile_probs]  # 重新归一化
+            
+            user_profile = random.choices(user_profiles, weights=profile_probs)[0]
+            
+            # 电池容量和最大行驶里程
+            battery_capacity = vehicle_types[vehicle_type]["battery_capacity"]
+            max_range = vehicle_types[vehicle_type]["max_range"]
+            current_range = max_range * (soc / 100)
+            
+            # 决定用户位置 - 基于热点区域
+            if random.random() < 0.7:  # 降低热点区域概率从0.8到0.7
+                # 基于权重选择热点
+                hotspot = random.choices(hotspots, weights=[spot["weight"] for spot in hotspots])[0]
+                
+                # 在热点周围随机分布（更大范围高斯分布）
+                radius = random.gauss(0, 0.03)  # 增加标准差到0.03°，约3公里
+                angle = random.uniform(0, 2 * math.pi)
+                lat = hotspot["lat"] + radius * math.cos(angle)
+                lng = hotspot["lng"] + radius * math.sin(angle)
+                
+                # 增加一些额外随机性，防止重叠
+                lat += random.uniform(-0.005, 0.005)
+                lng += random.uniform(-0.005, 0.005)
+                
+                # 确保在地图边界内
+                lat = min(max(lat, map_bounds["min_lat"]), map_bounds["max_lat"])
+                lng = min(max(lng, map_bounds["min_lng"]), map_bounds["max_lng"])
+            else:
+                # 完全随机分布在地图范围内，增加分散度
+                lat = random.uniform(map_bounds["min_lat"], map_bounds["max_lat"])
+                lng = random.uniform(map_bounds["min_lng"], map_bounds["max_lng"])
+                
+                # 防止随机位置与热点完全重叠
+                for spot in hotspots:
+                    dist = math.sqrt((lat - spot["lat"])**2 + (lng - spot["lng"])**2)
+                    if dist < 0.005:  # 约500m
+                        # 如果太近，稍微偏移
+                        lat += random.uniform(-0.01, 0.01)
+                        lng += random.uniform(-0.01, 0.01)
+                        break
+                
+                # 再次确保在地图边界内
+                lat = min(max(lat, map_bounds["min_lat"]), map_bounds["max_lat"])
+                lng = min(max(lng, map_bounds["min_lng"]), map_bounds["max_lng"])
+            
+            # 决定用户状态 - SOC低的用户更可能处于traveling状态
+            status_probs = {}
+            if soc < 30:
+                status_probs = {"idle": 0.3, "traveling": 0.7}
+            elif soc < 60:
+                status_probs = {"idle": 0.6, "traveling": 0.4}
+            else:
+                status_probs = {"idle": 0.8, "traveling": 0.2}
+                
+            status = random.choices(list(status_probs.keys()), weights=list(status_probs.values()))[0]
+            
+            # 根据车辆类型和用户类型分配合理的行驶速度
+            speed_range = (30, 60)  # 默认速度范围 km/h
+            
+            if user_type == "taxi":
+                speed_range = (35, 70)  # 出租车速度范围
+            elif user_type == "ride_hailing":
+                speed_range = (35, 65)  # 网约车速度范围
+            elif user_type == "logistics":
+                speed_range = (30, 55)  # 物流车速度范围
+            elif vehicle_type == "luxury":
+                speed_range = (40, 75)  # 豪华车速度范围
+            elif vehicle_type == "compact":
+                speed_range = (35, 65)  # 紧凑型车速度范围
+                
+            travel_speed = random.uniform(speed_range[0], speed_range[1])
+            
+            # 创建用户
+            users[user_id] = {
+                "user_id": user_id,  # 确保包含用户ID
+                "vehicle_type": vehicle_type,
+                "user_type": user_type,
+                "user_profile": user_profile,
+                "battery_capacity": battery_capacity,
+                "soc": soc,  # 电池电量百分比
+                "max_range": max_range,  # 满电最大行驶里程
+                "current_range": current_range,  # 当前剩余续航里程
+                "current_position": {"lat": lat, "lng": lng},
+                "status": status,
+                "target_charger": None,
+                "charging_history": [],
+                "travel_speed": travel_speed,  # 行驶速度 km/h
+                "route": [],  # 当前路线
+                "waypoints": [],  # 路径点
+                "destination": None,  # 目的地
+                "time_to_destination": None,  # 到达目的地的预计时间（分钟）
+                "traveled_distance": 0,  # 已行驶距离
+                # 添加驾驶风格以支持更精确的能耗计算
+                "driving_style": random.choices(
+                    ["normal", "aggressive", "eco"],
+                    weights=[0.6, 0.25, 0.15]  # 大多数人使用普通驾驶方式，少数人激进或经济模式
+                )[0],
+            }
+            
+            # 根据用户类型和偏好设置时间和价格敏感度
+            if user_profile == "urgent":
+                users[user_id]["time_sensitivity"] = random.uniform(0.7, 0.9)
+                users[user_id]["price_sensitivity"] = random.uniform(0.1, 0.3)
+            elif user_profile == "economic":
+                users[user_id]["time_sensitivity"] = random.uniform(0.2, 0.4)
+                users[user_id]["price_sensitivity"] = random.uniform(0.7, 0.9)
+            elif user_profile == "flexible":
+                users[user_id]["time_sensitivity"] = random.uniform(0.4, 0.6)
+                users[user_id]["price_sensitivity"] = random.uniform(0.4, 0.6)
+            elif user_profile == "anxious":
+                users[user_id]["time_sensitivity"] = random.uniform(0.5, 0.7)
+                users[user_id]["price_sensitivity"] = random.uniform(0.3, 0.5)
+                users[user_id]["range_anxiety"] = random.uniform(0.6, 0.9)
+            
+        logging.info(f"用户初始化完成，包含 {len(users)} 个用户")
+        return users
+    
+    def _initialize_chargers(self):
+        """
+        Initialize charging stations and chargers with hierarchical structure
+        - Each station contains multiple chargers
+        - All chargers in a station share the same location
+        - Each station represents a physical location like a mall or business center
+        """
+        chargers = {}
+        
+        # 获取配置中的站点数和每站充电桩数
+        station_count = self.config.get("station_count", 20)
+        chargers_per_station = self.config.get("chargers_per_station", 20)
+        region_count = self.config.get("region_count", 5)
+        
+        logger.info(f"Initializing {station_count} stations with {chargers_per_station} chargers each across {region_count} regions")
+        
+        # 计算总充电桩数量
+        self.charger_count = station_count * chargers_per_station
+        
+        # 动态创建城市区域作为充电站分布的中心
+        regions = []
+        region_names = ["市中心", "城市南部", "城市北部", "东部新区", "西部工业区", 
+                        "东南郊区", "西南郊区", "北部开发区", "科技园区", "大学城"]
+                        
+        # 确保名称列表长度足够
+        if len(region_names) < region_count:
+            for i in range(len(region_names), region_count):
+                region_names.append(f"区域{i+1}")
+                
+        # 设置第一个区域为市中心，权重更高
+        regions.append({"name": region_names[0], "lat": 30.75, "lng": 114.25, "weight": 0.3})
+        
+        # 平均分配剩余区域
+        remaining_weight = 0.7
+        per_region_weight = remaining_weight / (region_count - 1) if region_count > 1 else 0
+        
+        # 绕着中心点创建其他区域
+        for i in range(1, region_count):
+            # 以中心为原点，计算角度和半径
+            angle = (i-1) * (2 * math.pi / (region_count - 1))
+            radius = 0.1 + (i % 3) * 0.03  # 0.1-0.16范围内的半径，创造不同距离
+            
+            # 计算坐标
+            lat = 30.75 + radius * math.sin(angle)
+            lng = 114.25 + radius * math.cos(angle)
+            
+            regions.append({
+                "name": region_names[i],
+                "lat": lat,
+                "lng": lng,
+                "weight": per_region_weight
+            })
+        
+        # 确保权重总和为1
+        total_weight = sum(region["weight"] for region in regions)
+        if total_weight != 1.0:
+            for i in range(len(regions)):
+                regions[i]["weight"] = regions[i]["weight"] / total_weight
+        
+        charger_id_counter = 1
+        
+        # 为每个区域创建充电站
+        for region_idx, region in enumerate(regions):
+            region_station_count = max(1, int(station_count * region["weight"]))
+            
+            # 在该区域中分布站点
+            for station_idx in range(region_station_count):
+                # 生成站点ID
+                station_id = f"STATION_{region_idx+1}_{station_idx+1}"
+                
+                # 站点位置（在区域中心周围随机分布）
+                station_position = {
+                    "lat": region["lat"] + random.uniform(-0.05, 0.05),
+                    "lng": region["lng"] + random.uniform(-0.05, 0.05)
+                }
+                
+                # 站点名称
+                station_name = f"{region['name']}充电站{station_idx+1}"
+                
+                # 生成该站点内的所有充电桩
+                for i in range(chargers_per_station):
+                    charger_id = f"CHARGER_{charger_id_counter:04d}"
+                    charger_id_counter += 1
+                    
+                    # 充电桩类型（快充占比60%，慢充占比40%）
+                    charger_type = "fast" if random.random() < 0.6 else "slow"
+                    max_power = 120 if charger_type == "fast" else 60  # kW
+                    
+                    # 充电桩价格倍率（快充略贵）
+                    price_multiplier = 1.2 if charger_type == "fast" else 1.0
+                    
+                    # 充电桩在站点内的具体位置（非常接近，只有微小偏差）
+                    position = {
+                        "lat": station_position["lat"] + random.uniform(-0.001, 0.001),
+                        "lng": station_position["lng"] + random.uniform(-0.001, 0.001)
+                    }
+                    
+                    chargers[charger_id] = {
+                        "charger_id": charger_id,
+                        "station_id": station_id, 
+                        "station_name": station_name,
+                        "region_name": region["name"],
+                        "type": charger_type,
+                        "max_power": max_power,
+                        "position": position,
+                        "price_multiplier": price_multiplier,
+                        "status": "available",  # available, occupied, failure
+                        "current_user": None,
+                        "charging_end_time": None,
+                        "queue": [],
+                        "daily_revenue": 0,
+                        "daily_energy": 0,
+                        "failure_prob": 0.002  # 故障概率降低
+                    }
+        
+        # 保证我们得到准确的充电桩数量
+        actual_charger_count = len(chargers)
+        logger.info(f"Created {actual_charger_count} chargers across {station_count} stations in {len(regions)} regions")
+        
+        return chargers
+    
+    def _initialize_grid(self):
+        """Initialize grid status"""
+        # Base load as percentage of capacity for each hour (0-23)
+        base_load = [40, 35, 30, 28, 27, 30, 45, 60, 75, 80, 82, 84, 
+                     80, 75, 70, 65, 70, 75, 85, 90, 80, 70, 60, 50]
+        
+        # Peak and valley hours
+        peak_hours = [7, 8, 9, 10, 18, 19, 20, 21]
+        valley_hours = [0, 1, 2, 3, 4, 5]
+        
+        # Renewable generation
+        solar_generation = [0, 0, 0, 0, 0, 0, 2, 10, 18, 25, 30, 32, 
+                           30, 28, 25, 20, 10, 3, 0, 0, 0, 0, 0, 0]  # % of demand
+        wind_generation = [12, 14, 15, 13, 10, 12, 15, 17, 13, 10, 12, 13, 
+                          15, 17, 16, 14, 16, 18, 20, 18, 16, 15, 13, 14]  # % of demand
+        
+        # Electricity prices
+        normal_price = 0.85  # yuan/kWh
+        peak_price = 1.2  # yuan/kWh
+        valley_price = 0.4  # yuan/kWh
+        
+        # Calculate current price directly based on current hour
+        current_hour = self.current_time.hour
+        if current_hour in peak_hours:
+            current_price = peak_price
+        elif current_hour in valley_hours:
+            current_price = valley_price
+        else:
+            current_price = normal_price
+        
+        return {
+            "base_load": base_load,
+            "current_load": base_load[self.current_time.hour],
+            "peak_hours": peak_hours,
+            "valley_hours": valley_hours,
+            "solar_generation": solar_generation,
+            "wind_generation": wind_generation,
+            "normal_price": normal_price,
+            "peak_price": peak_price,
+            "valley_price": valley_price,
+            "current_price": current_price,
+            "load_balance_index": 0.85,
+            "renewable_ratio": (solar_generation[self.current_time.hour] + 
+                               wind_generation[self.current_time.hour]),
+            "ev_load": 0,
+            "grid_load": base_load[self.current_time.hour]
+        }
+    
+    def get_current_state(self):
+        """Return the current state of the environment"""
+        # Convert users and chargers dicts to lists for output
+        users_list = list(self.users.values())
+        chargers_list = list(self.chargers.values())
+        
+        # Get current hour and load
+        hour = self.current_time.hour
+        
+        return {
+            "timestamp": self.current_time.isoformat(),
+            "users": users_list,
+            "chargers": chargers_list,
+            "grid_load": self.grid_status.get("grid_load", 0),
+            "ev_load": self.grid_status.get("ev_load", 0),
+            "renewable_ratio": self.grid_status.get("renewable_ratio", 0),
+            "current_price": self.grid_status.get("current_price", 0.85)
+        }
+    
+    def _get_current_price(self, hour):
+        """Get electricity price based on the hour"""
+        if self.grid_status and "peak_hours" in self.grid_status:
+            if hour in self.grid_status["peak_hours"]:
+                return self.grid_status["peak_price"]
+            elif hour in self.grid_status["valley_hours"]:
+                return self.grid_status["valley_price"]
+            else:
+                return self.grid_status["normal_price"]
+        else:
+            # 如果grid_status尚未初始化，使用默认值
+            peak_hours = [7, 8, 9, 10, 18, 19, 20, 21]
+            valley_hours = [0, 1, 2, 3, 4, 5]
+            if hour in peak_hours:
+                return 1.2  # peak_price
+            elif hour in valley_hours:
+                return 0.4  # valley_price
+            else:
+                return 0.85  # normal_price
+    
+    def step(self, decisions):
+        """
+        Execute one time step with the given charging decisions
+        
+        Args:
+            decisions: Dictionary mapping user_id to charger_id for charging decisions
+            
+        Returns:
+            rewards: Dictionary of various reward metrics
+            next_state: The next state after executing the decisions
+            done: Boolean indicating if the simulation is complete
+        """
+        # 记录需要充电但未分配充电桩的用户，用于诊断
+        users_needing_charge = [user_id for user_id, user in self.users.items() 
+                               if user.get("needs_charge_decision", False) and 
+                               user_id not in decisions and
+                               user.get("status") not in ["charging", "waiting"]]
+        
+        if users_needing_charge:
+            logger.debug(f"{len(users_needing_charge)} users need charging but weren't assigned: {users_needing_charge[:5]}...")
+        
+        # 计算本次分配了多少用户
+        assigned_count = len(decisions)
+        logger.info(f"Processing {assigned_count} charging assignments in this step")
+        
+        # 先处理调度器决策（分配用户到充电桩）
+        for user_id, charger_id in decisions.items():
+            if user_id in self.users and charger_id in self.chargers:
+                user = self.users[user_id]
+                charger = self.chargers[charger_id]
+                
+                # 如果用户尚未分配充电桩，则分配
+                if user["status"] != "charging" and user["status"] != "waiting":
+                    # 为此用户规划路线到充电桩
+                    success = self._plan_route_to_charger(user_id, charger_id)
+                    
+                    if success:
+                        # 更新用户状态为traveling（还没到充电桩）
+                        user["status"] = "traveling"
+                        user["target_charger"] = charger_id
+                        user["last_destination_type"] = "charger"  # 明确标记目的地类型
+                        logger.debug(f"User {user_id} was assigned to charger {charger_id} and is now traveling there.")
+                    else:
+                        logger.warning(f"Failed to plan route for user {user_id} to charger {charger_id}")
+                
+                # 如果用户已经到达充电桩，加入队列
+                elif user["status"] == "traveling" and user["target_charger"] == charger_id and self._has_reached_charger(user_id, charger_id):
+                    # 添加用户到充电桩队列
+                    charger["queue"].append(user_id)
+                    
+                    # 更新用户状态
+                    user["status"] = "waiting"
+                    logger.debug(f"User {user_id} reached charger {charger_id} and joined queue.")
+        
+        # 模拟用户行为（包括移动、SOC变化等）
+        self._simulate_user_behavior()
+        
+        # 处理充电站充电过程
+        self._process_charging()
+        
+        # 更新电网状态
+        self._update_grid_state()
+        
+        # 前进时间
+        self.current_time += timedelta(minutes=self.time_step_minutes)
+        
+        # 检查模拟是否结束
+        done = (self.current_time.date() - datetime.now().date()).days >= self.simulation_days
+        
+        # 计算此步骤的奖励
+        rewards = self._calculate_rewards()
+        
+        # 保存状态到历史记录
+        self._save_current_state()
+        
+        # 获取下一状态
+        next_state = self.get_current_state()
+        
+        return rewards, next_state, done
+    
+    def _plan_route_to_charger(self, user_id, charger_id):
+        """规划用户到充电桩的路线"""
+        if user_id not in self.users or charger_id not in self.chargers:
+            return False
+            
+        user = self.users[user_id]
+        charger = self.chargers[charger_id]
+        
+        # 获取起点和终点
+        start_pos = user["current_position"]
+        end_pos = charger["position"]
+        
+        # 清空之前的路径
+        user["route"] = []
+        user["waypoints"] = []
+        
+        # 设置目的地
+        user["destination"] = end_pos.copy()
+        
+        # 简单路径规划：直线+随机偏移
+        # 在实际应用中，这里应该使用真实的路网数据和路径规划算法
+        
+        # 计算起点到终点的向量
+        dx = end_pos["lng"] - start_pos["lng"]
+        dy = end_pos["lat"] - start_pos["lat"]
+        
+        # 路径长度（直线距离）
+        distance = math.sqrt(dx*dx + dy*dy) * 111  # 乘以111转换为公里
+        
+        # 生成2-4个路径点
+        num_points = random.randint(2, 4)
+        waypoints = []
+        
+        # 沿路径添加一些随机偏移的路径点
+        for i in range(1, num_points):
+            # 在直线路径上的位置（0-1之间）
+            t = i / num_points
+            
+            # 基础位置（沿直线）
+            point_lng = start_pos["lng"] + t * dx
+            point_lat = start_pos["lat"] + t * dy
+            
+            # 添加一些随机偏移（垂直于直线方向）
+            # 这会使路径看起来更自然，不是完全直线
+            perpendicular_dx = -dy
+            perpendicular_dy = dx
+            
+            # 标准化垂直向量
+            perp_len = math.sqrt(perpendicular_dx*perpendicular_dx + perpendicular_dy*perpendicular_dy)
+            if perp_len > 0:
+                perpendicular_dx /= perp_len
+                perpendicular_dy /= perp_len
+            
+            # 随机偏移（最大距离为直线距离的10%）
+            offset_magnitude = random.uniform(-0.1, 0.1) * distance / 111  # 转回坐标单位
+            
+            # 应用偏移
+            point_lng += perpendicular_dx * offset_magnitude
+            point_lat += perpendicular_dy * offset_magnitude
+            
+            waypoints.append({
+                "lat": point_lat,
+                "lng": point_lng
+            })
+        
+        # 设置路径点
+        user["waypoints"] = waypoints
+        
+        # 创建完整路径（起点 + 路径点 + 终点）
+        full_route = [start_pos.copy()]
+        full_route.extend(waypoints)
+        full_route.append(end_pos.copy())
+        user["route"] = full_route
+        
+        # 计算总行程距离
+        total_distance = 0
+        for i in range(1, len(full_route)):
+            p1 = full_route[i-1]
+            p2 = full_route[i]
+            segment_dx = p2["lng"] - p1["lng"]
+            segment_dy = p2["lat"] - p1["lat"]
+            segment_dist = math.sqrt(segment_dx*segment_dx + segment_dy*segment_dy) * 111  # 转为公里
+            total_distance += segment_dist
+        
+        # 计算预计到达时间（假设平均速度为用户travel_speed，单位km/h）
+        travel_time_hours = total_distance / user["travel_speed"]
+        travel_time_minutes = travel_time_hours * 60
+        
+        # 设置到达时间
+        user["time_to_destination"] = travel_time_minutes
+        user["traveled_distance"] = 0
+        
+        return True
+    
+    def _plan_route_to_destination(self, user_id, destination):
+        """规划用户到任意目的地的路线（非充电桩）"""
+        if user_id not in self.users:
+            logger.error(f"_plan_route_to_destination: User {user_id} not found.")
+            return False
+
+        user = self.users[user_id]
+        start_pos = user["current_position"]
+        end_pos = destination # Destination is already a coordinate dict
+
+        # Check if destination is valid
+        if not isinstance(end_pos, dict) or 'lat' not in end_pos or 'lng' not in end_pos:
+            logger.error(f"_plan_route_to_destination: Invalid destination format for user {user_id}: {end_pos}")
+            return False
+
+        # Clear previous route info
+        user["route"] = []
+        user["waypoints"] = []
+        user["destination"] = end_pos.copy()
+        user["target_charger"] = None # Ensure it's not targeting a charger
+        user["last_destination_type"] = "random" # Or determine based on context if possible
+
+        # Simple path planning: Straight line with random waypoints
+        dx = end_pos["lng"] - start_pos["lng"]
+        dy = end_pos["lat"] - start_pos["lat"]
+        distance = math.sqrt(dx*dx + dy*dy) * 111 # Approx km
+
+        # Generate waypoints
+        num_points = random.randint(2, 4)
+        waypoints = []
+        for i in range(1, num_points):
+            t = i / num_points
+            point_lng = start_pos["lng"] + t * dx
+            point_lat = start_pos["lat"] + t * dy
+            # Add random offset
+            perpendicular_dx = -dy
+            perpendicular_dy = dx
+            perp_len = math.sqrt(perpendicular_dx**2 + perpendicular_dy**2)
+            if perp_len > 0:
+                perpendicular_dx /= perp_len
+                perpendicular_dy /= perp_len
+            offset_magnitude = random.uniform(-0.1, 0.1) * distance / 111
+            point_lng += perpendicular_dx * offset_magnitude
+            point_lat += perpendicular_dy * offset_magnitude
+            waypoints.append({"lat": point_lat, "lng": point_lng})
+
+        user["waypoints"] = waypoints
+        full_route = [start_pos.copy()] + waypoints + [end_pos.copy()]
+        user["route"] = full_route
+
+        # Calculate total distance and time
+        total_distance = 0
+        for i in range(1, len(full_route)):
+            p1 = full_route[i-1]
+            p2 = full_route[i]
+            segment_dist = math.sqrt((p2["lng"] - p1["lng"])**2 + (p2["lat"] - p1["lat"])**2) * 111
+            total_distance += segment_dist
+
+        # Ensure travel_speed exists and is not zero before division
+        travel_speed = user.get("travel_speed", 45) # Default to 45 if not set
+        if travel_speed <= 0:
+             logger.warning(f"User {user_id} has invalid travel speed ({travel_speed}). Using default 45 km/h.")
+             travel_speed = 45
+
+        travel_time_minutes = (total_distance / travel_speed) * 60
+
+        user["time_to_destination"] = travel_time_minutes
+        user["traveled_distance"] = 0
+
+        logger.debug(f"Planned route for user {user_id} to random destination {destination}, distance: {total_distance:.2f} km, time: {travel_time_minutes:.1f} min.")
+        return True
+
+
+    def _has_reached_charger(self, user_id, charger_id):
+        """检查用户是否已到达目标充电桩"""
+        if user_id not in self.users or charger_id not in self.chargers:
+            return False
+            
+        user = self.users[user_id]
+        charger = self.chargers[charger_id]
+        
+        # 如果用户没有route或者没有time_to_destination，则认为没有到达
+        if not user["route"] or user["time_to_destination"] is None:
+            return False
+            
+        # 检查用户当前位置与充电站位置的距离
+        user_pos = user["current_position"]
+        charger_pos = charger["position"]
+        distance = self._calculate_distance(user_pos, charger_pos)
+        
+        # 如果距离小于0.1km且时间已到，则认为到达
+        return distance <= 0.1 and user["time_to_destination"] <= 0
+    
+    def _calculate_distance(self, pos1, pos2):
+        """Calculate distance between two positions"""
+        # Simple Euclidean distance
+        return math.sqrt((pos1["lat"] - pos2["lat"])**2 + 
+                         (pos1["lng"] - pos2["lng"])**2) * 111  # Convert to km (rough approximation)
+    
+    def _simulate_user_behavior(self):
+        """Simulate user behavior - battery drain, movement, charging needs, post-charge actions."""
+        time_step_hours = self.time_step_minutes / 60
+        
+        for user_id, user in self.users.items():
+            current_soc = user.get("soc", 0)
+            user_status = user.get("status", "idle")
+
+            # --- Post-Charge State Handling ---
+            if user_status == "post_charge":
+                # Ensure timer exists and is initialized if None
+                if user.get("post_charge_timer") is None:
+                    user["post_charge_timer"] = random.randint(1, 4) # Initialize if missing
+                    logger.debug(f"User {user_id} in post_charge state had None timer, initialized to: {user['post_charge_timer']} steps.")
+
+                # Now we can safely assume post_charge_timer exists as an int
+                # Make sure to access the key directly now, not via user.get() again
+                if user["post_charge_timer"] > 0: # Use direct access after ensuring initialization
+                    user["post_charge_timer"] -= 1
+                else: # Timer expired
+                    logger.debug(f"User {user_id} post-charge timer expired. Assigning new random destination.")
+                    # Assign a new random destination (not a charger initially)
+                    new_destination = self._get_random_location()
+                    # Ensure it's not the same as current location (rare case)
+                    while self._calculate_distance(user["current_position"], new_destination) < 0.1:
+                         new_destination = self._get_random_location()
+
+                    user["destination"] = new_destination
+                    user["status"] = "traveling" # Start traveling to the new destination
+                    user["target_charger"] = None # Not heading to a charger yet
+                    user["route"] = None # Will be planned if needed
+                    user["time_to_destination"] = None # Will be calculated
+                    user["post_charge_timer"] = None # Reset timer
+                    user["needs_charge_decision"] = False # Reset flag
+                    user["last_destination_type"] = "random"
+
+            # --- Battery Drain (Idle & Traveling & PostCharge) ---
+            # Apply base consumption unless charging/waiting
+            if user_status not in ["charging", "waiting"]:
+                # 基础空闲能耗率 (kWh/h)
+                idle_consumption_rate = 0.4
+                vehicle_type = user.get("vehicle_type", "sedan")
+                
+                # 根据车型调整基础能耗
+                if vehicle_type == "sedan": 
+                    idle_consumption_rate = 0.8
+                elif vehicle_type == "suv": 
+                    idle_consumption_rate = 1.2
+                elif vehicle_type == "truck": 
+                    idle_consumption_rate = 2.0
+                elif vehicle_type == "luxury":
+                    idle_consumption_rate = 1.0
+                elif vehicle_type == "compact":
+                    idle_consumption_rate = 0.6
+
+                # 季节性能耗差异
+                current_month = self.current_time.month
+                season_factor = 1.0
+                if 6 <= current_month <= 8:  # 夏季
+                    season_factor = 2.2  # 空调能耗
+                elif current_month <= 2 or current_month == 12:  # 冬季
+                    season_factor = 2.5  # 暖气能耗
+                else:  # 春秋季节
+                    season_factor = 1.3
+                
+                idle_consumption_rate *= season_factor
+
+                # 时间因素 - 早晚高峰期准备出行时的能耗增加
+                hour = self.current_time.hour
+                time_factor = 1.0
+                if hour in [6, 7, 8, 17, 18, 19]:  # 早晚高峰期
+                    time_factor = 1.6  # 高峰期准备时的能耗增加
+                elif 22 <= hour or hour <= 4:  # 夜间
+                    time_factor = 0.8  # 夜间能耗略低
+                
+                idle_consumption_rate *= time_factor
+                
+                # 用户行为和环境条件影响
+                behavior_factor = random.uniform(0.9, 1.8)
+                idle_consumption_rate *= behavior_factor
+                
+                # 最终能耗计算
+                idle_energy_used = idle_consumption_rate * time_step_hours
+                
+                # 计算SOC减少
+                battery_capacity = user.get("battery_capacity", 60)
+                idle_soc_decrease = (idle_energy_used / battery_capacity) * 100 if battery_capacity > 0 else 0
+
+                # 应用电量消耗
+                current_soc = max(0, user.get("soc", 0) - idle_soc_decrease)
+                user["soc"] = current_soc
+
+            # --- Check Charging Need (Generalized) ---
+            user["needs_charge_decision"] = False # Reset flag each step
+            # Check if user is active and NOT already heading to a charger
+            # Also include 'post_charge' users who might decide to charge again if needed
+            if user_status in ["idle", "traveling", "post_charge"] and not user.get("target_charger"):
+                # 当SOC较低时强制充电
+                if current_soc <= 35:  # 提高强制充电阈值到35%
+                    user["needs_charge_decision"] = True
+                    logger.debug(f"User {user_id} SOC critical ({current_soc:.1f}%), forcing charge need.")
+                else:
+                    # 计算充电概率
+                    charging_prob = self._calculate_charging_probability(user, self.current_time.hour)
+                    
+                    # 添加额外因素增加充电概率
+                    # 1. 如果用户刚完成充电不久，降低充电概率
+                    timer_value = user.get("post_charge_timer") # Get value which might be None
+                    if user_status == "post_charge" and isinstance(timer_value, int) and timer_value > 0:
+                        charging_prob *= 0.7  # 提高post-charge状态的充电概率
+                    
+                    # 2. 如果用户正在随机旅行，增加充电概率
+                    if user_status == "traveling" and user.get("last_destination_type") == "random":
+                        charging_prob *= 1.5  # 增加随机旅行时的充电概率
+                    
+                    # 3. 如果用户是出租车或网约车，增加充电概率
+                    if user.get("user_type") in ["taxi", "ride_hailing"]:
+                        charging_prob *= 1.5  # 增加商业用户的充电概率
+                    
+                    # 4. 如果当前是高峰时段，增加充电概率
+                    hour = self.current_time.hour
+                    if hour in [7, 8, 9, 17, 18, 19]:
+                        charging_prob *= 1.4  # 增加高峰期的充电概率
+                    
+                    # 5. 如果SOC在35-50%之间，增加充电概率
+                    if 35 < current_soc <= 50:
+                        charging_prob *= 1.3
+                    
+                    if random.random() < charging_prob:
+                        user["needs_charge_decision"] = True
+                        logger.debug(f"User {user_id} decided to seek charging (SOC: {current_soc:.1f}%, FinalProb: {charging_prob:.2f})")
+
+            # --- State transition based on charging need ---
+            if user["needs_charge_decision"]:
+                # If user is idle or traveling randomly and decides to charge, directly find a charger and go to it
+                if user_status in ["idle", "traveling"] and (user.get("last_destination_type") == "random" or user_status == "idle"):
+                    logger.info(f"User {user_id} (SOC: {current_soc:.1f}%) needs charging - finding nearest available charger directly")
+                    
+                    # Stop current random travel
+                    if user_status == "traveling":
+                        logger.debug(f"User {user_id} was traveling randomly, stopping to go charge.")
+                    
+                    # Find nearest available charger directly
+                    nearest_charger_id = None
+                    nearest_distance = float('inf')
+                    user_pos = user.get("current_position", {"lat": 0, "lng": 0})
+                    
+                    # First, look for all chargers that are not full
+                    available_chargers = []
+                    for c_id, charger in self.chargers.items():
+                        # Skip failed chargers
+                        if charger.get("status") == "failure":
+                            continue
+                            
+                        # Check if queue is not too long (allow joining if less than 5 in queue)
+                        queue_length = len(charger.get("queue", []))
+                        if charger.get("status") == "occupied":
+                            queue_length += 1
+                            
+                        if queue_length < 5:  # 增加最大队列长度阈值到5
+                            charger_pos = charger.get("position", {"lat": 0, "lng": 0})
+                            distance = self._calculate_distance(user_pos, charger_pos)
+                            
+                            # 根据距离和队列长度计算综合得分
+                            # 距离权重降低，队列长度权重提高
+                            score = distance * 0.6 + queue_length * 0.4
+                            available_chargers.append((c_id, charger, distance, score))
+                    
+                    # Sort by score instead of just distance
+                    available_chargers.sort(key=lambda x: x[3])
+                    
+                    # Take one of the top 5 chargers with balanced weights
+                    if available_chargers:
+                        # Favor better scores but allow more variety
+                        if len(available_chargers) >= 5:
+                            weights = [5, 4, 3, 2, 1]  # More balanced weights
+                            nearest_charger_id = random.choices([c[0] for c in available_chargers[:5]], weights=weights, k=1)[0]
+                        else:
+                            nearest_charger_id = available_chargers[0][0]
+                        
+                        nearest_distance = next(c[2] for c in available_chargers if c[0] == nearest_charger_id)
+                        
+                        # Plan route directly to the selected charger
+                        if self._plan_route_to_charger(user_id, nearest_charger_id):
+                            user["status"] = "traveling"
+                            user["target_charger"] = nearest_charger_id
+                            user["last_destination_type"] = "charger"
+                            logger.info(f"User {user_id} is going DIRECTLY to charger {nearest_charger_id} ({nearest_distance:.2f} km away)")
+                            
+                            # Reset needs_charge_decision since we've handled it
+                            user["needs_charge_decision"] = False
+                        else:
+                            logger.error(f"Failed to plan route for user {user_id} to charger {nearest_charger_id}")
+                    else:
+                        logger.warning(f"User {user_id} needs charging but no available chargers found. Staying idle.")
+                        # Keep the flag for next time step
+                        user["status"] = "idle"
+                        user["destination"] = None
+                        user["route"] = None
+
+            # --- Movement Simulation ---
+            if user_status == "traveling":
+                # Ensure the user has a destination to travel to
+                if not user.get("destination"):
+                    # If user needs charge, they should wait for scheduler (status might already be idle from above logic)
+                    if user.get("needs_charge_decision"):
+                        logger.debug(f"User {user_id} is traveling, needs charge, but has no destination. Status: {user['status']}. Waiting for scheduler.")
+                        # We don't assign random destination here if they need charge
+                        continue # Skip movement this step
+
+                    # If somehow traveling with no destination AND doesn't need charge, assign random (fallback case)
+                    else:
+                        logger.warning(f"User {user_id} is traveling with no destination and doesn't need charge? Assigning random destination.")
+                        user["destination"] = self._get_random_location()
+                        user["last_destination_type"] = "random"
+                        # Plan route to this new random destination
+                        self._plan_route_to_destination(user_id, user["destination"])
+
+                    # Skip movement this step if no route exists after potentially planning above
+                    if not user.get("route"):
+                        continue
+
+                # --- Simulate movement along route ---
+                if user.get("time_to_destination") is not None:
+                    travel_speed = user.get("travel_speed", 45)
+                    battery_capacity = user.get("battery_capacity", 60)
+
+                    # Distance covered in this time step
+                    distance_this_step = travel_speed * time_step_hours
+
+                    # Update position and get actual distance moved
+                    actual_distance_moved = self._update_user_position_along_route(user, distance_this_step)
+
+                    # Energy consumed during travel (based on actual distance)
+                    # 调整基础能耗
+                    base_energy_per_km = 0.25 * (1 + (travel_speed / 80))  # 移除了10倍放大
+                    
+                    # 根据车型调整能耗
+                    vehicle_type = user.get("vehicle_type", "sedan")
+                    energy_per_km = base_energy_per_km
+                    if vehicle_type == "sedan": energy_per_km *= 1.2
+                    elif vehicle_type == "suv": energy_per_km *= 1.5
+                    elif vehicle_type == "truck": energy_per_km *= 1.8
+                    
+                    # 驾驶风格影响
+                    driving_style = user.get("driving_style", "normal")
+                    if driving_style == "aggressive": energy_per_km *= 1.3
+                    elif driving_style == "eco": energy_per_km *= 0.9
+                    
+                    # 路况、堵车和天气影响
+                    road_condition = random.uniform(1.0, 1.3)  # 路况影响最多30%
+                    weather_impact = random.uniform(1.0, 1.2)  # 天气影响最多20%
+                    traffic_factor = 1.0
+                    
+                    # 模拟高峰时段的交通状况
+                    hour = self.current_time.hour
+                    if (7 <= hour <= 9) or (17 <= hour <= 19):  # 早晚高峰
+                        traffic_factor = random.uniform(1.1, 1.4)  # 高峰期能耗增加10-40%
+                    
+                    # 组合所有影响因素
+                    energy_per_km *= road_condition * weather_impact * traffic_factor
+                    
+                    energy_consumed = actual_distance_moved * energy_per_km
+                    soc_decrease_travel = (energy_consumed / battery_capacity) * 100 if battery_capacity > 0 else 0
+
+                     # Update SOC (already includes base drain from above, add travel drain)
+                     # Note: Base drain was already applied earlier, so just subtract travel drain here
+                    current_soc = max(0, user["soc"] - soc_decrease_travel) # Subtract from already drained SOC
+                    user["soc"] = current_soc
+                     
+
+                     # Update remaining time based on actual distance moved
+                    time_taken_minutes = (actual_distance_moved / travel_speed) * 60 if travel_speed > 0 else 0
+                    user["time_to_destination"] = max(0, user["time_to_destination"] - time_taken_minutes)
+
+
+                     # Check for arrival
+                    if user["time_to_destination"] <= 0.1: # 到达目的地
+                        logger.debug(f"User {user_id} arrived at destination {user['destination']}.")
+                        # 已到达目的地
+                        user["current_position"] = user["destination"].copy()
+                        user["time_to_destination"] = 0
+                        user["route"] = None # Clear route upon arrival
+
+                        target_charger_id = user.get("target_charger")
+                        last_dest_type = user.get("last_destination_type") # Get last destination type
+
+                        # 检查是否到达了目标充电桩
+                        if target_charger_id:
+                            # 主要情况：到达目标充电桩，target_charger_id 仍然有效
+                            logger.info(f"User {user_id} has arrived at target charger {target_charger_id} (target_charger valid). Setting status to WAITING.")
+                            user["status"] = "waiting"
+                            user["destination"] = None # Clear destination
+                            user["arrival_time_at_charger"] = self.current_time # Record arrival time
+                            # Keep target_charger_id for queue logic if needed immediately
+
+                            # 尝试将用户加入充电桩队列 (可能由 _simulate_charging_stations 处理更好，但保留以防万一)
+                            if target_charger_id in self.chargers:
+                                charger = self.chargers[target_charger_id]
+                                if "queue" not in charger:
+                                    charger["queue"] = []
+                                if user_id not in charger["queue"]:
+                                     charger["queue"].append(user_id)
+                                     logger.info(f"User {user_id} added to queue for charger {target_charger_id}.")
+                            else:
+                                logger.error(f"User {user_id} arrived at target charger {target_charger_id}, but charger not found! Setting idle.")
+                                user["status"] = "idle"
+
+                        # 后备检查：如果 target_charger_id 为 None，但记录的最后目的地类型是 'charger'
+                        elif last_dest_type == "charger":
+                            logger.warning(f"User {user_id} arrived where charger was targeted (last_dest_type='charger'), but target_charger ID is now None. Setting status to WAITING anyway.")
+                            user["status"] = "waiting"
+                            user["destination"] = None
+                            user["arrival_time_at_charger"] = self.current_time
+                            # Cannot add to specific queue without ID here.
+                            # _simulate_charging_stations logic will need to handle users in 'waiting' state without a specific target ID if this happens.
+                            # OR maybe we should try to find the nearest charger again?
+                            # For now, just set to waiting.
+
+                        # 到达的是随机目的地
+                        elif last_dest_type == "random":
+                            logger.info(f"User {user_id} reached random destination. Setting status to IDLE.")
+                            user["status"] = "idle"
+                            user["destination"] = None
+                            user["target_charger"] = None # Ensure cleared
+
+                            # ... (强制评估充电需求等逻辑保持不变)
+                            current_soc = user.get("soc", 100)
+                            if current_soc <= 70:
+                                user["needs_charge_decision"] = True
+                                logger.debug(f"User {user_id} arrived at random destination, forcing charge evaluation with SOC {current_soc:.1f}%")
+                            user["post_travel_timer"] = random.randint(1, 3)
+
+                        # 其他情况（真正未预期的目的地）
+                        else:
+                            logger.error(f"User {user_id} arrived at truly unexpected destination (last_dest_type: {last_dest_type}). Setting to idle.")
+                            user["status"] = "idle"
+                            user["destination"] = None
+                            user["target_charger"] = None
+                            user["last_destination_type"] = None
+
+            # Update final user range based on potentially updated SOC
+            user["current_range"] = user.get("max_range", 300) * (user["soc"] / 100)
+    
+    def _process_charging(self):
+        """Process charging operations for all chargers and users"""
+        # 模拟用户行为（电量消耗等）
+        self._simulate_user_behavior()
+        
+        # 模拟充电站操作并获取总EV负载
+        ev_load = self._simulate_charging_stations()
+        
+        # Update grid EV load
+        if isinstance(self.grid_status, dict):
+            # Use update for safer modification
+            self.grid_status.update({"ev_load": ev_load})
+        else:
+            logger.error("_process_charging: grid_status is not a dict, cannot update ev_load.")
+    
+    def _simulate_charging_stations(self):
+        """模拟充电站操作，处理充电过程并计算总EV负载"""
+        time_step_hours = self.time_step_minutes / 60
+        total_ev_load = 0
+        
+        # 统计信息 - 运行时诊断
+        active_chargers = 0
+        charging_users = 0
+        waiting_users = 0
+        total_chargers = len(self.chargers)
+        chargers_with_queue = 0
+        
+        # 遍历所有充电桩
+        for charger_id, charger in self.chargers.items():
+            # 跳过故障状态的充电桩
+            if charger.get("status") == "failure":
+                continue
+                
+            queue = charger.get("queue", [])
+            if queue:
+                chargers_with_queue += 1
+                waiting_users += len(queue)
+            
+            # 处理当前正在充电的用户
+            if charger.get("status") == "occupied" and charger.get("current_user"):
+                active_chargers += 1
+                charging_users += 1
+                user_id = charger.get("current_user")
+                
+                if user_id in self.users:
+                    user = self.users[user_id]
+                    
+                    # 当前SOC和电池容量
+                    current_soc = user.get("soc", 0)
+                    battery_capacity = user.get("battery_capacity", 60)
+                    target_soc = user.get("target_soc", 95) # Target SOC, default to 95%
+
+                    # 1. 计算达到目标所需的SOC和能量
+                    soc_needed = max(0, target_soc - current_soc)
+                    energy_needed = (soc_needed / 100.0) * battery_capacity
+
+                    # 2. 计算此时间步内最大可提供的能量
+                    charging_rate = charger.get("max_power", 60)  # kW
+                    max_energy_this_step = charging_rate * time_step_hours
+
+                    # 3. 确定实际充电量 (取较小值)
+                    actual_charging_amount = min(energy_needed, max_energy_this_step)
+                    
+                    # 防止充电量为负或零导致问题
+                    if actual_charging_amount <= 0.01:
+                         logger.debug(f"User {user_id} at {charger_id} needs negligible charge ({actual_charging_amount:.2f} kWh). Skipping charge this step.")
+                         # Optionally, consider finishing charge if SOC is already high
+                         if current_soc >= target_soc - 1: # Allow tolerance
+                              new_soc = current_soc # Keep SOC as is
+                              # Go directly to finish logic below
+                         else:
+                              continue # Skip the rest of the charging logic for this user this step
+                    else:
+                        # 4. 计算实际的SOC增加和新的SOC
+                        actual_soc_increase = (actual_charging_amount / battery_capacity) * 100 if battery_capacity > 0 else 0
+                        new_soc = min(100, current_soc + actual_soc_increase)
+                    
+                    # 记录之前的SOC用于日志 (使用current_soc，它是更新前的值)
+                    logger.info(f"User {user_id} charging at {charger_id}: SOC {current_soc:.1f}% -> {new_soc:.1f}% (+{actual_soc_increase:.1f}%), Needed: {energy_needed:.2f}kWh, Provided: {actual_charging_amount:.2f}kWh")
+                    
+                    # 更新用户SOC和续航里程
+                    user["soc"] = new_soc
+                    user["current_range"] = user.get("max_range", 400) * (new_soc / 100)
+                    
+                    # 添加到总负载 (使用实际充电量对应的平均功率)
+                    actual_power_used = actual_charging_amount / time_step_hours if time_step_hours > 0 else 0
+                    total_ev_load += actual_power_used # Use average power based on actual energy transferred
+                    
+                    # 计算收入 (基于实际充电量)
+                    current_price = self.grid_status.get("current_price", 0.85)
+                    price_multiplier = charger.get("price_multiplier", 1.0)
+                    revenue = actual_charging_amount * current_price * price_multiplier
+                    
+                    # 更新充电桩收入和能源统计
+                    charger["daily_revenue"] = charger.get("daily_revenue", 0) + revenue
+                    charger["daily_energy"] = charger.get("daily_energy", 0) + actual_charging_amount
+                    
+                    # 检查充电是否完成 (达到目标SOC 或 接近满电)
+                    # 使用一个小的容忍度，例如 0.5% SOC
+                    if new_soc >= target_soc - 0.5 or new_soc >= 99.5:
+                        # 充电完成
+                        charging_end_time = self.current_time
+                        charging_start_time = charger.get("charging_start_time", charging_end_time - timedelta(minutes=30))
+                        
+                        # 计算实际充电时间（分钟）
+                        charging_time = (charging_end_time - charging_start_time).total_seconds() / 60
+                        
+                        # 记录充电历史
+                        if "charging_history" not in user:
+                            user["charging_history"] = []
+                            
+                            user["charging_history"].append({
+                                "charger_id": charger_id,
+                            "start_time": charging_start_time,
+                                "end_time": charging_end_time,
+                                "charging_amount": actual_charging_amount,
+                                "cost": revenue,
+                                "satisfaction": 0.8  # 简化的满意度值
+                            })
+                        
+                        logger.info(f"User {user_id} finished charging at {charger_id}. Final SOC: {new_soc:.1f}%, Time: {charging_time:.1f} min")
+                        
+                        # Update user and charging station status
+                        user["status"] = "post_charge" # Set status indicating charge is complete
+                        user["target_charger"] = None
+                        user["destination"] = None # Clear destination after charging
+                        user["route"] = None # Clear route
+                        user["post_charge_timer"] = random.randint(2, 5) # Initialize timer (e.g., 2-5 steps)
+
+                        # 处理队列中的下一个用户
+                        if charger["queue"]:
+                            next_user_id = charger["queue"].pop(0)
+                            if next_user_id in self.users:
+                                next_user = self.users[next_user_id]
+                                charger["current_user"] = next_user_id
+                                charger["charging_start_time"] = self.current_time
+                                next_user["status"] = "charging"
+                                logger.info(f"Next user {next_user_id} from queue started charging at {charger_id}")
+                            else:
+                                # Queued user not found, log warning and set charger to available
+                                logger.warning(f"User {next_user_id} in queue not found in self.users!")
+                                charger["status"] = "available"
+                                charger["current_user"] = None
+                        else:
+                            # No users in queue, set charger to available
+                            charger["status"] = "available"
+                            charger["current_user"] = None
+                            logger.info(f"Charger {charger_id} now available (no queue)")
+                    else:
+                        # User ID不在用户列表中，修复状态
+                        logger.warning(f"Charger {charger_id} has invalid current_user {user_id}. Fixing state.")
+                        charger["status"] = "available"
+                        charger["current_user"] = None
+            
+            # 如果充电桩空闲但有等待用户，开始为第一个用户充电
+            elif charger.get("status") == "available" and charger.get("queue"):
+                next_user_id = charger["queue"].pop(0)
+                if next_user_id in self.users:
+                    next_user = self.users[next_user_id]
+                    # *** ADD Check for user status ***
+                    logger.debug(f"Charger {charger_id} is available. Trying to start user {next_user_id} from queue. User's current status: {next_user.get('status')}")
+                    if next_user.get("status") == "waiting":
+                        charger["status"] = "occupied"
+                        charger["current_user"] = next_user_id
+                        charger["charging_start_time"] = self.current_time
+                        next_user["status"] = "charging"
+                        logger.info(f"User {next_user_id} (status was waiting) successfully started charging at available charger {charger_id}")
+                        active_chargers += 1
+                        charging_users += 1
+                    else:
+                        # User was in queue but not in 'waiting' state, log and skip
+                        logger.warning(f"User {next_user_id} pulled from queue for {charger_id} but status was '{next_user.get('status')}' (expected 'waiting'). Skipping charging start this step.")
+                        # Consider putting user back: charger["queue"].insert(0, next_user_id)
+                        # Or maybe remove them if state is consistently wrong?
+                else:
+                    logger.warning(f"User {next_user_id} was in queue for {charger_id} but not found in self.users! Removing from queue.")
+        
+            # Log if charger is available but queue is empty
+            elif charger.get("status") == "available" and not charger.get("queue"):
+                 logger.debug(f"Charger {charger_id} is available, queue is empty.")
+            
+            # Log if charger is occupied
+            elif charger.get("status") == "occupied":
+                logger.debug(f"Charger {charger_id} is occupied by user {charger.get('current_user')}. Queue length: {len(charger.get('queue', []))}")
+
+        # 添加诊断信息日志
+        total_users = len(self.users)
+        idle_users = sum(1 for u in self.users.values() if u.get("status") == "idle")
+        traveling_users = sum(1 for u in self.users.values() if u.get("status") == "traveling")
+        # Recalculate waiting users based on actual status, not just queue length
+        actual_waiting_users = sum(1 for u in self.users.values() if u.get("status") == "waiting")
+        
+        logger.info(f"Charging stations summary @ {self.current_time}: {active_chargers}/{total_chargers} active, "
+                  f"{chargers_with_queue} have queues.")
+        logger.info(f"User status @ {self.current_time}: {charging_users} charging, {actual_waiting_users} waiting, "
+                  f"{traveling_users} traveling, {idle_users} idle, {total_users} total")
+        
+        return total_ev_load
+    
+    def _update_grid_state(self):
+        """Update grid state based on current time and EV load with robustness"""
+        hour = self.current_time.hour
+
+        # Safely get prerequisite grid data or use defaults
+        # Ensure grid_status itself is a dict
+        if not isinstance(self.grid_status, dict):
+             logger.error("Critical error: self.grid_status is not a dictionary! Reinitializing.")
+             self.grid_status = self._initialize_grid() # Attempt reinitialization
+
+        base_load_profile = self.grid_status.get("base_load", [50]*24) # Default to flat 50 if missing
+        solar_profile = self.grid_status.get("solar_generation", [0]*24)
+        wind_generation = self.grid_status.get("wind_generation", [10]*24)
+
+        # Ensure profiles have correct length (robustness)
+        if not isinstance(base_load_profile, list) or len(base_load_profile) < 24:
+             logger.warning(f"Invalid base_load_profile: {base_load_profile}. Using default.")
+             base_load_profile = [50]*24
+        if not isinstance(solar_profile, list) or len(solar_profile) < 24:
+             logger.warning(f"Invalid solar_profile: {solar_profile}. Using default.")
+             solar_profile = [0]*24
+        if not isinstance(wind_generation, list) or len(wind_generation) < 24:
+            logger.warning(f"Invalid wind_generation: {wind_generation}. Using default.")
+            wind_generation = [10]*24
+
+        # Get current values for the hour
+        try:
+             base_load = base_load_profile[hour]
+             renewable_ratio = solar_profile[hour] + wind_generation[hour]
+        except IndexError:
+             logger.warning(f"_update_grid_state: Hour {hour} out of range for profile data (len {len(base_load_profile)}). Using defaults.")
+             base_load = 50
+             renewable_ratio = 10
+        except TypeError as e:
+            logger.error(f"_update_grid_state: TypeError accessing profile data for hour {hour}: {e}. Profiles: Base={base_load_profile}, Solar={solar_profile}, Wind={wind_generation}. Using defaults.")
+            base_load = 50
+            renewable_ratio = 10
+
+        # Update current price (already safe via helper)
+        current_price = self._get_current_price(hour)
+
+        # Calculate total load
+        ev_load = self.grid_status.get("ev_load", 0)
+        grid_load = base_load + ev_load # Correctly sum base load and EV load
+
+        # ADD LOGGING HERE
+        logger.debug(f"_update_grid_state: Hour={hour}, BaseLoad={base_load:.2f}, EVLoad={ev_load:.2f}, TotalGridLoad={grid_load:.2f}")
+
+        # Calculate load balance index (simplified, using profile)
+        load_balance_index = 0.8 # Placeholder
+        try:
+            # Ensure profile contains numbers
+            numeric_base_load = [x for x in base_load_profile if isinstance(x, (int, float))]
+            if numeric_base_load:
+                 load_variance = np.var(numeric_base_load) # Variance of the base profile
+                 max_load = max(numeric_base_load) * 1.2 # Max of base profile
+                 if max_load > 0:
+                      load_balance_index = 1 - (load_variance / (max_load ** 2))
+                 load_balance_index = max(0, min(1, load_balance_index)) # Clamp between 0 and 1
+            else:
+                 logger.warning("Base load profile contains no numeric values for variance calculation.")
+        except Exception as e:
+             logger.warning(f"Could not calculate load balance index: {e}")
+             load_balance_index = 0.8 # Fallback
+
+        # --- Preserve existing keys --- #
+        # Create a new dict preserving old relevant keys and updating calculated values
+        new_grid_status = {
+            # Preserve essential static keys using .get() from the potentially incomplete self.grid_status
+            "base_load": base_load_profile,
+            "peak_hours": self.grid_status.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21]),
+            "valley_hours": self.grid_status.get("valley_hours", [0, 1, 2, 3, 4, 5]),
+            "solar_generation": solar_profile,
+            "wind_generation": wind_generation,
+            "normal_price": self.grid_status.get("normal_price", 0.85),
+            "peak_price": self.grid_status.get("peak_price", 1.2),
+            "valley_price": self.grid_status.get("valley_price", 0.4),
+
+            # Update calculated values for the current step
+            "current_load": base_load, # Base load for the current hour
+            "grid_load": grid_load, # Total grid load for the current hour
+            "ev_load": ev_load, # EV load contribution (from _simulate_charging_stations)
+            "renewable_ratio": renewable_ratio, # Renewable ratio for the current hour
+            "current_price": current_price, # Price for the current hour
+            "load_balance_index": load_balance_index
+        }
+        self.grid_status = new_grid_status # Assign the complete new dictionary
+    
+    def _save_current_state(self):
+        """保存当前状态到历史记录"""
+        state = self.get_current_state()
+        state["grid_status"] = self.grid_status.copy()
+        self.history.append(state)
+        
+    def reset(self):
+        """重置环境到初始状态，返回初始状态"""
+        # 重置当前时间
+        self.current_time = datetime.now().replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        
+        # 重新初始化用户、充电桩和电网状态
+        logger.info("重置充电环境状态")
+        self.users = self._initialize_users()
+        self.chargers = self._initialize_chargers()
+        self.grid_status = self._initialize_grid()
+        self.history = []
+        
+        # 重置统计信息
+        self.metrics = {
+            "user_satisfaction": [],
+            "operator_profit": [],
+            "grid_friendliness": [],
+            "total_reward": [],
+            "charging_sessions": 0,
+            "average_waiting_time": 0,
+            "average_charging_time": 0
+        }
+        
+        # 返回初始状态
+        return self.get_current_state()
+
+    def _calculate_rewards(self):
+        """计算当前状态下的奖励值"""
+        # 用户满意度指标
+        user_satisfaction = 0
+        total_users = len(self.users) if self.users else 1  # 避免除以零
+        
+        # 统计不同状态的用户数量
+        charging_count = 0
+        waiting_count = 0
+        traveling_count = 0
+        low_soc_count = 0  # SOC低于30%的用户
+        
+        for user in self.users.values():
+            # SOC因子 - 电量越高满意度越高
+            soc_factor = min(1.0, user.get("soc", 0) / 100)  # 使用.get()，限制最大值为1
+            
+            # 状态因子 - 不同状态有不同的满意度
+            status_factor = 1.0
+            user_status = user.get("status", "idle")  # 使用.get()
+            
+            if user_status == "charging":
+                status_factor = 1.2  # 正在充电的用户满意度更高
+                charging_count += 1
+            elif user_status == "waiting":
+                status_factor = 0.6  # 等待充电的用户满意度较低
+                waiting_count += 1
+            elif user_status == "traveling":
+                status_factor = 0.8  # 正在前往充电站的用户满意度处于中间
+                traveling_count += 1
+                
+            if user.get("soc", 0) < 30:
+                low_soc_count += 1
+                
+            # 单个用户的满意度贡献，考虑电量和状态
+            user_satisfaction += soc_factor * status_factor
+        
+        # 归一化用户满意度，考虑正在充电和等待用户的比例
+        active_users_ratio = (charging_count + waiting_count) / total_users if total_users > 0 else 0
+        user_satisfaction = user_satisfaction / total_users  # 基本归一化
+        
+        # 对用户满意度进行调整，考虑到低电量用户和服务中用户比例
+        # 如果低SOC用户很多但充电/等待用户比例低，降低满意度
+        if low_soc_count > 0 and active_users_ratio < 0.2:
+            user_satisfaction *= 0.8
+        
+        # 缩放到[-1, 1]范围 - 使用更平滑的曲线
+        user_satisfaction = 2 * (1 / (1 + math.exp(-5 * (user_satisfaction - 0.5)))) - 1
+        
+        # 运营商利润 - 改进计算方法
+        total_revenue = 0
+        total_energy = 0
+        total_chargers = len(self.chargers) if self.chargers else 1  # 避免除以零
+        occupied_chargers = 0
+        
+        for charger in self.chargers.values():
+            daily_revenue = charger.get("daily_revenue", 0)  # 使用.get()
+            daily_energy = charger.get("daily_energy", 0)  # 使用.get()获取充电量
+            total_revenue += daily_revenue
+            total_energy += daily_energy
+            
+            if charger.get("status") == "occupied":
+                occupied_chargers += 1
+        
+        # 充电桩利用率 - 重要的运营指标
+        charger_utilization = occupied_chargers / total_chargers
+        
+        # 收入系数 - 随时间缓慢增长，避免过快饱和
+        # 考虑当前小时，白天时段按小时比例计算，晚上则保持低值
+        hour = self.current_time.hour
+        day_progress = 0
+        
+        if 6 <= hour <= 23:  # 工作时段 6:00-23:00
+            day_progress = (hour - 6) / 17  # 归一化到0-1
+        else:  # 夜间时段
+            day_progress = 0.1  # 夜间较低固定值
+        
+        # 跟踪历史累计收入，用于平滑和正确评估运营商利润
+        if not hasattr(self, '_cumulative_revenue'):
+            self._cumulative_revenue = 0
+            self._revenue_history = []
+            self._revenue_day_counter = 0
+            self._days_revenue = []  # 每日收入列表
+            self._last_day = self.current_time.day
+        
+        # 检测新的一天，重置日收入
+        if self.current_time.day != getattr(self, '_last_day', -1):
+            self._last_day = self.current_time.day
+            if hasattr(self, '_daily_revenue'):
+                self._days_revenue.append(self._daily_revenue)
+                # 保留最近7天的数据
+                if len(self._days_revenue) > 7:
+                    self._days_revenue.pop(0)
+            self._daily_revenue = 0
+            self._revenue_day_counter += 1
+        
+        # 更新当前步骤的收入
+        step_revenue = sum(c.get("daily_revenue", 0) - c.get("previous_revenue", 0) for c in self.chargers.values())
+        
+        # 更新每个充电桩的历史收入
+        for charger_id, charger in self.chargers.items():
+            charger["previous_revenue"] = charger.get("daily_revenue", 0)
+        
+        # 累计当天收入
+        if not hasattr(self, '_daily_revenue'):
+            self._daily_revenue = 0
+        self._daily_revenue += step_revenue
+        
+        # 累计总收入（需要给予一个逐渐减弱的权重）
+        decay_factor = 0.98  # 较慢的衰减率
+        self._cumulative_revenue = self._cumulative_revenue * decay_factor + step_revenue
+        
+        # 收入因子 - 根据充电桩数量和利用率动态计算期望值
+        # 每个充电桩每天的基准收入（元）
+        base_daily_revenue_per_charger = 200  
+        
+        # 理论最大日收入（考虑充电桩数量的平方根缩放）
+        theoretical_max_daily_revenue = base_daily_revenue_per_charger * math.sqrt(total_chargers) * 1.2
+        
+        # 基于历史数据的预期收入，考虑时间进度
+        expected_daily_revenue = theoretical_max_daily_revenue * (0.3 + 0.7 * day_progress)
+        
+        # 计算收入比率 - 使用更平滑的比较方式
+        revenue_ratio = 0
+        
+        # 如果有足够的历史数据，使用移动平均
+        if hasattr(self, '_days_revenue') and len(self._days_revenue) > 0:
+            avg_daily_revenue = sum(self._days_revenue) / len(self._days_revenue)
+            # 当天进度比例
+            day_fraction = min(1.0, (hour + 1) / 24)
+            # 当天预期收入
+            today_expected = expected_daily_revenue * day_fraction
+            # 实际累计与预期的比例
+            revenue_ratio = min(0.9, self._daily_revenue / (today_expected + 1))  # 防止除以0，限制最大值
+        else:
+            # 没有足够历史数据时，使用理论值和当前利用率
+            revenue_ratio = min(0.85, total_revenue / (expected_daily_revenue + 1) * charger_utilization)
+        
+        # 充电能量因子 - 充电量与充电用户数量的关系
+        energy_factor = 0
+        active_users = charging_count + waiting_count
+        
+        if total_energy > 0 and active_users > 0:
+            # 每个活跃用户的预期充电量范围
+            expected_energy_per_user = 10  # kWh
+            
+            # 实际每用户充电量
+            actual_energy_per_user = total_energy / active_users
+            
+            # 能量因子，使用对数函数使增长更平滑
+            energy_ratio = actual_energy_per_user / expected_energy_per_user
+            energy_factor = min(0.85, math.log(1 + energy_ratio) / math.log(2))
+        
+        # 组合利润得分 - 平衡各因素的影响
+        operator_profit_combined = (
+            revenue_ratio * 0.5 +                 # 收入贡献
+            energy_factor * 0.3 +                 # 能量输出贡献
+            (charger_utilization * 0.8) * 0.2     # 资源利用率贡献（缩小范围）
+        )
+        
+        # 应用超级平滑的S型函数，确保饱和度非常缓慢
+        # 使用自定义映射函数，控制增长率
+        def smooth_profit_curve(x):
+            # 将[0,1]范围的输入映射到[-1,1]范围的输出
+            # 使用更扁平的S曲线，中点在0.5
+            if x < 0.2:
+                # 起始段缓慢增长
+                return -0.8 + x * 2
+            elif x < 0.8:
+                # 中间段线性增长但较缓
+                return -0.4 + (x - 0.2) * 1.0
+            else:
+                # 高端缓慢接近1
+                remaining = x - 0.8
+                return 0.4 + remaining * 1.5
+        
+        operator_profit = smooth_profit_curve(operator_profit_combined)
+        
+        # 确保在[-1,1]范围内
+        operator_profit = max(-1.0, min(1.0, operator_profit))
+        
+        # 电网友好度指标 - 改进计算
+        current_load = self.grid_status.get("grid_load", 50)  # 使用.get()并设置默认值50
+        ev_load = self.grid_status.get("ev_load", 0)  # 电动车充电负载
+        max_load = 100  # 最大负载基准
+        
+        # 计算负载比例，但考虑电动车负载的贡献
+        base_load = current_load - (ev_load * 0.2)  # 去除EV负载影响后的基础负载
+        base_load_ratio = base_load / max_load
+        
+        # EV负载占总负载的比例
+        ev_load_ratio = 0
+        if current_load > 0:
+            ev_load_ratio = (ev_load * 0.2) / current_load
+        
+        # 可再生能源比例
+        renewable_ratio = self.grid_status.get("renewable_ratio", 0) / 100  # 使用.get()，转换为0-1
+        
+        # 考虑峰谷状态和再生能源情况
+        hour = self.current_time.hour
+        peak_hours = self.grid_status.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21])
+        valley_hours = self.grid_status.get("valley_hours", [0, 1, 2, 3, 4, 5])
+        
+        # 时间因子 - 考虑峰谷并添加平滑过渡
+        time_factor = 0
+        
+        # 峰谷时段的平滑定义 - 不再是简单的二元判断
+        # 核心峰时：8-10, 19-21
+        # 核心谷时：1-4
+        # 其他时段根据接近程度平滑过渡
+        core_peak_hours = [8, 9, 10, 19, 20, 21]
+        core_valley_hours = [1, 2, 3, 4]
+        transition_peak_hours = [7, 11, 18, 22]  # 峰时过渡
+        transition_valley_hours = [0, 5, 23]     # 谷时过渡
+        
+        if hour in core_peak_hours:
+            time_factor = -0.5  # 核心峰时强烈负向激励
+        elif hour in core_valley_hours:
+            time_factor = 0.5   # 核心谷时强烈正向激励
+        elif hour in transition_peak_hours:
+            time_factor = -0.3  # 过渡峰时中等负向激励
+        elif hour in transition_valley_hours:
+            time_factor = 0.3   # 过渡谷时中等正向激励
+        else:
+            # 其他时间平滑变化
+            min_distance_to_peak = min([abs(hour - ph) for ph in core_peak_hours], default=12)
+            min_distance_to_valley = min([abs(hour - vh) for vh in core_valley_hours], default=12)
+            
+            if min_distance_to_peak <= min_distance_to_valley:
+                # 更接近峰时
+                time_factor = -0.2 * (1 - min_distance_to_peak/12)
+            else:
+                # 更接近谷时
+                time_factor = 0.2 * (1 - min_distance_to_valley/12)
+        
+        # 负载响应因子 - 基础负载高时避免充电，低时鼓励充电
+        load_factor = -0.4 * base_load_ratio
+        
+        # 可再生能源因子 - 再生能源比例高时鼓励充电
+        renewable_factor = 0.3 * renewable_ratio
+        
+        # EV负载占比因子 - EV负载占比过高时轻微惩罚
+        ev_concentration_factor = 0
+        if ev_load_ratio > 0.3:  # EV负载超过总负载30%时开始惩罚
+            ev_concentration_factor = -0.2 * (ev_load_ratio - 0.3) / 0.7  # 线性增加惩罚
+        
+        # 计算总电网友好度
+        grid_friendliness = load_factor + renewable_factor + time_factor + ev_concentration_factor
+        
+        # 使用更平滑的sigmoid函数，避免极值过快达到
+        # 将grid_friendliness限制在[-1,1]范围内
+        grid_friendliness = min(1, max(-1, grid_friendliness * 1.2))  # 乘以1.2增强信号但不超过[-1,1]
+            
+        # 计算总奖励（加权和）
+        weights = {
+            "user_satisfaction": 0.4,
+            "operator_profit": 0.3,
+            "grid_friendliness": 0.3
+        }
+        
+        total_reward = (user_satisfaction * weights["user_satisfaction"] +
+                        operator_profit * weights["operator_profit"] +
+                        grid_friendliness * weights["grid_friendliness"])
+        
+        # 存储本次计算的指标，用于历史记录
+        self.metrics["user_satisfaction"].append(user_satisfaction)
+        self.metrics["operator_profit"].append(operator_profit)
+        self.metrics["grid_friendliness"].append(grid_friendliness)
+        self.metrics["total_reward"].append(total_reward)
+                        
+        # 计算无序充电的基准指标（用于对比）
+        if hasattr(self, 'uncoordinated_baseline') and self.uncoordinated_baseline:
+            # 现在我们有了更精确的用户行为模式，可以做更精确的对比
+            uncoordinated_user_satisfaction = 0
+            uncoordinated_operator_profit = 0
+            uncoordinated_grid_friendliness = 0
+            
+            # 无序充电的特点：
+            # 1. 用户满意度往往较高，因为用户更可能找最近的充电站
+            # 2. 运营商利润不均衡，热门站点过载而偏远站点闲置
+            # 3. 电网友好度差，因为充电高度集中在工作日下班后
+            
+            # 无序充电下的用户满意度 - 实际可能更高
+            # 用户可自由选择，但总体等待时间更长
+            uncoordinated_wait_factor = 0.7  # 等待时间估计
+            uncoordinated_soc_factor = 1.1 * (sum([min(1.0, u.get("soc", 0) / 100) for u in self.users.values()]) / total_users)
+            uncoordinated_user_satisfaction = min(0.8, uncoordinated_wait_factor * uncoordinated_soc_factor)
+            
+            # 无序充电下的运营商利润 - 更真实建模
+            # 收入可能相似，但利用率不均衡
+            unc_utilization_factor = 0.7 if charger_utilization > 0.3 else 0.9  # 高利用率时效率更低
+            
+            # 收入分布不均
+            revenue_distribution_penalty = -0.2 if charger_utilization > 0.4 else -0.1
+            
+            # 计算无序充电利润 - 与当前利润相关但更不平衡
+            uncoordinated_operator_profit = max(-0.8, min(0.8, 
+                 operator_profit * unc_utilization_factor + revenue_distribution_penalty))
+            
+            # 无序充电下的电网友好度 - 更精确建模不同时段的行为
+            # 晚间充电高度集中，早晨相对较少
+            if 17 <= hour <= 22:  # 晚高峰充电集中
+                uncoordinated_grid_friendliness = -0.7 - 0.1 * renewable_ratio  # 几乎不考虑可再生能源
+            elif 7 <= hour <= 9:  # 早高峰适度集中
+                uncoordinated_grid_friendliness = -0.4 - 0.1 * renewable_ratio
+            elif 0 <= hour <= 5:  # 深夜较少充电
+                uncoordinated_grid_friendliness = 0.2 + 0.2 * renewable_ratio  # 深夜利用率低但友好
+            else:
+                uncoordinated_grid_friendliness = -0.2  # 其他时段一般水平
+            
+            # 计算总体奖励
+            uncoordinated_total_reward = (
+                uncoordinated_user_satisfaction * weights["user_satisfaction"] +
+                uncoordinated_operator_profit * weights["operator_profit"] +
+                uncoordinated_grid_friendliness * weights["grid_friendliness"]
+            )
+            
+            # 存储无序充电基准指标
+            self.metrics["uncoordinated_user_satisfaction"] = uncoordinated_user_satisfaction
+            self.metrics["uncoordinated_operator_profit"] = uncoordinated_operator_profit
+            self.metrics["uncoordinated_grid_friendliness"] = uncoordinated_grid_friendliness
+            self.metrics["uncoordinated_total_reward"] = uncoordinated_total_reward
+            
+            # 计算改进百分比（针对总奖励）
+            if uncoordinated_total_reward != 0:
+                improvement_percentage = ((total_reward - uncoordinated_total_reward) / 
+                                         abs(uncoordinated_total_reward)) * 100
+                self.metrics["improvement_percentage"] = improvement_percentage
+            
+            # 返回包含对比的结果
+        return {
+                "user_satisfaction": user_satisfaction,
+                "operator_profit": operator_profit,
+                "grid_friendliness": grid_friendliness,
+                "total_reward": total_reward,
+                "uncoordinated_user_satisfaction": uncoordinated_user_satisfaction,
+                "uncoordinated_operator_profit": uncoordinated_operator_profit,
+                "uncoordinated_grid_friendliness": uncoordinated_grid_friendliness,
+                "uncoordinated_total_reward": uncoordinated_total_reward
+            }
+                        
         return {
             "user_satisfaction": user_satisfaction,
             "operator_profit": operator_profit,
@@ -411,1203 +1855,1348 @@ class ChargingEnvironment:
             "total_reward": total_reward
         }
 
+    # <<< ADD NEW HELPER FUNCTION HERE >>>
+    def _calculate_charging_probability(self, user, current_hour):
+        """Calculates the probability that a user decides to seek charging."""
+        current_soc = user.get("soc", 100)
+        user_type = user.get("user_type", "commuter")
+        charging_preference = user.get("charging_preference", "flexible")
+        profile = user.get("profile", "balanced")
 
-class UserModel(nn.Module):
-    """用户行为模型，用于预测用户对不同充电方案的偏好"""
-    
-    def __init__(self, input_dim, hidden_dim=64):
-        """
-        初始化用户行为模型
-        参数:
-            input_dim: 输入特征维度
-            hidden_dim: 隐藏层维度
-        """
-        super(UserModel, self).__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, 1)  # 输出用户对方案的偏好得分
-    
-    def forward(self, x):
-        """前向传播"""
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = torch.sigmoid(self.fc3(x))  # 将偏好得分压缩到0-1之间
-        return x
+        # 1. Base probability using sigmoid curve
+        soc_midpoint = 70  # 中点SOC
+        soc_steepness = 0.08  # 曲线斜率
+        
+        base_prob = 1 / (1 + math.exp(soc_steepness * (current_soc - soc_midpoint)))
+        base_prob = min(0.99, max(0.35, base_prob))
 
+        # 2. 根据用户类型调整概率
+        type_factor = 0
+        if user_type == "taxi":
+            type_factor = 0.3  # 出租车更倾向于充电
+        elif user_type == "delivery":
+            type_factor = 0.25  # 配送车辆更倾向于充电
+        elif user_type == "business":
+            type_factor = 0.15  # 商务用户略微倾向于充电
+
+        # 3. 根据充电偏好调整概率
+        preference_factor = 0
+        hour = current_hour
+        if charging_preference == "evening" and 17 <= hour <= 22:
+            preference_factor = 0.4
+        elif charging_preference == "night" and (hour <= 5 or hour >= 22):
+            preference_factor = 0.4
+        elif charging_preference == "day" and 9 <= hour <= 16:
+            preference_factor = 0.4
+        elif charging_preference == "flexible":
+            preference_factor = 0.2  # 灵活充电的用户在任何时候都有一定概率充电
+
+        # 4. 根据用户特征调整概率
+        profile_factor = 0
+        if profile == "anxious":
+            profile_factor = 0.3  # 焦虑型用户更倾向于充电
+        elif profile == "planner":
+            if 40 <= current_soc <= 80:
+                profile_factor = 0.25  # 规划型用户在中等电量时更倾向于充电
+        elif profile == "economic":
+            profile_factor = -0.1  # 经济型用户略微降低充电倾向
+
+        # 5. SOC紧急充电提升
+        emergency_boost = 0
+        if current_soc <= 30:
+            emergency_boost = 0.5 * (1 - current_soc/30)
+
+        # 组合所有因素
+        charging_prob = base_prob + type_factor + preference_factor + profile_factor + emergency_boost
+
+        # 最终限制在[0,1]范围内
+        charging_prob = min(1.0, max(0.0, charging_prob))
+
+        # 记录调试信息
+        logger.debug(f"User {user.get('id')} charging probability calculation:")
+        logger.debug(f"  - Base prob: {base_prob:.2f}")
+        logger.debug(f"  - Type factor: {type_factor:.2f}")
+        logger.debug(f"  - Preference factor: {preference_factor:.2f}")
+        logger.debug(f"  - Profile factor: {profile_factor:.2f}")
+        logger.debug(f"  - Emergency boost: {emergency_boost:.2f}")
+        logger.debug(f"  - Final prob: {charging_prob:.2f}")
+
+        return charging_prob
+    # <<< END OF NEW HELPER FUNCTION >>>
+
+    def _update_user_position_along_route(self, user, distance_km):
+        """Moves the user along the route by a certain distance. Returns actual distance moved."""
+        route = user["route"]
+        if not route or len(route) < 2:
+            return 0
+            
+        # 将距离转换为坐标单位
+        distance_coord = distance_km / 111  # 粗略转换
+        
+        # 当前位置
+        current_pos = user["current_position"]
+        
+        # 找到当前位置在路径中的位置
+        current_segment = 0
+        for i in range(1, len(route)):
+            segment_start = route[i-1]
+            segment_end = route[i]
+            
+            # 检查当前位置是否在这个线段上
+            # 简单版：如果当前位置接近线段的起点或终点
+            if (abs(current_pos["lat"] - segment_start["lat"]) < 0.001 and 
+                abs(current_pos["lng"] - segment_start["lng"]) < 0.001):
+                current_segment = i-1
+                break
+            elif (abs(current_pos["lat"] - segment_end["lat"]) < 0.001 and 
+                  abs(current_pos["lng"] - segment_end["lng"]) < 0.001):
+                current_segment = i
+                break
+        
+        # 从当前段开始移动用户
+        remaining_distance = distance_coord
+        while remaining_distance > 0 and current_segment < len(route) - 1:
+            segment_start = route[current_segment]
+            segment_end = route[current_segment + 1]
+            
+            # 如果用户刚好在段起点
+            if (abs(current_pos["lat"] - segment_start["lat"]) < 0.001 and 
+                abs(current_pos["lng"] - segment_start["lng"]) < 0.001):
+                # 计算段长度
+                segment_dx = segment_end["lng"] - segment_start["lng"]
+                segment_dy = segment_end["lat"] - segment_start["lat"]
+                segment_length = math.sqrt(segment_dx*segment_dx + segment_dy*segment_dy)
+                
+                # 如果剩余距离足够走完整个段
+                if remaining_distance >= segment_length:
+                    # 直接移动到段终点
+                    current_pos["lat"] = segment_end["lat"]
+                    current_pos["lng"] = segment_end["lng"]
+                    remaining_distance -= segment_length
+                    current_segment += 1
+                else:
+                    # 移动一部分距离
+                    fraction = remaining_distance / segment_length
+                    current_pos["lat"] = segment_start["lat"] + segment_dy * fraction
+                    current_pos["lng"] = segment_start["lng"] + segment_dx * fraction
+                    remaining_distance = 0
+            else:
+                # 用户在段中间某处，计算到段终点的距离
+                dx = segment_end["lng"] - current_pos["lng"]
+                dy = segment_end["lat"] - current_pos["lat"]
+                distance_to_end = math.sqrt(dx*dx + dy*dy)
+                
+                # 如果剩余距离足够到达段终点
+                if remaining_distance >= distance_to_end:
+                    # 直接移动到段终点
+                    current_pos["lat"] = segment_end["lat"]
+                    current_pos["lng"] = segment_end["lng"]
+                    remaining_distance -= distance_to_end
+                    current_segment += 1
+                else:
+                    # 移动一部分距离
+                    fraction = remaining_distance / distance_to_end
+                    current_pos["lat"] += dy * fraction
+                    current_pos["lng"] += dx * fraction
+                    remaining_distance = 0
+        
+        # 如果用户已经到达最后一个点，直接设置位置为终点
+        if current_segment >= len(route) - 1:
+            current_pos["lat"] = route[-1]["lat"]
+            current_pos["lng"] = route[-1]["lng"]
+            
+        # 根据实际行驶距离消耗电量
+        # 不同车型每公里耗电量不同 (kWh/km)
+        consumption_rate = 0.0
+        if user.get("vehicle_type") == "sedan":
+            consumption_rate = 0.15  # 较小型轿车
+        elif user.get("vehicle_type") == "suv":
+            consumption_rate = 0.22  # SUV
+        elif user.get("vehicle_type") == "truck":
+            consumption_rate = 0.35  # 卡车
+        else:
+            consumption_rate = 0.18  # 默认值
+            
+        # 考虑驾驶风格对能耗的影响
+        if user.get("driving_style") == "aggressive":
+            consumption_rate *= 1.2  # 激进驾驶增加20%能耗
+        elif user.get("driving_style") == "eco":
+            consumption_rate *= 0.9  # 经济驾驶减少10%能耗
+            
+        # 计算能耗 (kWh)
+        energy_used = distance_km * consumption_rate
+        
+        # 计算SOC减少百分比
+        battery_capacity = user.get("battery_capacity", 60)  # 默认60kWh
+        soc_decrease = (energy_used / battery_capacity) * 100
+        
+        # 更新SOC和续航里程
+        user["soc"] = max(0, user["soc"] - soc_decrease)
+        user["current_range"] = user["max_range"] * (user["soc"] / 100)
+        
+        return distance_km
+
+    # <<< ADD THE MISSING HELPER FUNCTION >>>
+    def _get_random_location(self):
+        """Generates a random location within the defined map boundaries."""
+        # Ensure map_bounds exists and has the expected keys
+        if not hasattr(self, 'map_bounds') or not all(k in self.map_bounds for k in ['lat_min', 'lat_max', 'lng_min', 'lng_max']):
+            logger.error("Map bounds not properly initialized. Using default fallback region.")
+            # Fallback to a default region if bounds are missing
+            return {"lat": 30.75, "lng": 114.25} 
+            
+        try:
+            lat = random.uniform(self.map_bounds['lat_min'], self.map_bounds['lat_max'])
+            lng = random.uniform(self.map_bounds['lng_min'], self.map_bounds['lng_max'])
+            return {"lat": lat, "lng": lng}
+        except Exception as e:
+            logger.error(f"Error generating random location: {e}. Using default fallback.", exc_info=True)
+            return {"lat": 30.75, "lng": 114.25} # Fallback on other errors
+    # <<< END OF ADDED HELPER FUNCTION >>>
+
+    # <<< ADD NEW FUNCTION >>>
+    def _plan_route_to_destination(self, user_id, destination):
+        """规划用户到任意目的地的路线（非充电桩）"""
+        if user_id not in self.users:
+            logger.error(f"_plan_route_to_destination: User {user_id} not found.")
+            return False
+
+        user = self.users[user_id]
+        start_pos = user["current_position"]
+        end_pos = destination # Destination is already a coordinate dict
+
+        # Check if destination is valid
+        if not isinstance(end_pos, dict) or 'lat' not in end_pos or 'lng' not in end_pos:
+            logger.error(f"_plan_route_to_destination: Invalid destination format for user {user_id}: {end_pos}")
+            return False
+
+        # Clear previous route info
+        user["route"] = []
+        user["waypoints"] = []
+        user["destination"] = end_pos.copy()
+        user["target_charger"] = None # Ensure it's not targeting a charger
+        user["last_destination_type"] = "random" # Or determine based on context if possible
+
+        # Simple path planning: Straight line with random waypoints
+        dx = end_pos["lng"] - start_pos["lng"]
+        dy = end_pos["lat"] - start_pos["lat"]
+        distance = math.sqrt(dx*dx + dy*dy) * 111 # Approx km
+
+        # Generate waypoints
+        num_points = random.randint(2, 4)
+        waypoints = []
+        for i in range(1, num_points):
+            t = i / num_points
+            point_lng = start_pos["lng"] + t * dx
+            point_lat = start_pos["lat"] + t * dy
+            # Add random offset
+            perpendicular_dx = -dy
+            perpendicular_dy = dx
+            perp_len = math.sqrt(perpendicular_dx**2 + perpendicular_dy**2)
+            if perp_len > 0:
+                perpendicular_dx /= perp_len
+                perpendicular_dy /= perp_len
+            offset_magnitude = random.uniform(-0.1, 0.1) * distance / 111
+            point_lng += perpendicular_dx * offset_magnitude
+            point_lat += perpendicular_dy * offset_magnitude
+            waypoints.append({"lat": point_lat, "lng": point_lng})
+
+        user["waypoints"] = waypoints
+        full_route = [start_pos.copy()] + waypoints + [end_pos.copy()]
+        user["route"] = full_route
+
+        # Calculate total distance and time
+        total_distance = 0
+        for i in range(1, len(full_route)):
+            p1 = full_route[i-1]
+            p2 = full_route[i]
+            segment_dist = math.sqrt((p2["lng"] - p1["lng"])**2 + (p2["lat"] - p1["lat"])**2) * 111
+            total_distance += segment_dist
+
+        travel_time_minutes = (total_distance / user.get("travel_speed", 45)) * 60 if user.get("travel_speed", 45) > 0 else float('inf')
+
+        user["time_to_destination"] = travel_time_minutes
+        user["traveled_distance"] = 0
+
+        logger.debug(f"Planned route for user {user_id} to random destination {destination}, distance: {total_distance:.2f} km, time: {travel_time_minutes:.1f} min.")
+        return True
+    # <<< END ADD NEW FUNCTION >>>
 
 class ChargingScheduler:
-    """充电调度策略模型"""
-    
-    def __init__(self, config):
-        """
-        初始化充电调度策略
-        """
+    def __init__(self, config: Dict[str, Any]):
+        # Store relevant parts of the config
         self.config = config
-        self.env = ChargingEnvironment(config)
-        
-        # 特征维度计算
-        # 用户特征: SOC + 最大等待时间 + 首选功率 + 时间敏感度 + 价格敏感度 + 里程焦虑度
-        # 充电桩特征: 健康分 + 可用功率 + 队列长度 + 平均等待时间 + 位置(2维)
-        # 电网特征: 当前负载 + 预测负载 + 新能源占比 + 电价 + 是否高峰/低谷
-        # 交互特征: 距离 + 等待时间预估
-        # 总维度: 6 + 6 + 5 + 2 = 19
-        input_dim = config.get("model", {}).get("input_dim", 19)
-        hidden_dim = config.get("model", {}).get("hidden_dim", 64)
-        
-        # 初始化用户行为模型
-        self.user_model = UserModel(input_dim, hidden_dim)
-        self.optimizer = optim.Adam(self.user_model.parameters(), lr=0.001)
-        
-        # 历史数据存储
-        self.experience_buffer = []
-        
-        # 模型训练标志
-        self.is_trained = False
-    def dynamic_scheduling(self, current_hour, actions):
-        """根据当前电网负荷调整调度策略"""
-        grid_load = self.env.grid_status["current_load"]
-        
-        if current_hour in self.env.grid_status["peak_hours"]:
-            # 高峰时段
-            if grid_load > 80:  # 电网负荷过高，优先调度低功率充电桩
-                for user_id, charger_id in actions.items():
-                    charger = self.env.chargers[charger_id]
-                    if charger["max_power"] > 60:
-                        # 将大功率充电桩分配给低负载用户
-                        actions[user_id] = self.find_low_power_charger()
-        elif current_hour in self.env.grid_status["valley_hours"]:
-            # 低谷时段，电网负荷低，鼓励更多充电
-            self.encourage_more_charging(actions)
-        return actions
+        env_config = config.get("environment", {})
+        scheduler_config = config.get("scheduler", {})
+        marl_specific_config = scheduler_config.get("marl_config", {})
 
-    def find_low_power_charger(self):
-        """查找低功率充电桩"""
-        for charger_id, charger in self.env.chargers.items():
-            if charger["max_power"] <= 60:
-                return charger_id
+        # --- Assign algorithm FIRST ---
+        self.algorithm = scheduler_config.get("scheduling_algorithm", "rule_based")
+        logger.info(f"ChargingScheduler initialized with algorithm: {self.algorithm}")
+        # --- End Assign algorithm FIRST ---
 
-    def encourage_more_charging(self, actions):
-        """在低谷时段鼓励更多充电"""
-        for user_id, charger_id in actions.items():
-            charger = self.env.chargers[charger_id]
-            if charger["queue_length"] == 0:
-                # 如果充电桩没有排队，鼓励更多充电
-                actions[user_id] = charger_id
-        return actions
-    def preprocess_features(self, user, charger, grid_status, current_time):
+        self.grid_id = env_config.get("grid_id", "DEFAULT001")
+        self.charger_count = env_config.get("charger_count", 20)
+        self.user_count = env_config.get("user_count", 50)
 
-        # 计算用户到充电桩的距离
-        user_lat, user_lng = user["position"]["lat"], user["position"]["lng"]
-        charger_lat, charger_lng = charger["position"]["lat"], charger["position"]["lng"]
-        
-        # 简化的距离计算 (球面坐标系下的欧氏距离近似)
-        distance = np.sqrt((user_lat - charger_lat)**2 + (user_lng - charger_lng)**2) * 111  # 1经纬度约111km
+        # Store optimization weights (used by rule_based and coordinated_mas)
+        self.optimization_weights = scheduler_config.get("optimization_weights", {
+            "user_satisfaction": 0.33,
+            "operator_profit": 0.33,
+            "grid_friendliness": 0.34
+        })
 
-        wait_time = charger["queue_length"] * charger["avg_waiting_time"]
-        
-        # 当前是否为高峰或低谷时段
-        current_hour = current_time.hour
-        is_peak = 1.0 if current_hour in [7, 8, 9, 10, 18, 19, 20, 21] else 0.0
-        is_valley = 1.0 if current_hour in [0, 1, 2, 3, 4, 5] else 0.0
-        
-        # 构建特征向量
-        features = [
-            # 用户特征
-            user["soc"] / 100,  # 电池电量百分比 (归一化到0-1)
-            user["max_wait_time"] / 60,  # 最大等待时间 (归一化到小时)
-            user["preferred_power"] / 120,  # 首选功率 (归一化到最大功率)
-            user.get("time_sensitivity", 0.5),
-            user.get("price_sensitivity", 0.5),
-            user.get("range_anxiety", 0.5),
-            
-            # 充电桩特征
-            charger["health_score"] / 100,
-            charger["available_power"] / 120,
-            charger["queue_length"] / 10,  # 队列长度 (归一化到最大队列10)
-            charger["avg_waiting_time"] / 30,
-            1.0 if charger["charger_type"] == "fast" else 0.0,
-            1.0 if charger.get("has_solar", False) else 0.0,
-            
-            # 电网特征
-            grid_status["current_load"] / 100,
-            grid_status["pred_1h_load"] / 100,
-            grid_status["renewable_ratio"] / 100,
-            grid_status["current_price"] / 1.2,  # 当前电价 (归一化到峰值电价)
-            is_peak,
-            
-            # 交互特征
-            min(distance, 20) / 20,  # 距离 (归一化到20km)
-            min(wait_time, 120) / 120  # 等待时间预估 (归一化到2小时)
-        ]
-        
-        return torch.tensor(features, dtype=torch.float32)
-    
-    def filter_feasible_chargers(self, user, all_chargers, grid_status, current_time):
+        # Initialize specific systems based on the algorithm
+        self.coordinated_mas_system = None
+        self.marl_system = None
 
-        feasible_chargers = []
+        if self.algorithm == "coordinated_mas":
+            logger.info("Initializing Coordinated MAS subsystem...")
+            try:
+                self.coordinated_mas_system = MultiAgentSystem()
+                # Pass necessary config/weights to the MAS coordinator
+                # The MultiAgentSystem itself might need the config too
+                self.coordinated_mas_system.config = config
+                if hasattr(self.coordinated_mas_system, 'coordinator'):
+                    self.coordinated_mas_system.coordinator.set_weights(self.optimization_weights)
+                logger.info("Coordinated MAS subsystem initialized.")
+            except Exception as e:
+                logger.error(f"Failed to initialize Coordinated MAS: {e}", exc_info=True)
+                self.algorithm = "rule_based" # Fallback to rule-based
+                logger.warning("Falling back to rule_based scheduling due to MAS initialization error.")
 
-        current_hour = current_time.hour
-    
-        # 判断是否为高峰时段
-        is_peak_hour = current_hour in [7, 8, 9, 10, 18, 19, 20, 21]
-        is_valley_hour = current_hour in [0, 1, 2, 3, 4, 5]
-        current_hour = current_time.hour
-        is_solar_hour = 1 if 8 <= current_hour <= 16 else 0
-        high_renewable = grid_status["renewable_ratio"] > 40
-        for charger_id, charger in all_chargers.items():
-            if is_valley_hour or (high_renewable and is_solar_hour):
-                pass
-            if is_peak_hour and grid_status["current_load"] > 80:
-                # 紧急情况下才允许在高峰期高负载情况下充电
-                if user["soc"] > 20 and not charger.get("has_storage", False):
-                    continue
-            # 在高负载但非高峰期，放宽限制
-            elif grid_status["current_load"] > 90 and not charger.get("has_storage", False):
-                if user["soc"] > 15:  # 真正紧急情况才允许
-                    continue
-            if is_solar_hour and charger.get("has_solar", False):
+        elif self.algorithm == "marl":
+            logger.info("Initializing MARL subsystem...")
+            try:
+                # Initialize MARL system (assuming MARLSystem class exists)
+                # It likely needs the MARL-specific config and possibly env details
+                self.marl_system = MARLSystem(
+                     num_chargers=self.charger_count,
+                     action_space_size=marl_specific_config.get("action_space_size", 5), # Example
+                     learning_rate=marl_specific_config.get("learning_rate", 0.01),
+                     discount_factor=marl_specific_config.get("discount_factor", 0.95),
+                     exploration_rate=marl_specific_config.get("exploration_rate", 0.1),
+                     q_table_path=marl_specific_config.get("q_table_path", None)
+                 )
+                logger.info("MARL subsystem initialized.")
+            except NameError:
+                 logger.error("MARLSystem class not found. MARL scheduling disabled.", exc_info=True)
+                 self.algorithm = "rule_based" # Fallback
+                 logger.warning("Falling back to rule_based scheduling because MARLSystem class is missing.")
+            except Exception as e:
+                logger.error(f"Failed to initialize MARL system: {e}", exc_info=True)
+                self.algorithm = "rule_based" # Fallback
+                logger.warning("Falling back to rule_based scheduling due to MARL initialization error.")
 
-                pass
+        # No specific initialization needed for rule_based beyond weights
 
-            # 计算距离
-            user_lat, user_lng = user["position"]["lat"], user["position"]["lng"]
-            charger_lat, charger_lng = charger["position"]["lat"], charger["position"]["lng"]
-            distance = np.sqrt((user_lat - charger_lat)**2 + (user_lng - charger_lng)**2) * 111
-            
-            # 续航可达性检查
-            remaining_range = user["soc"] / 100 * user.get("max_range", 400)
-            if remaining_range < 1.2 * distance:  # 需要留20%的余量
-                # 但如果SOC低于10%，则放宽此约束作为应急措施
-                if user["soc"] >= 10:
-                    continue
+    # Add learn method stub for MARL
+    def learn(self, state, actions, rewards, next_state):
+         if self.algorithm == "marl" and self.marl_system:
+              try:
+                   self.marl_system.update_q_tables(state, actions, rewards, next_state)
+              except Exception as e:
+                   logger.error(f"Error during MARL learning step: {e}", exc_info=True)
+         # else: pass # No learning for other algorithms
 
-            # 跳过健康状态差的充电桩
-            if charger["health_score"] < 70:
-                continue
-            # 跳过功率不匹配的充电桩
-            if charger["available_power"] < user["preferred_power"] * 0.8:
-                continue
-            # 如果用户时间敏感且等待时间长，跳过
-            expected_wait = charger["queue_length"] * charger["avg_waiting_time"]
-            if user.get("time_sensitivity", 0.5) > 0.7 and expected_wait > user["max_wait_time"]:
-                continue
-                
-            # 通过所有约束，加入可行充电桩列表
-            feasible_chargers.append(charger)
-        if is_solar_hour:
+    # Add load/save Q-table methods for MARL
+    def load_q_tables(self):
+        if self.algorithm == "marl" and self.marl_system:
+            try:
+                self.marl_system.load_q_tables()
+                logger.info("MARL Q-tables loaded successfully")
+            except Exception as e:
+                logger.error(f"Error loading MARL Q-tables: {e}", exc_info=True)
 
-            feasible_chargers.sort(key=lambda c: 1 if c.get("has_solar", False) else 0, reverse=True)
-        
-        return feasible_chargers
-    
-    def score_chargers(self, user, chargers, grid_status, current_time):
+    def save_q_tables(self):
+        if self.algorithm == "marl" and self.marl_system:
+            try:
+                self.marl_system.save_q_tables()
+                logger.info("MARL Q-tables saved successfully.")
+            except Exception as e:
+                logger.error(f"Failed to save MARL Q-tables: {e}", exc_info=True)
 
-        charger_scores = []
-        current_hour = current_time.hour
-        if grid_status["current_load"] > 85:
-            if current_hour in [7, 8, 9, 10, 18, 19, 20, 21]:
-                weights = {"user": 0.2, "profit": 0.2, "grid": 0.6}
-            else:
-                weights = {"user": 0.3, "profit": 0.2, "grid": 0.5}
-        elif current_hour in [0, 1, 2, 3, 4, 5]:
-            weights = {"user": 0.3, "profit": 0.3, "grid": 0.4}
-        elif grid_status["renewable_ratio"] > 50:
-            weights = {"user": 0.3, "profit": 0.2, "grid": 0.5}
-        elif user["soc"] < 20:
-            weights = {"user": 0.5, "profit": 0.3, "grid": 0.2}
-        else:
-            weights = {"user": 0.3, "profit": 0.3, "grid": 0.4}
-        
-        for charger in chargers:
-
-            features = self.preprocess_features(user, charger, grid_status, current_time)
-            
-            if self.is_trained:
-
-                with torch.no_grad():
-                    features = features.unsqueeze(0)
-                    # 解包返回的元组，只取第一个值（用户满意度）
-                    user_satisfaction, _, _ = self.user_model(features)
-                    user_preference = user_satisfaction.item()
-
-            else:
-                # 未训练时使用启发式规则
-
-                # 计算用户到充电桩的距离
-                user_lat, user_lng = user["position"]["lat"], user["position"]["lng"]
-                charger_lat, charger_lng = charger["position"]["lat"], charger["position"]["lng"]
-                distance = np.sqrt((user_lat - charger_lat)**2 + (user_lng - charger_lng)**2) * 111
-                
-                wait_time = charger["queue_length"] * charger["avg_waiting_time"]
-
-                power_match = min(charger["available_power"], user["preferred_power"]) / user["preferred_power"]
-                
-                time_factor = 1 - min(wait_time / user["max_wait_time"], 1) if user["max_wait_time"] > 0 else 0
-                distance_factor = 1 - min(distance / 20, 1)  # 最远考虑20km
-
-                user_type = user.get("type", "私家车")  # 如果没有type键，默认为"私家车"
-                if user_type == "出租车":
-                    weights = {"time": 0.5, "distance": 0.3, "power": 0.2}
-                elif user_type == "物流车":
-                    weights = {"time": 0.4, "distance": 0.4, "power": 0.2}
-                else:  # 私家车和网约车
-                    weights = {"time": 0.3, "distance": 0.4, "power": 0.3}
-                
-                user_preference = (
-                    weights["time"] * time_factor + 
-                    weights["distance"] * distance_factor + 
-                    weights["power"] * power_match
-                )
-            
-            # 计算运营商利润因子
-            current_hour = current_time.hour
-            
-            # 确定当前电价
-            if current_hour in [7, 8, 9, 10, 18, 19, 20, 21]:
-                current_price = grid_status.get("peak_price", 1.2)
-            elif current_hour in [0, 1, 2, 3, 4, 5]:
-                current_price = grid_status.get("valley_price", 0.4)
-            else:
-                current_price = grid_status.get("normal_price", 0.85)
-            
-            # 简化的利润计算
-            # 2. 运营商利润计算
-            # 充电量 (kWh)
-            charge_amount = min(100 - user["soc"], 30) / 100 * 60  # 假设电池容量60kWh
-            # 差异化定价策略，基于时段动态调整加价比例
-            if current_hour in [7, 8, 9, 10, 18, 19, 20, 21]:
-                # 低谷时段提高加价，因为电费成本低
-                markup_rate = 1.25  # 低谷时段加价25%
-            elif current_hour in [0, 1, 2, 3, 4, 5]:
-                # 高峰时段降低加价，提高吸引力
-                markup_rate = 1.05  # 高峰时段仅加价5%
-            else:
-                markup_rate = 1.15  # 平常时段加价15%
-
-            # 充电收入
-            charging_fee = charge_amount * current_price * markup_rate
-
-            # 电网采购成本
-            grid_cost = charge_amount * current_price
-
-            # 设备折旧成本 - 考虑不同桩类型的折旧差异
-            depreciation_rate = 0.04  # 慢充桩折旧率低
-
-            depreciation_cost = charge_amount * depreciation_rate
-
-            # 光伏自发电收益
-            solar_benefit = 0
-            if charger.get("has_solar", False) and 8 <= current_hour <= 16:
-                solar_benefit = charge_amount * 0.2  # 20%的电量来自自发电，降低采购成本
-            operator_profit = charging_fee - grid_cost - depreciation_cost
-            
-            # 设备健康影响因子 (健康状态越好，长期利润越高)
-            health_factor = charger["health_score"] / 100
-            
-            # 运营商利润评分
-            profit_score = operator_profit * health_factor / (charge_amount * 0.3)  # 归一化
-            
-            # 计算电网友好度因子
-            grid_load = grid_status["current_load"] / 100
-            
-            # 高负载区域充电不友好
-            grid_penalty = grid_load ** 2  # 二次惩罚项，负载越高惩罚越重
-            
-            # 新能源利用奖励
-            renewable_bonus = 0
-            if charger.get("has_solar", False) and 8 <= current_hour <= 16:
-                renewable_bonus = 0.2 * grid_status["renewable_ratio"] / 100
-            
-            grid_score = 1 - grid_penalty + renewable_bonus
-            grid_score = max(0, min(1, grid_score))  # 限制在0-1范围内
-
-            # 计算综合评分
-            if grid_load > 0.8:  # 电网高负载情况下，电网友好度权重提高
-                if current_hour in [7, 8, 9, 10, 18, 19, 20, 21]:
-                    weights = {"user": 0.25, "profit": 0.25, "grid": 0.5}
-                else:
-                    weights = {"user": 0.3, "profit": 0.3, "grid": 0.4}
-            elif current_hour in [0, 1, 2, 3, 4, 5]:
-                weights = {"user": 0.35, "profit": 0.4, "grid": 0.25}  # 增加利润权重，鼓励运营商引导用户低谷充电
-            elif user["soc"] < 20:
-                weights = {"user": 0.5, "profit": 0.3, "grid": 0.2}
-            else:
-                weights = {"user": 0.35, "profit": 0.35, "grid": 0.3}
-            
-            combined_score = (
-                weights["user"] * user_preference + 
-                weights["profit"] * profit_score + 
-                weights["grid"] * grid_score
-            )
-            
-            charger_scores.append({
-                "charger_id": charger["charger_id"],
-                "combined_score": combined_score,
-                "user_score": user_preference,
-                "profit_score": profit_score,
-                "grid_score": grid_score,
-                "distance": distance if 'distance' in locals() else None,
-                "wait_time": wait_time if 'wait_time' in locals() else charger["queue_length"] * charger["avg_waiting_time"],
-                "available_power": charger["available_power"]
-            })
-        
-        # 按综合评分排序
-        charger_scores.sort(key=lambda x: x["combined_score"], reverse=True)
-        
-        return charger_scores
-    
-    def make_recommendation(self, user_id, state):
+    def make_scheduling_decision(self, state: Dict[str, Any]) -> Dict[str, str]:
         """
-        为指定用户生成充电桩推荐列表
-        """
-        # 从状态中获取用户信息
-        user_info = None
-        for user in state["users"]:
-            if user["user_id"] == user_id:
-                user_info = user
-                break
-        
-        if not user_info:
-            return []
+        Make scheduling decisions for charging assignments
 
-        chargers_dict = {charger["charger_id"]: charger for charger in state["chargers"]}
-        
-        # 预筛选可行充电桩
-        current_time = datetime.fromisoformat(state["timestamp"])
-        feasible_chargers = self.filter_feasible_chargers(
-            user_info, chargers_dict, state["grid_status"], current_time
-        )
-        
-        # 如果用户SOC低于10%，增加应急模式处理
-        if user_info["soc"] < 10:
+        Args:
+            state: Current state of the environment
 
-            for charger in feasible_chargers:
-                user_lat, user_lng = user_info["position"]["lat"], user_info["position"]["lng"]
-                charger_lat, charger_lng = charger["position"]["lat"], charger["position"]["lng"]
-                distance = np.sqrt((user_lat - charger_lat)**2 + (user_lng - charger_lng)**2) * 111
-                charger["distance"] = distance
-            
-            # 紧急情况下，先按距离排序，取最近的3个充电桩
-            feasible_chargers.sort(key=lambda x: x["distance"])
-            emergency_chargers = feasible_chargers[:3]
-            
-            # 仅为这些最近的充电桩计算详细得分
-            recommendations = self.score_chargers(
-                user_info, emergency_chargers, state["grid_status"], current_time
-            )
-        else:
-            # 正常模式：为所有可行充电桩评分
-            recommendations = self.score_chargers(
-                user_info, feasible_chargers, state["grid_status"], current_time
-            )
-        
-        return recommendations
-    
-    def collect_experience(self, user_id, recommended_chargers, selected_charger_id, satisfaction_score):
-        """
-        收集用户选择行为数据，用于模型训练
-        """
-        # 找到用户选择的充电桩在推荐列表中的排名
-        selected_rank = None
-        for i, rec in enumerate(recommended_chargers):
-            if rec["charger_id"] == selected_charger_id:
-                selected_rank = i
-                break
-        
-        if selected_rank is not None:
-            # 记录为正样本
-            positive_sample = {
-                "user_id": user_id,
-                "charger_id": selected_charger_id,
-                "rank": selected_rank,
-                "satisfaction": satisfaction_score,
-                "features": None  # 稍后填充特征
-            }
-            
-            # 随机选择一个未被选中的充电桩作为负样本
-            negative_samples = []
-            for i, rec in enumerate(recommended_chargers):
-                if i != selected_rank:
-                    negative_samples.append({
-                        "user_id": user_id,
-                        "charger_id": rec["charger_id"],
-                        "rank": i,
-                        "satisfaction": 0,  # 假设未选择的满意度为0
-                        "features": None  # 稍后填充特征
-                    })
-            
-            # 如果有负样本，随机选择一个
-            if negative_samples:
-                negative_sample = np.random.choice(negative_samples)
-                self.experience_buffer.append((positive_sample, negative_sample))
-    
-    def train_model(self, batch_size=32, epochs=10):
-        """训练用户行为模型"""
-        if len(self.experience_buffer) < batch_size:
-            return  # 数据不足，暂不训练
-        
-        # 准备训练数据
-        dataset = []
-        for positive, negative in self.experience_buffer:
-            if positive["features"] is not None and negative["features"] is not None:
-                dataset.append((positive["features"], torch.tensor([1.0], dtype=torch.float32)))
-                dataset.append((negative["features"], torch.tensor([0.0], dtype=torch.float32)))
-        
-        # 打乱数据
-        np.random.shuffle(dataset)
-        
-        # 训练模型
-        self.user_model.train()
-        criterion = nn.BCELoss()
-        
-        for epoch in range(epochs):
-            epoch_loss = 0
-            
-            for features, label in dataset:
-                self.optimizer.zero_grad()
-                output = self.user_model(features)
-                loss = criterion(output, label)
-                loss.backward()
-                self.optimizer.step()
-                
-                epoch_loss += loss.item()
-            
-            print(f"Epoch {epoch+1}/{epochs}, Loss: {epoch_loss / len(dataset)}")
-        
-        self.is_trained = True
-    
-    def make_scheduling_decision(self, state):
-        """
-        为所有待充电用户做出调度决策
-        返回:
-            decisions: 调度决策，包含用户ID到充电桩ID的映射
+        Returns:
+            decisions: Dict mapping user_ids to charger_ids
         """
         decisions = {}
         
-        # 为每个用户生成推荐
-        for user in state["users"]:
-            # 只为SOC较低的用户做调度
-            if user["soc"] < 80:
-                recommendations = self.make_recommendation(user["user_id"], state)
+        # Validate state
+        if not state or not isinstance(state, dict):
+            logger.error("make_scheduling_decision received invalid state")
+            return decisions
+            
+        # Choose algorithm based on configuration
+        if self.algorithm == "coordinated_mas" and self.coordinated_mas_system:
+            # Use coordinated multi-agent system
+            try:
+                decisions = self.coordinated_mas_system.make_decisions(state)
+                logger.info(f"Coordinated MAS made {len(decisions)} assignments")
+            except Exception as e:
+                logger.error(f"Error in coordinated MAS: {e}", exc_info=True)
+                # Fallback to rule-based if MAS fails
+                decisions = self._rule_based_scheduling(state)
                 
-                if recommendations:
-                    # 选择评分最高的充电桩
-                    best_charger = recommendations[0]["charger_id"]
-                    decisions[user["user_id"]] = best_charger
+        elif self.algorithm == "marl" and self.marl_system:
+            # Use MARL system
+            try:
+                # 1. Generate action maps for all active chargers *before* agents choose actions
+                charger_action_maps = {}
+                if state.get("chargers"):
+                    for charger in state["chargers"]:
+                        charger_id = charger.get("charger_id")
+                        if charger_id and charger.get("status") != "failure":
+                            action_map, action_size = self._create_dynamic_action_map(charger_id, state)
+                            charger_action_maps[charger_id] = {"map": action_map, "size": action_size}
+
+                # 2. Let MARL agents choose numerical actions based on the state
+                marl_actions = self.marl_system.choose_actions(state)
+
+                # 3. Convert chosen actions to decisions using the pre-generated maps
+                decisions = self._convert_marl_actions_to_decisions(marl_actions, state, charger_action_maps)
+                logger.info(f"MARL made {len(decisions)} assignments")
+            except Exception as e:
+                logger.error(f"Error in MARL decision: {e}", exc_info=True)
+                # Fallback to rule-based if MARL fails
+                decisions = self._rule_based_scheduling(state)
+        
+        elif self.algorithm == "uncoordinated":  # 新增无序充电模式
+            # 使用无序充电（先到先得，不考虑优化）
+            try:
+                decisions = self._uncoordinated_charging(state)
+                logger.info(f"Uncoordinated charging made {len(decisions)} assignments")
+            except Exception as e:
+                logger.error(f"Error in uncoordinated charging: {e}", exc_info=True)
+                decisions = self._rule_based_scheduling(state)  # 出错时回退到规则算法
+                
+        else:
+            # Default to rule-based
+            decisions = self._rule_based_scheduling(state)
+            
+        logger.info(f"调度决策 ({self.algorithm}): {len(decisions)} 个分配")
+        return decisions
+        
+    def _uncoordinated_charging(self, state):
+        """
+        无序充电模式：基于先到先得原则，不考虑全局优化
+        这种模式模拟现实中无协调的充电行为，作为优化策略的对比基准
+        
+        Args:
+            state: 当前环境状态
+            
+        Returns:
+            decisions: 用户ID到充电桩ID的映射
+        """
+        decisions = {}
+        
+        # 安全提取用户和充电桩信息
+        users_list = state.get("users", [])
+        chargers_list = state.get("chargers", [])
+        
+        if not isinstance(users_list, list) or not isinstance(chargers_list, list):
+            logger.warning("_uncoordinated_charging: Invalid format for users or chargers")
+            return decisions
+            
+        # 将列表转为字典便于处理
+        users = {}
+        for user_data in users_list:
+            if isinstance(user_data, dict) and "user_id" in user_data:
+                users[user_data["user_id"]] = user_data
+                
+        chargers = {}
+        for charger_data in chargers_list:
+            if isinstance(charger_data, dict) and "charger_id" in charger_data:
+                chargers[charger_data["charger_id"]] = charger_data
+                
+        if not users or not chargers:
+            logger.warning("_uncoordinated_charging: No valid users or chargers found")
+            return decisions
+            
+        # 找出需要充电的用户(traveling状态且没有目标充电桩)
+        charging_candidates = []
+        for user_id, user in users.items():
+            if user.get("status") == "traveling" and user.get("target_charger") is None:
+                # 用户的SOC越低，焦虑越高，越可能随机选择一个最近的充电桩
+                soc = user.get("soc", 100)
+                if not isinstance(soc, (int, float)):
+                    soc = 100
+                
+                user_pos = user.get("current_position", {"lat": 0, "lng": 0})
+                charging_candidates.append((user_id, user, soc, user_pos))
+                
+        if not charging_candidates:
+            return decisions
+            
+        # 给充电桩建立队列状态
+        # 无序充电模式下，用户倾向于选择最近或者排队最短的充电桩
+        charger_queue_info = {}
+        for charger_id, charger in chargers.items():
+            if charger.get("status") != "failure":
+                queue_length = len(charger.get("queue", []))
+                position = charger.get("position", {"lat": 0, "lng": 0})
+                is_occupied = charger.get("status") == "occupied"
+                
+                # 快充桩更受欢迎
+                is_fast = charger.get("type") == "fast"
+                
+                charger_queue_info[charger_id] = {
+                    "queue_length": queue_length,
+                    "position": position,
+                    "is_occupied": is_occupied,
+                    "is_fast": is_fast
+                }
+                
+        # 模拟非协调的选择行为：用户会随机选择相对近的或排队相对短的充电桩
+        for user_id, user, soc, user_pos in charging_candidates:
+            # 充电桩已满，无法分配更多
+            if not charger_queue_info:
+                break
+                
+            # 计算用户到所有可用充电桩的距离
+            charger_distances = []
+            for charger_id, info in charger_queue_info.items():
+                charger_pos = info["position"]
+                queue_length = info["queue_length"]
+                is_occupied = info["is_occupied"]
+                is_fast = info["is_fast"]
+                
+                # 计算距离
+                distance = self._calculate_distance(user_pos, charger_pos)
+                
+                # 将距离与排队情况结合成一个吸引力分数
+                # SOC越低，用户越倾向于选择近的充电桩，而不考虑排队长度
+                if soc < 20:  # 电量极低时，距离是最主要因素
+                    attraction_score = -distance  # 负距离，越近越好
+                else:
+                    # 平衡距离和排队长度
+                    # 快充桩有加成
+                    fast_bonus = 1.3 if is_fast else 1.0
+                    # 距离和排队长度的加权和
+                    attraction_score = -(distance * 0.7 + queue_length * 5 * 0.3) * fast_bonus
+                
+                # 如果已满(队列长度>=3)，则跳过
+                if is_occupied and queue_length >= 3:
+                    continue
+                    
+                charger_distances.append((charger_id, attraction_score))
+                
+            if not charger_distances:
+                continue  # 没有合适的充电桩
+                
+            # 排序获取前三个最有吸引力的充电桩
+            charger_distances.sort(key=lambda x: x[1], reverse=True)  # 降序排序，吸引力最高的在前
+            
+            # 从前三个中随机选择一个，模拟现实中的随机性和不完全信息
+            top_choices = charger_distances[:min(3, len(charger_distances))]
+            
+            # 根据SOC确定随机性：SOC越低，越可能选择最近的(第一个)
+            if soc < 15 and len(top_choices) > 0:
+                # 电量极低时几乎总是选择最近的
+                selected_charger_id = top_choices[0][0]
+            elif soc < 30 and len(top_choices) > 0:
+                # 电量较低时有80%的概率选择最近的，20%随机
+                if random.random() < 0.8:
+                    selected_charger_id = top_choices[0][0]
+                else:
+                        weights = [0.8, 0.15, 0.05][:len(top_choices)]
+                        selected_charger_id = random.choices(
+                            [c[0] for c in top_choices], 
+                            weights=weights, 
+                            k=1
+                        )[0]
+            else:
+                    # 电量正常时，在前三个中有更多随机性
+                    weights = [0.5, 0.3, 0.2][:len(top_choices)]
+                    selected_charger_id = random.choices(
+                        [c[0] for c in top_choices], 
+                        weights=weights, 
+                        k=1
+                    )[0]
+            
+            # 分配充电桩
+            decisions[user_id] = selected_charger_id
+            
+            # 更新该充电桩的队列信息
+            info = charger_queue_info[selected_charger_id]
+            info["queue_length"] += 1
+            
+            # 如果队列已满，从可选列表中移除
+            if info["is_occupied"] and info["queue_length"] >= 3:
+                del charger_queue_info[selected_charger_id]
+                
+        return decisions
+
+    # --- Helper to create dynamic action map (needed for MARL conversion) ---
+    def _create_dynamic_action_map(self, charger_id, state):
+        """
+        Creates a mapping from action index (0 to N-1) to the actual action ('idle' or user_id)
+        that is valid for the agent in the current step. Revised for better candidate selection.
+        Index 0 is always 'idle'. Subsequent indices map to potential user IDs.
+        Uses action_space_size from the MARL config.
+        """
+        # Get action space size from the MARL config
+        marl_config = self.config.get("scheduler", {}).get("marl_config", {})
+        action_space_size = marl_config.get("action_space_size", 6) # Default to 6 if not found
+        max_potential_users = action_space_size - 1 # Number of users to map (action 0 is idle)
+
+        # --- CONFIGURABLE PARAMETERS for candidate selection ---
+        # Reasonable distance threshold (degrees squared), e.g., 0.15^2 ≈ 20km radius
+        MAX_DISTANCE_SQ = marl_config.get("marl_candidate_max_dist_sq", 0.15**2)
+        # Weights for priority scoring
+        W_SOC = marl_config.get("marl_priority_w_soc", 0.5)       # Weight for low SOC
+        W_DIST = marl_config.get("marl_priority_w_dist", 0.4)    # Weight for proximity
+        W_URGENCY = marl_config.get("marl_priority_w_urgency", 0.1) # Weight for urgency (how far below threshold)
+        # --- END CONFIGURABLE PARAMETERS ---
+
+        logger.debug(f"Creating action map for charger {charger_id}: max_dist_sq={MAX_DISTANCE_SQ}, action_size={action_space_size}")
+
+        action_map = {0: 'idle'} # Action 0 is always idle
+        chargers = state.get('chargers', [])
+        users = state.get('users', [])
+        # Get the full grid status for context (e.g., price)
+        grid_status = state.get('grid_status', {})
+        
+        charger = next((c for c in chargers if c.get('charger_id') == charger_id), None)
+
+        if not charger or charger.get('status') == 'failure':
+            logger.debug(f"Charger {charger_id} not found or in failure, returning only idle action")
+            return action_map, action_space_size # Only 'idle' is possible
+
+        potential_users = []
+        charger_pos = charger.get('position', {'lat': 0, 'lng': 0})
+        
+        for user in users:
+            user_id = user.get('user_id')
+            soc = user.get('soc', 100)
+            status = user.get('status', 'unknown')
+            user_profile = user.get('user_profile', 'flexible')
+            # Check if user explicitly needs a charging decision (assuming this flag exists/is set)
+            # needs_charge_decision = user.get('needs_charge_decision', False)
+
+            # --- Revised Filtering Logic ---
+            is_actively_seeking = False
+            charge_threshold = 30 # Base threshold
+            # Adjust threshold based on profile (example)
+            if user_profile == 'anxious': charge_threshold = 45
+            elif user_profile == 'economic': charge_threshold = 20
+
+            is_low_soc = soc < charge_threshold
+
+            # Condition 1: Traveling without a target charger (actively looking)
+            if status == 'traveling' and user.get('target_charger') is None:
+                 is_actively_seeking = True
+            # Condition 2: Idle, low SOC, and flagged as needing charge (more explicit)
+            # elif status == 'idle' and is_low_soc and needs_charge_decision:
+            #    is_actively_seeking = True
+            # Condition 3: Simpler alternative - Idle and low SOC (less explicit but broader)
+            elif status == 'idle' and is_low_soc:
+                 is_actively_seeking = True # Assume idle + low SOC implies seeking
+
+            if not is_actively_seeking:
+                continue # Skip users not actively looking for charge
+            # --- End Revised Filtering Logic ---
+
+                # Check distance
+                user_pos = user.get('current_position', {'lat': -999, 'lng': -999})
+                if isinstance(user_pos.get('lat'), (int, float)) and isinstance(user_pos.get('lng'), (int, float)):
+                    dist_sq = (user_pos['lat'] - charger_pos['lat'])**2 + (user_pos['lng'] - charger_pos['lng'])**2
+                    
+                    if dist_sq < MAX_DISTANCE_SQ:
+                        distance = math.sqrt(dist_sq) * 111 # Approx km
+                        # Calculate urgency (0 to 1, higher is more urgent)
+                        urgency = max(0, (charge_threshold - soc)) / charge_threshold if charge_threshold > 0 else 0
+
+                    # --- Revised Priority Score ---
+                    # Normalize distance (0=close, 1=far) using MAX_DISTANCE_SQ
+                    normalized_distance = min(1.0, math.sqrt(dist_sq) / math.sqrt(MAX_DISTANCE_SQ)) if MAX_DISTANCE_SQ > 0 else 0
+                    normalized_soc = soc / 100.0
+
+                    priority_score = (
+                        W_SOC * (1.0 - normalized_soc) +    # Low SOC contributes positively
+                        W_DIST * (1.0 - normalized_distance) + # Low distance contributes positively
+                        W_URGENCY * urgency
+                    )
+                    # --- End Revised Priority Score ---
+
+                    potential_users.append({
+                            'id': user_id, 
+                            'soc': soc, 
+                        'dist_km': distance,
+                            'status': status,
+                        'priority': priority_score
+                    })
+                    logger.debug(f"User {user_id} (status={status}, SOC:{soc:.1f}) potential candidate for {charger_id}. Dist: {distance:.1f}km, Priority: {priority_score:.3f}")
+                # else: logger.debug(f"User {user_id} too far ({math.sqrt(dist_sq)*111:.1f}km)")
+            # else: logger.debug(f"Skipping user {user_id} due to invalid coords")
+
+        # Sort potential users by the new PRIORITY score (higher is better)
+        potential_users.sort(key=lambda u: -u['priority'])
+        logger.debug(f"Found and sorted {len(potential_users)} potential users for charger {charger_id}. Top 5: {potential_users[:5]}")
+
+        # Map the top N-1 *highest priority* potential users to action indices 1 to N-1
+        assigned_users_count = 0
+        for i, user_info in enumerate(potential_users):
+             if assigned_users_count < max_potential_users:
+                  action_map[i + 1] = user_info['id']
+                  assigned_users_count += 1
+                  # logger.debug(f"Mapped user {user_info['id']} to action {i+1} (Priority: {user_info['priority']:.3f})")
+             else:
+                  break # Stop once we've filled the action space slots
+
+        logger.debug(f"Final action map for charger {charger_id}: {action_map}")
+        return action_map, action_space_size
+
+    def _convert_marl_actions_to_decisions(self, agent_actions, state, charger_action_maps):
+        """
+        将MARL智能体选择的动作转换为充电分配决策
+        
+        Args:
+            agent_actions: 充电站智能体的动作字典 {charger_id: action_index}
+            state: 当前环境状态
+            charger_action_maps: 预生成的动作映射字典 {charger_id: {"map": action_map}}
+            
+        Returns:
+            decisions: 字典，将用户ID映射到充电站ID
+        """
+        decisions = {}
+        assigned_users = set()  # 跟踪已分配的用户以防止重复
+        
+        # 确保agent_actions是字典类型
+        if not isinstance(agent_actions, dict):
+            logger.error(f"_convert_marl_actions_to_decisions接收到无效的agent_actions类型: {type(agent_actions)}")
+            return {}
+            
+        logger.debug(f"转换MARL智能体动作为决策: {agent_actions}")
+        idle_count = sum(1 for action in agent_actions.values() if action == 0)
+        active_count = len(agent_actions) - idle_count
+        logger.debug(f"动作统计: 总计{len(agent_actions)}个, 空闲{idle_count}个, 活跃{active_count}个")
+        
+        # ==== 新增调试代码 ====
+        potential_users = []
+        for user in state.get('users', []):
+            if user.get('status') == 'traveling' and user.get('soc', 100) < 50:
+                potential_users.append((user.get('user_id'), user.get('soc')))
+        logger.info(f"状态中的潜在用户: {len(potential_users)}个, 样本: {potential_users[:5]}")
+        # ==== 结束调试代码 ====
+        
+        # 遍历每个充电站智能体选择的动作
+        for charger_id, action_index in agent_actions.items():
+            # Action 0 总是表示'idle'(不分配)
+            if action_index == 0:
+                # logger.debug(f"充电站 {charger_id} 选择了'idle'动作 (0)")
+                continue
+                
+            # --- 使用预生成的动作映射 --- 
+            map_data = charger_action_maps.get(charger_id)
+            if not map_data:
+                logger.warning(f"未找到充电站 {charger_id} 的预生成动作映射。无法转换动作 {action_index}。跳过。")
+                continue
+            action_map = map_data.get("map")
+            if not action_map:
+                logger.warning(f"充电站 {charger_id} 的映射数据无效。跳过。")
+                continue
+                
+            # 在提供的映射中查找对应于所选action_index的user_id
+            user_id_to_assign = action_map.get(action_index)
+            
+            if user_id_to_assign and user_id_to_assign != 'idle':
+                # 查找用户对象以获取更多信息
+                users = state.get("users", [])
+                user = next((u for u in users if u.get("user_id") == user_id_to_assign), None)
+                
+                # 检查这个用户是否已经被另一个充电站分配
+                if user_id_to_assign not in assigned_users:
+                    # 如果用户处于traveling状态并且SOC较低，强制分配
+                    force_assignment = False
+                    if user:
+                        user_soc = user.get("soc", 100)
+                        user_status = user.get("status", "")
+                        if user_status == "traveling" and user_soc < 50:
+                            force_assignment = True
+                            logger.info(f"强制分配traveling用户 {user_id_to_assign} (SOC: {user_soc}%) 到充电站 {charger_id}")
+                            
+                    decisions[user_id_to_assign] = charger_id
+                    assigned_users.add(user_id_to_assign)
+                    logger.debug(f"MARL决策: 分配用户 {user_id_to_assign} 到充电站 {charger_id} (动作索引 {action_index})")
+                else:
+                    # 冲突: 用户已分配。记录日志。
+                    logger.warning(f"MARL冲突: 用户 {user_id_to_assign} 已被分配。充电站 {charger_id} 也选择了该用户 (动作索引 {action_index})。忽略第二次分配。")
+            else:
+                # 所选动作索引可能不对应任何用户，如果映射生成和动作选择之间候选者略有变化，或者动作空间大小不匹配
+                logger.debug(f"充电站 {charger_id} 选择了动作索引 {action_index}，但在预生成的action_map中未找到有效用户: {action_map}")
+                
+        # 如果assignments为空，且有大量非idle动作，强制分配一些用户
+        if not decisions and active_count > 20:
+            logger.warning("MARL转换未产生分配，但有大量活跃动作。尝试应急分配...")
+            # 寻找所有低SOC的traveling用户
+            emergency_users = []
+            for user in state.get("users", []):
+                if user.get("status") == "traveling" and user.get("soc", 100) < 40:
+                    emergency_users.append(user)
+                    
+            # 对用户按SOC排序
+            emergency_users.sort(key=lambda u: u.get("soc", 100))
+            
+            # 寻找可用的充电站
+            available_chargers = []
+            for charger in state.get("chargers", []):
+                if charger.get("status") == "available":
+                    available_chargers.append(charger)
+                    
+            # 尝试匹配前5个紧急用户和任意充电站
+            emergency_count = 0
+            for user in emergency_users[:5]:
+                if not available_chargers:
+                    break
+                    
+                user_id = user.get("user_id")
+                if user_id not in assigned_users:
+                    # 随机选择一个充电站
+                    charger = random.choice(available_chargers)
+                    charger_id = charger.get("charger_id")
+                    
+                    decisions[user_id] = charger_id
+                    assigned_users.add(user_id)
+                    
+                    # 强制设置用户需求充电
+                    user["needs_charge_decision"] = True
+                    if user.get("time_to_destination", 0) > 5:
+                        user["time_to_destination"] = 5  # 加速到达
+                        
+                    logger.info(f"紧急分配: 用户 {user_id} (SOC: {user.get('soc')}%) 到充电站 {charger_id}")
+                    emergency_count += 1
+                    
+            if emergency_count > 0:
+                logger.info(f"应急分配成功: {emergency_count}个用户被分配")
+        
+        if not decisions:
+            logger.warning("MARL转换未产生任何分配。")
+        else:
+            logger.info(f"MARL决策: {decisions}")
+        return decisions
+
+    def _rule_based_scheduling(self, state):
+        """
+        Implement a rule-based scheduling strategy that balances:
+        - User satisfaction (minimizing wait times and travel distance)
+        - Operator profit (maximizing utilization and revenue)
+        - Grid friendliness (avoiding peak hours, utilizing renewables)
+        
+        Args:
+            state: Current environment state
+            
+        Returns:
+            decisions: Dict mapping user_ids to charger_ids
+        """
+        decisions = {}
+
+        # 获取当前时间、负载等信息
+        timestamp = state.get("timestamp")
+        grid_load = state.get("grid_load", 50)
+        renewable_ratio = state.get("renewable_ratio", 0)
+        
+        if not timestamp:
+            return decisions
+
+        try:
+            current_dt = datetime.fromisoformat(timestamp)
+            current_hour = current_dt.hour
+        except:
+            current_hour = 12  # 默认中午
+        
+        # 获取用户和充电桩信息
+        users = state.get("users", [])
+        chargers = state.get("chargers", [])
+
+        if not users or not chargers:
+             return decisions
+        
+        # 为提高效率，将充电桩转换为字典
+        charger_dict = {c["charger_id"]: c for c in chargers if "charger_id" in c}
+        
+        # 确定充电桩可接受的最大队列长度 - 动态调整
+        # 高峰时段允许更多排队，低谷时段更少排队（促进分散）
+        peak_hours = [7, 8, 9, 10, 17, 18, 19, 20]
+        valley_hours = [0, 1, 2, 3, 4, 23]
+        
+        if current_hour in peak_hours:
+            max_queue_len = 2  # 高峰期限制队列长度，避免过度集中
+        elif current_hour in valley_hours:
+            max_queue_len = 5  # 低谷期允许更长队列，提高利用率
+        else:
+            max_queue_len = 3  # 平常时段适中队列
+        
+        # 获取权重配置
+        weights = {
+            "user_satisfaction": self.config.get("user_satisfaction_weight", 0.33),
+            "operator_profit": self.config.get("operator_profit_weight", 0.33),
+            "grid_friendliness": self.config.get("grid_friendliness_weight", 0.34)
+        }
+        
+        # 调整网格友好度权重，更智能地响应负载状况
+        if grid_load > 80:  # 高负载时增加网格友好度权重
+            load_factor = min(1.5, (grid_load - 60) / 20)  # 60以上开始增加权重
+            weights["grid_friendliness"] *= load_factor
+            # 相应减少其他权重
+            total = sum(weights.values())
+            weights["user_satisfaction"] = weights["user_satisfaction"] / total
+            weights["operator_profit"] = weights["operator_profit"] / total
+            weights["grid_friendliness"] = weights["grid_friendliness"] / total
+        
+        # 创建候选用户列表 - 需要充电且未在充电或等待的用户
+        candidate_users = []
+        for user in users:
+            user_id = user.get("user_id")
+            status = user.get("status", "")
+            soc = user.get("soc", 100)
+            
+            if not user_id:
+                continue
+                
+            # 优先考虑已经明确表示需要充电的用户
+            needs_charge = user.get("needs_charge_decision", False)
+            
+            # 针对不同用户设置不同的SOC阈值 - 更智能地判断充电需求
+            if status not in ["charging", "waiting"]:
+                # 根据用户类型和时间判断SOC阈值
+                user_type = user.get("user_type", "private")
+                user_profile = user.get("user_profile", "normal")
+                
+                # 基础阈值
+                threshold = 25  # 默认私家车25%以下充电
+                
+                # 根据用户类型调整
+                if user_type == "taxi" or user_type == "ride_hailing":
+                    threshold = 35  # 出租车/网约车需要更高SOC
+                elif user_type == "logistics":
+                    threshold = 30  # 物流车辆适中
+                
+                # 根据用户特性调整
+                if user_profile == "anxious":
+                    threshold += 10  # 焦虑用户更早充电
+                elif user_profile == "economic":
+                    threshold -= 5   # 经济型用户更晚充电
+                
+                # 时间因素 - 晚上人们更倾向于充电
+                if 19 <= current_hour <= 23:
+                    threshold += 5
+                
+                # 最终阈值限制在10-45之间
+                threshold = max(10, min(45, threshold))
+                
+                # 两种情况下将用户加入候选列表:
+                # 1. 用户明确表示需要充电 (needs_charge_decision=True)
+                # 2. 用户SOC低于阈值
+                if needs_charge or soc <= threshold:
+                    # 计算充电紧迫性评分 - 明确需要充电的用户紧迫性更高
+                    base_urgency = (threshold - soc) / threshold if threshold > 0 else 0
+                    # 明确需要充电的用户额外加分
+                    urgency_bonus = 0.3 if needs_charge else 0
+                    urgency = min(1.0, base_urgency + urgency_bonus)
+                    
+                    # 将用户添加到候选列表，包含需要充电的标志
+                    candidate_users.append((user_id, user, urgency, needs_charge))
+        
+        # 排序逻辑:
+        # 1. 首先按照明确需要充电的标志降序排序
+        # 2. 其次按照紧迫度降序排序
+        candidate_users.sort(key=lambda x: (-int(x[3]), -x[2]))
+        
+        logger.info(f"Found {len(candidate_users)} candidate users for charging, "
+                   f"{sum(1 for u in candidate_users if u[3])} explicitly need charging.")
+        
+        # 计算每个充电桩的当前负载/队列情况
+        charger_loads = {}
+        for charger_id, charger in charger_dict.items():
+            # 跳过故障充电桩
+            if charger.get("status") == "failure":
+                continue
+                
+            # 当前队列长度
+            queue_len = len(charger.get("queue", []))
+            
+            # 已经在充电的话，算作队列+1
+            if charger.get("status") == "occupied":
+                queue_len += 1
+                
+            charger_loads[charger_id] = queue_len
+        
+        # 为每个候选用户找最佳充电桩
+        for user_id, user, urgency, needs_charge in candidate_users:
+            best_charger_id = None
+            best_score = float('-inf')
+
+            # *** FIX: Define user_pos here ***
+            user_pos = user.get("current_position", {"lat": 0, "lng": 0})
+            
+            for charger_id, charger in charger_dict.items():
+                # 跳过故障充电桩
+                if charger.get("status") == "failure":
+                    continue
+                    
+                # 跳过队列已满的充电桩
+                if charger_loads.get(charger_id, 0) >= max_queue_len:
+                    continue
+                
+                # 计算用户到充电桩的距离
+                # *** FIX: Define charger_pos here ***
+                charger_pos = charger.get("position", {"lat": 0, "lng": 0})
+                distance = self._calculate_distance(user_pos, charger_pos)
+                
+                # 计算用户满意度分数（距离+等待时间）
+                user_score = self._calculate_user_satisfaction(user, charger, distance)
+                
+                # 计算运营商利润分数
+                profit_score = self._calculate_operator_profit(user, charger, state)
+                
+                # 计算电网友好度分数
+                grid_score = self._calculate_grid_friendliness(charger, state)
+                
+                # 加权组合分数
+                # 额外：加入紧急程度作为调整因子 - 紧急用户更注重用户满意度
+                user_weight = weights["user_satisfaction"]
+                if urgency > 0.7:  # 非常紧急
+                    user_weight = min(0.7, user_weight * 1.5)  # 提升但不超过0.7
+                
+                # 智能调整权重
+                combined_score = (
+                    user_score * user_weight + 
+                    profit_score * weights["operator_profit"] + 
+                    grid_score * weights["grid_friendliness"]
+                )
+                
+                # 附加因素：队列长度惩罚（防止过度集中）
+                queue_penalty = charger_loads.get(charger_id, 0) * 0.1
+                combined_score -= queue_penalty
+                
+                # 更新最佳选择
+                if combined_score > best_score:
+                    best_score = combined_score
+                    best_charger_id = charger_id
+            
+            # 分配最佳充电桩
+            if best_charger_id:
+                decisions[user_id] = best_charger_id
+                # 更新充电桩负载计数
+                charger_loads[best_charger_id] = charger_loads.get(best_charger_id, 0) + 1
         
         return decisions
     
-    def run_simulation(self, num_steps=96, progress_callback=None):  # 默认模拟24小时 (15分钟/步)
+    def _calculate_distance(self, pos1, pos2):
+        """Calculate distance between two positions"""
+        # Simple Euclidean distance
+        return math.sqrt((pos1["lat"] - pos2["lat"])**2 + 
+                         (pos1["lng"] - pos2["lng"])**2) * 111  # Convert to km (rough approximation)
+    
+    def _calculate_user_satisfaction(self, user, charger, distance):
         """
-        运行充电调度模拟
-        返回:
-            metrics: 模拟结果指标
-        """
-        metrics = {
-            "user_satisfaction": [],
-            "operator_profit": [],
-            "grid_friendliness": [],
-            "total_reward": []
-        }
+        计算用户满意度分数，综合考虑多个影响因素。
+        返回值范围： -1 到 1，值越高满意度越高
         
-        for step in range(num_steps):
-            state = self.env.get_current_state()
-
-            decisions = self.make_scheduling_decision(state)
-
-            rewards, next_state, done = self.env.step(decisions)
-
-            for key in metrics:
-                metrics[key].append(rewards[key])
+        影响因素包括:
+        1. 行驶距离
+        2. 预计等待时间
+        3. 充电速度匹配度（如电量紧急用户更喜欢快充）
+        4. 用户本身的时间/价格敏感度
+        5. 用户当前电量（SOC）状态
+        """
+        # 获取必要数据，使用安全的.get方法避免异常
+        user_soc = user.get("soc", 50)  # 当前电量百分比
+        user_type = user.get("user_profile", "normal")  # 用户类型
+        time_sensitivity = user.get("time_sensitivity", 0.5)  # 时间敏感度
+        price_sensitivity = user.get("price_sensitivity", 0.5)  # 价格敏感度
+        is_fast_charger = charger.get("type", "normal") == "fast"
+        queue_length = len(charger.get("queue", []))
+        
+        # 1. 距离因素 - 距离越近越好
+        # 根据车辆续航里程标准化距离
+        max_range = user.get("max_range", 400)  # 最大续航里程（公里）
+        current_range = user.get("current_range", max_range / 2)  # 当前剩余里程
+        
+        # 计算距离在当前续航里程中的占比
+        distance_ratio = min(1.0, distance / max(current_range, 1))
+        
+        # 电量越低，距离因素越重要
+        soc_weight = max(0.3, (100 - user_soc) / 100 * 0.7)
+        distance_factor = 1.0 - (distance_ratio * soc_weight)  # 0到1之间，越近越好
+        
+        # 2. 等待时间因素
+        # 基于充电器类型和队列估计等待时间（分钟）
+        base_charge_time = 30 if is_fast_charger else 60  # 基础充电时间估计
+        
+        # 考虑充电桩当前状态
+        current_queue_time = 0
+        if charger.get("status") == "occupied":
+            # 如果已有用户在充电，加上其剩余时间的一半（简化估计）
+            current_queue_time = base_charge_time / 2
             
-            # 如果提供了进度回调，则调用
-            if progress_callback:
-                progress_callback(step + 1, num_steps)
+        estimated_wait_time = queue_length * base_charge_time + current_queue_time
+        
+        # 将等待时间归一化（假设最大可接受等待时间为2小时）
+        max_acceptable_wait = 120  # 分钟
+        wait_ratio = min(1.0, estimated_wait_time / max_acceptable_wait)
+        
+        # 用户特性影响等待时间容忍度
+        # 焦虑用户等待耐心更低，经济型用户更愿意等待
+        wait_tolerance_factor = 1.0
+        if user_type == "anxious":
+            wait_tolerance_factor = 0.7  # 焦虑用户耐心更低
+        elif user_type == "economic":
+            wait_tolerance_factor = 1.3  # 经济型用户更能等待
             
-            if done:
-                break
-
-        avg_metrics = {}
-        for key in metrics:
-            avg_metrics[key] = np.mean(metrics[key])
+        wait_factor = 1.0 - (wait_ratio * wait_tolerance_factor)  # 0到1，等待越短越好
         
-        return metrics, avg_metrics
-    def update_load_forecast(self, current_load, hour):
-
-        if not hasattr(self, 'historical_loads'):
-            self.historical_loads = {hour: [] for hour in range(24)}
-            self.load_forecast = np.zeros(24)
-
-        self.historical_loads[hour].append(current_load)
+        # 3. 电量紧急度因素
+        # SOC低的用户更喜欢快速充电
+        urgency_factor = max(0, (30 - user_soc) / 30)  # 0到1，电量低于30%时开始计算紧急度
         
-        # 保留最近7天的数据
-        if len(self.historical_loads[hour]) > 7:
-            self.historical_loads[hour].pop(0)
+        # 充电速度匹配度 - 紧急用户更喜欢快充
+        charger_speed_match = 0.5
+        if urgency_factor > 0.5:  # 较为紧急
+            charger_speed_match = 0.8 if is_fast_charger else 0.3  # 紧急用户强烈偏好快充
+        else:  # 不太紧急
+            charger_speed_match = 0.6 if is_fast_charger else 0.5  # 不那么紧急的用户对充电速度不太敏感
+            
+        # 4. 组合用户偏好和充电器特性
+        # 距离满意度
+        distance_satisfaction = distance_factor * time_sensitivity  # 距离因素受时间敏感度影响
         
-        # 更新每小时预测
-        for h in range(24):
-            if self.historical_loads[h]:
-                # 简单移动平均预测
-                self.load_forecast[h] = np.mean(self.historical_loads[h])
-    def visualize_results(self, metrics):
-        """
-        可视化模拟结果
-        """
-        # 创建时间轴 (假设每步15分钟)
-        time_steps = len(metrics["user_satisfaction"])
-        hours = np.arange(0, time_steps * 0.25, 0.25)
+        # 充电器匹配度满意度（包含等待时间和充电速度）
+        charger_match_satisfaction = (wait_factor * 0.6 + charger_speed_match * 0.4) * (1 - price_sensitivity * 0.5)
         
-        plt.figure(figsize=(15, 10))
+        # 5. 最终满意度分数计算
+        # 时间敏感和电量紧急的用户更在意距离和等待时间
+        time_weight = max(time_sensitivity, urgency_factor)
         
-        # 绘制用户满意度
-        plt.subplot(2, 2, 1)
-        plt.plot(hours, metrics["user_satisfaction"])
-        plt.title("User Satisfaction")
-        plt.xlabel("Time (hours)")
-        plt.ylabel("Satisfaction Score")
-        plt.grid(True)
+        # 最终综合评分，每个因素有不同权重
+        satisfaction = (
+            distance_satisfaction * 0.4 +
+            wait_factor * 0.3 +
+            charger_speed_match * 0.2 +
+            (1.0 - price_sensitivity * 0.3) * 0.1  # 价格不敏感的用户更满意
+        )
         
-        # 绘制运营商利润
-        plt.subplot(2, 2, 2)
-        plt.plot(hours, metrics["operator_profit"])
-        plt.title("Operator Profit")
-        plt.xlabel("Time (hours)")
-        plt.ylabel("Profit Score")
-        plt.grid(True)
+        # 小电量用户的额外满意度修正
+        if user_soc < 15:
+            # 电量极低的用户，能充上电就很满意，但距离必须很近
+            if distance < 5:  # 5公里以内
+                satisfaction = max(satisfaction, 0.8)  # 确保满意度至少达到0.8
+            else:
+                satisfaction *= (1.0 - urgency_factor * 0.3)  # 电量低但充电站远，满意度降低
         
-        # 绘制电网友好度
-        plt.subplot(2, 2, 3)
-        plt.plot(hours, metrics["grid_friendliness"])
-        plt.title("Grid Friendliness")
-        plt.xlabel("Time (hours)")
-        plt.ylabel("Friendliness Score")
-        plt.grid(True)
+        # 归一化到[-1,1]区间
+        normalized_satisfaction = (satisfaction * 2) - 1
         
-        # 绘制综合奖励
-        plt.subplot(2, 2, 4)
-        plt.plot(hours, metrics["total_reward"])
-        plt.title("Total Reward")
-        plt.xlabel("Time (hours)")
-        plt.ylabel("Reward Score")
-        plt.grid(True)
-        
-        plt.tight_layout()
-        plt.savefig("charging_scheduler_results.png")
-        plt.close()
-        
-
-class ChargingVisualizationDashboard:
-    """
-    充电调度可视化交互系统
-    暂时只是静态页面，不可用
-    """
+        return max(-1.0, min(1.0, normalized_satisfaction))
     
-    def __init__(self, scheduler):
+    def _calculate_operator_profit(self, user, charger, state):
         """
-        初始化可视化交互系统
+        计算运营商利润评分，考虑多种收益和成本因素
+        返回值范围：-1到1，值越高代表利润越高
         
-        参数:
-            scheduler: 充电调度器实例
+        考虑因素:
+        1. 电价和充电费率（峰谷时段不同）
+        2. 充电桩利用率和吞吐量
+        3. 不同充电类型的成本差异
+        4. 充电量与收入的关系
+        5. 潜在长期收益（客户忠诚度）
         """
-        self.scheduler = scheduler
-        self.env = scheduler.env
+        # 安全获取数据
+        timestamp_str = state.get("timestamp", datetime.now().isoformat())
+        try:
+            timestamp = datetime.fromisoformat(timestamp_str)
+            hour = timestamp.hour
+        except (ValueError, TypeError):
+            hour = datetime.now().hour
+            
+        grid_status = state.get("grid_status", {})
+        current_grid_load = grid_status.get("grid_load", 50)  # 当前电网负载百分比
+        peak_hours = grid_status.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21])
+        valley_hours = grid_status.get("valley_hours", [0, 1, 2, 3, 4, 5])
+
+        # 用户充电需求
+        user_battery_capacity = user.get("battery_capacity", 60)  # kWh
+        user_soc = user.get("soc", 50)  # 当前电量百分比
+        charging_need = user_battery_capacity * (1 - user_soc / 100)  # 需要充电的度数
+        user_profile = user.get("user_profile", "normal")
+        
+        # 充电桩特性
+        charger_type = charger.get("type", "normal")
+        queue_length = len(charger.get("queue", []))
+        is_occupied = charger.get("status") == "occupied"
+        
+        # 1. 基础价格与成本
+        base_price = grid_status.get("current_price", 0.85)  # 元/kWh
+        base_cost = base_price * 0.7  # 简化：成本是电价的70%
+        
+        # 根据时段调整价格和成本
+        time_multiplier = 1.0
+        if hour in peak_hours:
+            time_multiplier = 1.2  # 高峰时段高价格，但成本也高
+        elif hour in valley_hours:
+            time_multiplier = 0.8  # 低谷时段低价格，成本也低
+
+        # 根据电网负载调整成本
+        # 电网负载高时，获取电力成本更高，用电成本上升
+        grid_load_cost_factor = 1.0 + max(0, (current_grid_load - 70) / 100)  # 负载超过70%时成本开始上升
+        
+        # 充电桩类型调整
+        charger_price_multiplier = 1.0
+        charger_cost_multiplier = 1.0
+        if charger_type == "fast":
+            charger_price_multiplier = 1.15  # 快充更贵
+            charger_cost_multiplier = 1.2  # 快充建设和维护成本更高
+        
+        # 2. 计算收入和成本
+        charge_price = base_price * time_multiplier * charger_price_multiplier
+        charge_cost = base_cost * time_multiplier * charger_cost_multiplier * grid_load_cost_factor
+        
+        expected_revenue = charging_need * charge_price
+        expected_cost = charging_need * charge_cost
+        expected_profit = expected_revenue - expected_cost
+        
+        # 3. 考虑充电桩利用率
+        utilization_bonus = 0
+        
+        # 已有队列的充电桩更有价值（体现持续使用价值）
+        if is_occupied:
+            if queue_length == 0:  # 有人充电但没有等待队列
+                utilization_bonus = 0.1
+            elif queue_length == 1:  # 有1人等待
+                utilization_bonus = 0.05  # 适当的等待队列是好的
+            else:  # 等待人数>=2
+                utilization_bonus = -0.05  # 太多人等待可能降低长期满意度
+        
+        # 4. 用户类型和忠诚度考虑
+        loyalty_potential = 0
+        if user_profile == "anxious":
+            loyalty_potential = 0.05  # 焦虑用户如果得到好服务，更可能成为回头客
+        elif user_profile == "economic":
+            loyalty_potential = 0.15 if hour in valley_hours else -0.05  # 经济型用户在低谷时段充电更可能成为忠诚客户
+        
+        # 5. 综合利润评分计算
+        # 基础利润分数
+        profit_score = 0
+        
+        # 避免除以零或负数
+        max_theoretical_profit = user_battery_capacity * base_price * 0.3  # 理论最大利润
+        
+        if max_theoretical_profit > 0:
+            # 使用对数函数平滑增长
+            raw_profit_ratio = expected_profit / max_theoretical_profit
+            if raw_profit_ratio <= 0:
+                profit_score = raw_profit_ratio  # 负利润维持原值
+            else:
+                # 对数函数: log(x+1)在x=0时为0，随x增加而缓慢增加
+                profit_score = min(1.0, math.log(raw_profit_ratio * 5 + 1) / 2)
+        
+        # 添加利用率和忠诚度修正
+        profit_score += utilization_bonus + loyalty_potential
+        
+        # 归一化到[-1, 1]区间
+        return max(-1, min(1, profit_score * 2 - 1 if profit_score > 0.5 else profit_score))
     
-    def generate_user_interface(self):
-        """生成用户界面HTML"""
-        html = """
-        <!DOCTYPE html>
-        <html lang="zh-CN">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>EV充电推荐系统</title>
-            <style>
-                body {
-                    font-family: 'Arial', sans-serif;
-                    margin: 0;
-                    padding: 0;
-                    background-color: #f5f5f5;
-                }
-                .container {
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }
-                .header {
-                    background-color: #2c3e50;
-                    color: white;
-                    padding: 15px;
-                    border-radius: 5px;
-                    margin-bottom: 20px;
-                }
-                .card {
-                    background-color: white;
-                    border-radius: 5px;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-                    padding: 20px;
-                    margin-bottom: 20px;
-                }
-                .recommendation {
-                    display: flex;
-                    margin-bottom: 15px;
-                    padding: 15px;
-                    border: 1px solid #e0e0e0;
-                    border-radius: 5px;
-                    transition: all 0.3s;
-                }
-                .recommendation:hover {
-                    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-                    transform: translateY(-2px);
-                }
-                .score-indicator {
-                    width: 60px;
-                    height: 60px;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-weight: bold;
-                    margin-right: 20px;
-                }
-                .details {
-                    flex-grow: 1;
-                }
-                .stat-group {
-                    display: flex;
-                    margin-top: 10px;
-                }
-                .stat {
-                    margin-right: 20px;
-                    font-size: 14px;
-                }
-                .emergency-switch {
-                    background-color: #e74c3c;
-                    color: white;
-                    border: none;
-                    padding: 10px 15px;
-                    border-radius: 5px;
-                    cursor: pointer;
-                    font-weight: bold;
-                    margin-bottom: 20px;
-                }
-                .label {
-                    display: inline-block;
-                    padding: 3px 8px;
-                    border-radius: 3px;
-                    font-size: 12px;
-                    color: white;
-                    margin-right: 5px;
-                }
-                .label-green {
-                    background-color: #2ecc71;
-                }
-                .label-blue {
-                    background-color: #3498db;
-                }
-                .label-orange {
-                    background-color: #e67e22;
-                }
-                .charts {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 20px;
-                }
-                .chart {
-                    flex-basis: calc(50% - 20px);
-                    min-width: 300px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1>电动汽车充电推荐系统</h1>
-                    <p>基于用户偏好、运营商利润和电网友好度的智能调度</p>
-                </div>
-                
-                <div class="card">
-                    <h2>当前状态</h2>
-                    <div class="stat-group">
-                        <div class="stat">
-                            <strong>当前时间:</strong> <span id="current-time">2024-07-20 08:15</span>
-                        </div>
-                        <div class="stat">
-                            <strong>电池电量:</strong> <span id="battery-level">35%</span>
-                        </div>
-                        <div class="stat">
-                            <strong>电网负载:</strong> <span id="grid-load">65%</span>
-                        </div>
-                        <div class="stat">
-                            <strong>当前电价:</strong> <span id="current-price">0.85元/度</span>
-                        </div>
-                    </div>
-                    
-                    <button class="emergency-switch" id="emergency-mode">
-                        启用紧急模式 (SOC < 20%)
-                    </button>
-                </div>
-                
-                <div class="card">
-                    <h2>推荐充电站</h2>
-                    <div id="recommendations">
-                        <!-- 推荐列表将动态生成 -->
-                        <div class="recommendation">
-                            <div class="score-indicator" style="background-color: #2ecc71; color: white;">
-                                98
-                            </div>
-                            <div class="details">
-                                <h3>城东快充站 <span class="label label-green">快充</span> <span class="label label-blue">低谷电价</span></h3>
-                                <div class="stat-group">
-                                    <div class="stat">
-                                        <strong>距离:</strong> 2.5公里
-                                    </div>
-                                    <div class="stat">
-                                        <strong>等待时间:</strong> 约5分钟
-                                    </div>
-                                    <div class="stat">
-                                        <strong>充电费用:</strong> 约35元
-                                    </div>
-                                    <div class="stat">
-                                        <strong>可用功率:</strong> 120kW
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="recommendation">
-                            <div class="score-indicator" style="background-color: #3498db; color: white;">
-                                85
-                            </div>
-                            <div class="details">
-                                <h3>科技园区充电站 <span class="label label-blue">低谷电价</span></h3>
-                                <div class="stat-group">
-                                    <div class="stat">
-                                        <strong>距离:</strong> 1.2公里
-                                    </div>
-                                    <div class="stat">
-                                        <strong>等待时间:</strong> 约15分钟
-                                    </div>
-                                    <div class="stat">
-                                        <strong>充电费用:</strong> 约32元
-                                    </div>
-                                    <div class="stat">
-                                        <strong>可用功率:</strong> 90kW
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2>系统评估指标</h2>
-                    <div class="charts">
-                        <div class="chart">
-                            <h3>用户满意度</h3>
-                            <div id="user-satisfaction-chart"></div>
-                        </div>
-                        <div class="chart">
-                            <h3>运营商利润</h3>
-                            <div id="operator-profit-chart"></div>
-                        </div>
-                        <div class="chart">
-                            <h3>电网友好度</h3>
-                            <div id="grid-friendliness-chart"></div>
-                        </div>
-                        <div class="chart">
-                            <h3>充电站负载热力图</h3>
-                            <div id="charger-load-heatmap"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </body>
-        </html>
+    def _calculate_grid_friendliness(self, charger, state):
         """
-        return html
-    
-    def generate_operator_dashboard(self):
-        """生成运营商看板HTML"""
-        html = """
-        <!DOCTYPE html>
-        <html lang="zh-CN">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>EV充电运营商管理系统</title>
-            <style>
-                body {
-                    font-family: 'Arial', sans-serif;
-                    margin: 0;
-                    padding: 0;
-                    background-color: #f0f2f5;
-                }
-                .container {
-                    max-width: 1400px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }
-                .header {
-                    background-color: #001529;
-                    color: white;
-                    padding: 15px;
-                    border-radius: 5px;
-                    margin-bottom: 20px;
-                }
-                .dashboard {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                    gap: 20px;
-                    margin-bottom: 20px;
-                }
-                .card {
-                    background-color: white;
-                    border-radius: 5px;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-                    padding: 20px;
-                }
-                .card h2 {
-                    margin-top: 0;
-                    border-bottom: 1px solid #eee;
-                    padding-bottom: 10px;
-                }
-                .stat-value {
-                    font-size: 36px;
-                    font-weight: bold;
-                    margin: 10px 0;
-                }
-                .stat-label {
-                    color: #666;
-                }
-                .chart {
-                    height: 300px;
-                }
-                .profit-settings {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 15px;
-                }
-                .slider-group {
-                    margin-bottom: 10px;
-                }
-                .slider-label {
-                    display: block;
-                    margin-bottom: 5px;
-                }
-                .slider {
-                    width: 100%;
-                }
-                .slider-value {
-                    display: inline-block;
-                    width: 50px;
-                    text-align: right;
-                }
-                .apply-button {
-                    background-color: #1890ff;
-                    color: white;
-                    border: none;
-                    padding: 10px 15px;
-                    border-radius: 5px;
-                    cursor: pointer;
-                    font-weight: bold;
-                    align-self: flex-start;
-                }
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                }
-                th, td {
-                    padding: 12px 15px;
-                    text-align: left;
-                }
-                th {
-                    background-color: #f5f5f5;
-                    font-weight: bold;
-                }
-                tr {
-                    border-bottom: 1px solid #ddd;
-                }
-                tr:hover {
-                    background-color: #f9f9f9;
-                }
-                .status-indicator {
-                    display: inline-block;
-                    width: 10px;
-                    height: 10px;
-                    border-radius: 50%;
-                    margin-right: 5px;
-                }
-                .status-healthy {
-                    background-color: #52c41a;
-                }
-                .status-warning {
-                    background-color: #faad14;
-                }
-                .status-critical {
-                    background-color: #f5222d;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1>充电运营管理系统</h1>
-                    <p>实时监控与调度控制平台</p>
-                </div>
-                
-                <div class="dashboard">
-                    <div class="card">
-                        <h2>运营概览</h2>
-                        <div>
-                            <div class="stat-label">今日总充电次数</div>
-                            <div class="stat-value">347</div>
-                        </div>
-                        <div>
-                            <div class="stat-label">总充电时长</div>
-                            <div class="stat-value">728<span style="font-size: 20px;">小时</span></div>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <h2>收益统计</h2>
-                        <div>
-                            <div class="stat-label">今日收入</div>
-                            <div class="stat-value">¥12,845</div>
-                        </div>
-                        <div>
-                            <div class="stat-label">利润率</div>
-                            <div class="stat-value">27.8%</div>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <h2>充电桩状态</h2>
-                        <div>
-                            <div class="stat-label">在线充电桩</div>
-                            <div class="stat-value">42<span style="font-size: 20px;">/45</span></div>
-                        </div>
-                        <div>
-                            <div class="stat-label">平均利用率</div>
-                            <div class="stat-value">68.4%</div>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <h2>用户体验</h2>
-                        <div>
-                            <div class="stat-label">平均等待时间</div>
-                            <div class="stat-value">12<span style="font-size: 20px;">分钟</span></div>
-                        </div>
-                        <div>
-                            <div class="stat-label">用户满意度</div>
-                            <div class="stat-value">4.7<span style="font-size: 20px;">/5.0</span></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2>利润与电网负载平衡</h2>
-                    <div class="chart" id="profit-load-chart"></div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-top: 20px;">
-                    <div class="card">
-                        <h2>充电桩状态监控</h2>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>充电桩ID</th>
-                                    <th>位置</th>
-                                    <th>类型</th>
-                                    <th>当前负载</th>
-                                    <th>健康状态</th>
-                                    <th>队列长度</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>CQ_1001</td>
-                                    <td>城东商圈</td>
-                                    <td>快充</td>
-                                    <td>78%</td>
-                                    <td><span class="status-indicator status-healthy"></span>良好 (92%)</td>
-                                    <td>2</td>
-                                </tr>
-                                <tr>
-                                    <td>CQ_1002</td>
-                                    <td>西区工业园</td>
-                                    <td>快充</td>
-                                    <td>45%</td>
-                                    <td><span class="status-indicator status-healthy"></span>良好 (89%)</td>
-                                    <td>0</td>
-                                </tr>
-                                <tr>
-                                    <td>CQ_1003</td>
-                                    <td>南湖科技园</td>
-                                    <td>慢充</td>
-                                    <td>95%</td>
-                                    <td><span class="status-indicator status-warning"></span>注意 (74%)</td>
-                                    <td>3</td>
-                                </tr>
-                                <tr>
-                                    <td>CQ_1004</td>
-                                    <td>北城商务区</td>
-                                    <td>快充</td>
-                                    <td>62%</td>
-                                    <td><span class="status-indicator status-healthy"></span>良好 (86%)</td>
-                                    <td>1</td>
-                                </tr>
-                                <tr>
-                                    <td>CQ_1005</td>
-                                    <td>中央车站</td>
-                                    <td>快充</td>
-                                    <td>90%</td>
-                                    <td><span class="status-indicator status-critical"></span>异常 (65%)</td>
-                                    <td>4</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <div class="card">
-                        <h2>价格策略模拟</h2>
-                        <div class="profit-settings">
-                            <div class="slider-group">
-                                <label class="slider-label">峰时电价加价率 (%)</label>
-                                <input type="range" min="5" max="30" value="12" class="slider" id="peak-price-markup">
-                                <span class="slider-value">12%</span>
-                            </div>
-                            
-                            <div class="slider-group">
-                                <label class="slider-label">谷时电价折扣率 (%)</label>
-                                <input type="range" min="0" max="40" value="20" class="slider" id="valley-price-discount">
-                                <span class="slider-value">20%</span>
-                            </div>
-                            
-                            <div class="slider-group">
-                                <label class="slider-label">充电服务费 (元/度)</label>
-                                <input type="range" min="0" max="1" step="0.1" value="0.3" class="slider" id="service-fee">
-                                <span class="slider-value">0.3</span>
-                            </div>
-                            
-                            <button class="apply-button">应用并模拟结果</button>
-                            
-                            <div style="margin-top: 20px;">
-                                <div class="stat-label">预计日利润变化</div>
-                                <div class="stat-value" style="color: #52c41a;">+8.5%</div>
-                                
-                                <div class="stat-label">预计用户满意度变化</div>
-                                <div class="stat-value" style="color: #f5222d;">-2.1%</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card" style="margin-top: 20px;">
-                    <h2>电网协同监控</h2>
-                    <div class="chart" id="grid-load-chart"></div>
-                </div>
-            </div>
-        </body>
-        </html>
+        计算电网友好度评分，综合考虑多方面对电网的影响
+        返回值范围：-1到1，值越高对电网越友好
+        
+        考虑因素:
+        1. 峰谷平电价时段
+        2. 可再生能源利用率
+        3. 当前电网负载状况
+        4. 区域用电平衡
+        5. 充电功率与电网容量的匹配度
         """
-        return html
-    
-    def create_evaluation_report(self, simulation_results):
-        """
-        创建评价指标体系报告
+        # 安全获取数据
+        timestamp_str = state.get("timestamp", datetime.now().isoformat())
+        try:
+            timestamp = datetime.fromisoformat(timestamp_str)
+            hour = timestamp.hour
+        except (ValueError, TypeError):
+            hour = datetime.now().hour
+            
+        grid_status = state.get("grid_status", {})
         
-        参数:
-            simulation_results: 模拟结果
-        
-        返回:
-            report: 评价报告
-        """
-        # 解包模拟结果
-        metrics, avg_metrics = simulation_results
-        
-        # 构建报告Markdown
-        report = f"""
-        # 电动汽车有序充电调度策略评价报告
-        
-        ## 综合评价指标
-        
-        | 指标名称 | 平均值 | 最高值 | 最低值 | 标准差 |
-        |---------|-------|-------|-------|-------|
-        | 用户满意度 | {np.mean(metrics['user_satisfaction']):.4f} | {np.max(metrics['user_satisfaction']):.4f} | {np.min(metrics['user_satisfaction']):.4f} | {np.std(metrics['user_satisfaction']):.4f} |
-        | 运营商利润 | {np.mean(metrics['operator_profit']):.4f} | {np.max(metrics['operator_profit']):.4f} | {np.min(metrics['operator_profit']):.4f} | {np.std(metrics['operator_profit']):.4f} |
-        | 电网友好度 | {np.mean(metrics['grid_friendliness']):.4f} | {np.max(metrics['grid_friendliness']):.4f} | {np.min(metrics['grid_friendliness']):.4f} | {np.std(metrics['grid_friendliness']):.4f} |
-        | 综合奖励 | {np.mean(metrics['total_reward']):.4f} | {np.max(metrics['total_reward']):.4f} | {np.min(metrics['total_reward']):.4f} | {np.std(metrics['total_reward']):.4f} |
-        
-        ## 详细评价分析
-        
-        ### 1. 用户体验分析
-        
-        - **平均用户满意度**: {np.mean(metrics['user_satisfaction']):.4f}
-        - **用户满意度波动性**: {np.std(metrics['user_satisfaction']):.4f}
-        - **用户体验最佳时段**: {np.argmax(metrics['user_satisfaction']) * 0.25:.2f}小时
-        - **用户体验最差时段**: {np.argmin(metrics['user_satisfaction']) * 0.25:.2f}小时
-        
-        ### 2. 运营商效益分析
-        
-        - **平均运营利润**: {np.mean(metrics['operator_profit']):.4f}
-        - **利润波动性**: {np.std(metrics['operator_profit']):.4f}
-        - **利润最高时段**: {np.argmax(metrics['operator_profit']) * 0.25:.2f}小时
-        - **利润最低时段**: {np.argmin(metrics['operator_profit']) * 0.25:.2f}小时
-        
-        ### 3. 电网友好度分析
-        
-        - **平均电网友好度**: {np.mean(metrics['grid_friendliness']):.4f}
-        - **电网友好度波动性**: {np.std(metrics['grid_friendliness']):.4f}
-        - **电网最友好时段**: {np.argmax(metrics['grid_friendliness']) * 0.25:.2f}小时
-        - **电网最不友好时段**: {np.argmin(metrics['grid_friendliness']) * 0.25:.2f}小时
-        
-        ## 各指标时序变化图
-        
-        *用户满意度、运营商利润、电网友好度和综合奖励的时间变化图见附件。*
-        
-        ## 优化建议
-        
-        1. **提高用户满意度的策略**:
-           - 针对{np.argmin(metrics['user_satisfaction']) * 0.25:.2f}小时左右的满意度低谷，可增加充电桩动态调度频率
-           - 高峰期可实施更激进的预约充电激励机制
-        
-        2. **提高运营商利润的策略**:
-           - 优化{np.argmin(metrics['operator_profit']) * 0.25:.2f}小时的充电桩使用率
-           - 调整峰谷电价差，引导用户向利润更高的时段转移
-        
-        3. **提高电网友好度的策略**:
-           - 在{np.argmin(metrics['grid_friendliness']) * 0.25:.2f}小时实施更严格的有序充电控制
-           - 增加光伏+储能一体化充电站比例，缓解电网压力
-        
-        ## 综合结论
-        
-        本充电调度策略在用户满意度、运营商利润和电网友好度三方面取得了良好的平衡，综合奖励平均值为{np.mean(metrics['total_reward']):.4f}。策略在不同时段的表现存在一定波动，特别是在高峰时段的电网友好度方面有提升空间。建议进一步优化高峰时段的调度算法，并探索更多元化的用户激励机制。
-        """
-        
-        return report
+        # 1. 电网时段状态
+        peak_hours = grid_status.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21])
+        valley_hours = grid_status.get("valley_hours", [0, 1, 2, 3, 4, 5])
+        normal_hours = [h for h in range(24) if h not in peak_hours and h not in valley_hours]
 
-
-def main():
-    config = {
-        "grid_id": "0258",
-        "charger_count": 15,
-        "user_count": 30,
-    }
-
-    scheduler = ChargingScheduler(config)
-
-    simulation_results = scheduler.run_simulation(num_steps=96)  # 模拟24小时
-
-    scheduler.visualize_results(simulation_results[0])
-
-    dashboard = ChargingVisualizationDashboard(scheduler)
-    evaluation_report = dashboard.create_evaluation_report(simulation_results)
-    
-    print("模拟完成，评价报告已生成。")
-    
-    return evaluation_report
-
-
-if __name__ == "__main__":
-    main()
+        # 时段因子：谷时最佳，平时次之，峰时最差
+        time_factor = 0
+        if hour in peak_hours:
+            time_factor = -0.7  # 峰时充电对电网不友好
+        elif hour in valley_hours:
+            time_factor = 0.8   # 谷时充电对电网友好
+        else:  # 平时
+            time_factor = 0.2   # 平时充电一般
+            
+        # 2. 可再生能源利用
+        renewable_ratio = grid_status.get("renewable_ratio", 0) / 100.0  # 转为0-1范围
+        # 可再生能源比例越高越好
+        # 当可再生能源丰富时，用电越多越好（避免浪费）
+        renewable_factor = renewable_ratio * 2 - 0.5  # 范围约为-0.5到1.5
+        
+        # 3. 电网负载状况
+        current_load = grid_status.get("grid_load", 50) / 100.0  # 转为0-1范围
+        ev_load = grid_status.get("ev_load", 5) / 100.0  # 电动车负载比例
+        
+        # 电网负载评分：负载越低越好，但如果可再生能源丰富，则负载可以高一些
+        if renewable_ratio > 0.7:  # 可再生能源非常丰富
+            # 此时希望多用电，充分利用可再生能源
+            load_factor = 0.5 - (0.5 - current_load) * 2  # 负载中等为最佳
+        else:
+            # 正常情况下，负载越低越好
+            load_factor = 1.0 - current_load * 2  # 负载越低越好
+            
+        # 4. 充电功率与电网容量匹配
+        charger_power = 60 if charger.get("type") == "fast" else 30  # kW
+        
+        # 快充桩在低负载时更友好，慢充桩在任何时候都相对友好
+        power_match_factor = 0
+        if charger.get("type") == "fast":
+            if current_load > 0.7:  # 高负载时
+                power_match_factor = -0.3  # 快充不友好
+            elif current_load < 0.3:  # 低负载时
+                power_match_factor = 0.3  # 快充友好
+        else:  # 慢充
+            power_match_factor = 0.2  # 慢充总体上更友好
+            
+        # 5. 区域负载平衡
+        # 如果有区域信息，可以考虑区域间负载平衡
+        region_balance_factor = 0
+        charger_region = charger.get("region", "")
+        region_loads = grid_status.get("region_loads", {})
+        
+        if charger_region and region_loads and charger_region in region_loads:
+            region_load = region_loads.get(charger_region, 50) / 100.0
+            # 鼓励在低负载区域充电
+            region_balance_factor = 0.3 * (1 - region_load * 2)
+            
+        # 6. 电网波动性
+        grid_volatility = grid_status.get("grid_volatility", 0.2)  # 电网波动性，越高越不稳定
+        volatility_factor = -0.3 * grid_volatility  # 电网波动大时，充电更不友好
+        
+        # 7. 综合评分计算
+        # 基础评分：时段因子和可再生能源是主要考虑因素
+        base_score = time_factor * 0.35 + renewable_factor * 0.3
+        
+        # 负载相关评分
+        load_score = load_factor * 0.2 + power_match_factor * 0.1
+        
+        # 其他因素
+        other_score = (region_balance_factor + volatility_factor) * 0.05
+        
+        # 最终评分
+        grid_score = base_score + load_score + other_score
+        
+        # 确保在[-1, 1]范围内
+        return max(-1, min(1, grid_score))

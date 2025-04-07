@@ -1,0 +1,25 @@
+{
+    "charging_stations": [
+        {
+            "id": "station_1",
+            "location": "A区",
+            "total_slots": 10,
+            "power_levels": [7, 22, 60],
+            "power_slots": [4, 4, 2]
+        },
+        {
+            "id": "station_2",
+            "location": "B区",
+            "total_slots": 8,
+            "power_levels": [7, 22, 60],
+            "power_slots": [3, 3, 2]
+        },
+        {
+            "id": "station_3",
+            "location": "C区",
+            "total_slots": 12,
+            "power_levels": [7, 22, 60],
+            "power_slots": [5, 5, 2]
+        }
+    ]
+} 

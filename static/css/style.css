@@ -1,0 +1,265 @@
+/* Basic Layout */
+body {
+    padding-top: 60px;
+    background-color: #f8f9fa;
+}
+
+.control-panel {
+    position: sticky;
+    top: 60px;
+    z-index: 100;
+}
+
+/* Card Styles */
+.card {
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.card-header {
+    border-bottom: none;
+    padding: 0.7rem 1rem;
+}
+
+.card-header h5 {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.card-body {
+    padding: 1.25rem;
+}
+
+/* Progress Bar */
+.progress {
+    height: 1.5rem;
+    font-size: 0.9rem;
+    border-radius: 0.25rem;
+}
+
+/* Metric Badges */
+.badge {
+    font-size: 0.9rem;
+    font-weight: 500;
+    border-radius: 0.3rem;
+}
+
+/* Tab Styles */
+.nav-tabs .nav-link {
+    color: #495057;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+}
+
+.nav-tabs .nav-link.active {
+    font-weight: 600;
+}
+
+/* Agent Card */
+#multi-agent-card {
+    transition: all 0.3s ease;
+}
+
+/* Sliders */
+.form-range {
+    height: 1.5rem;
+}
+
+/* Maps */
+#map-container {
+    border-radius: 0.25rem;
+    overflow: hidden;
+}
+
+/* Hour checkboxes */
+.hour-checkbox {
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+.hour-checkbox input {
+    margin-right: 0.25rem;
+}
+
+/* Charts */
+canvas {
+    max-width: 100%;
+}
+
+#agent-weights-chart-container {
+    height: 200px;
+}
+
+/* Table Styles */
+.table th {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.table td {
+    font-size: 0.9rem;
+}
+
+/* Custom Responsive Adjustments */
+@media (max-width: 992px) {
+    .control-panel .col-md-3 {
+        margin-bottom: 1rem;
+    }
+    
+    #map-container {
+        height: 300px;
+    }
+}
+
+@media (max-width: 768px) {
+    body {
+        padding-top: 80px;
+    }
+    
+    .control-panel {
+        top: 80px;
+    }
+    
+    .badge {
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+    
+    #map-container {
+        height: 250px;
+    }
+}
+
+/* Animation for updates */
+@keyframes highlight {
+    0% {
+        background-color: rgba(255, 255, 0, 0.3);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+.highlight {
+    animation: highlight 1.5s;
+}
+
+/* Conflict indicators */
+.conflict-highlight {
+    position: relative;
+}
+
+.conflict-highlight::after {
+    content: '!';
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: #dc3545;
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 20px;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+/* Decision panels */
+.agent-decision {
+    background-color: #f8f9fa;
+    border-radius: 0.3rem;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-left: 4px solid transparent;
+}
+
+.agent-decision.user-agent {
+    border-left-color: #0d6efd;
+}
+
+.agent-decision.profit-agent {
+    border-left-color: #198754;
+}
+
+.agent-decision.grid-agent {
+    border-left-color: #0dcaf0;
+}
+
+.agent-decision.final-decision {
+    border-left-color: #6c757d;
+    background-color: #e9ecef;
+}
+
+/* Charger status colors */
+.charger-available {
+    color: #198754;
+}
+
+.charger-occupied {
+    color: #0d6efd;
+}
+
+.charger-failure {
+    color: #dc3545;
+}
+
+/* User status colors */
+.user-waiting {
+    color: #fd7e14;
+}
+
+.user-charging {
+    color: #198754;
+}
+
+.user-finished {
+    color: #6c757d;
+}
+
+/* 路径动画 */
+@keyframes movePathAnimation {
+    from {
+        background-position: 0 0;
+    }
+    to {
+        background-position: 20px 0;
+    }
+}
+
+/* 用户图标动画 */
+@keyframes pulse {
+    0% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+@keyframes moveAnimation {
+    0% {
+        transform: translate(-50%, -50%) translateX(-2px);
+    }
+    100% {
+        transform: translate(-50%, -50%) translateX(2px);
+    }
+}
+
+/* 路径和路径点样式 */
+.path-line {
+    pointer-events: none;
+}
+
+.waypoint {
+    pointer-events: none;
+    box-shadow: 0 0 3px rgba(0, 123, 255, 0.5);
+}
+
+.connection-line {
+    pointer-events: none;
+}

@@ -1,10 +1,20 @@
 {
     "environment": {
-        "charger_count": 20,
+        "charger_count": 6,
+        "chargers_per_station": 4,
         "grid_id": "DEFAULT001",
+        "map_bounds": {
+            "max_lat": 30.3,
+            "min_lat": 30,
+            "max_lng": 116.3,
+            "min_lng": 116
+        },
+        "region_count": 8,
         "simulation_days": 7,
-        "time_step_minutes": 15,
-        "user_count": 50
+        "station_count": 20,
+        "time_step_minutes": 20,
+        "user_count": 100,
+        "charger_failure_rate": 0
     },
     "grid": {
         "base_load": [
@@ -50,39 +60,41 @@
             3,
             4,
             5
-        ],
-        "normal_price": 0.85,
-        "peak_price": 1.2,
-        "valley_price": 0.4,
-        "renewable_ratio_range": [
-            30,
-            60
         ]
     },
     "model": {
-        "input_dim": 19,
         "hidden_dim": 128,
-        "task_hidden_dim": 64,
-        "model_path": "models/ev_charging_model.pth"
+        "input_dim": 19,
+        "model_path": "models/ev_charging_model.pth",
+        "task_hidden_dim": 64
     },
     "scheduler": {
-        "optimization_weights": {
-            "grid_friendliness": 0.3,
-            "operator_profit": 0.3,
-            "user_satisfaction": 0.4
+        "marl_config": {
+            "action_space_size": 6,
+            "discount_factor": 0.95,
+            "exploration_rate": 0.1,
+            "learning_rate": 0.01,
+            "q_table_path": "models/marl_q_tables.pkl"
         },
-        "use_trained_model": true
+        "optimization_weights": {
+            "grid_friendliness": 0.35,
+            "operator_profit": 0.35,
+            "user_satisfaction": 0.35
+        },
+        "scheduling_algorithm": "rule_based",
+        "use_trained_model": false,
+        "use_multi_agent": true
     },
     "strategies": {
         "balanced": {
-            "user_satisfaction": 0.33,
+            "grid_friendliness": 0.34,
             "operator_profit": 0.33,
-            "grid_friendliness": 0.34
+            "user_satisfaction": 0.33
         },
         "grid": {
-            "user_satisfaction": 0.2,
+            "grid_friendliness": 0.6,
             "operator_profit": 0.2,
-            "grid_friendliness": 0.6
+            "user_satisfaction": 0.2
         },
         "profit": {
             "grid_friendliness": 0.2,

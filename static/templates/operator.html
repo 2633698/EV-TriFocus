@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运营商面板 - EV充电调度仿真系统</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Main Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-charging-station me-2"></i>EV充电调度仿真系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">上帝视角</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/user">用户面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/operator">运营商面板</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/grid">电网面板</a>
+                    </li>
+                </ul>
+                <div class="ms-auto d-flex align-items-center text-light">
+                    <div id="system-time" class="me-3">
+                        <i class="far fa-clock me-1"></i>
+                        <span id="current-system-time">2023-01-01 00:00</span>
+                    </div>
+                    <button class="btn btn-sm btn-outline-light me-2" data-bs-toggle="modal" data-bs-target="#operatorHelpModal">
+                        <i class="fas fa-question-circle"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Global Status -->
+    <div class="container-fluid mt-5 pt-3">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h4>运营商面板 <span class="badge bg-success">模拟视角</span></h4>
+                <p class="text-muted">从充电站运营商角度体验充电调度系统</p>
+            </div>
+            <div class="col-md-6 text-end">
+                <button class="btn btn-success me-2" id="btn-start-simulation">
+                    <i class="fas fa-play"></i> 开始模拟
+                </button>
+                <button class="btn btn-warning me-2" id="btn-pause-simulation" disabled>
+                    <i class="fas fa-pause"></i> 暂停
+                </button>
+                <button class="btn btn-danger" id="btn-reset-simulation">
+                    <i class="fas fa-stop"></i> 重置
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container-fluid">
+        <!-- Operation Overview Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="text-muted">今日交易次数</h6>
+                                <h3 id="transaction-count">347</h3>
+                            </div>
+                            <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+                                <i class="fas fa-exchange-alt fa-2x text-primary"></i>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-success">
+                                <i class="fas fa-arrow-up"></i> 12.5%
+                            </span>
+                            <span class="text-muted ms-1">较上周同期</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="text-muted">今日营收</h6>
+                                <h3 id="today-revenue">¥12,845</h3>
+                            </div>
+                            <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                                <i class="fas fa-yen-sign fa-2x text-success"></i>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-success">
+                                <i class="fas fa-arrow-up"></i> 8.2%
+                            </span>
+                            <span class="text-muted ms-1">较上周同期</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="text-muted">平均充电时长</h6>
+                                <h3 id="avg-charge-time">42<span class="small">分钟</span></h3>
+                            </div>
+                            <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                                <i class="fas fa-clock fa-2x text-info"></i>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-danger">
+                                <i class="fas fa-arrow-down"></i> 3.8%
+                            </span>
+                            <span class="text-muted ms-1">较上周同期</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="text-muted">充电桩利用率</h6>
+                                <h3 id="utilization-rate">68.4%</h3>
+                            </div>
+                            <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                                <i class="fas fa-chart-pie fa-2x text-warning"></i>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-success">
+                                <i class="fas fa-arrow-up"></i> 5.2%
+                            </span>
+                            <span class="text-muted ms-1">较上周同期</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Charger Management -->
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">充电桩管理</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-3">
+                        <div>
+                            <div class="input-group">
+                                <span class="input-group-text">状态</span>
+                                <select class="form-select" id="charger-status-filter">
+                                    <option value="all" selected>所有状态</option>
+                                    <option value="available">空闲</option>
+                                    <option value="occupied">使用中</option>
+                                    <option value="fault">故障</option>
+                                    <option value="maintenance">维护中</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="input-group">
+                                <input type="text" class="form-control" placeholder="搜索充电桩..." id="charger-search">
+                                <button class="btn btn-outline-secondary" type="button">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>位置</th>
+                                    <th>类型</th>
+                                    <th>状态</th>
+                                    <th>健康评分</th>
+                                    <th>队列长度</th>
+                                    <th>日营收</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="charger-table-body">
+                                <tr>
+                                    <td>CQ_1001</td>
+                                    <td>城东充电站</td>
+                                    <td><span class="badge bg-primary">快充</span></td>
+                                    <td><span class="badge bg-success">空闲</span></td>
+                                    <td>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-success" style="width: 92%;"></div>
+                                        </div>
+                                        <span class="small">92%</span>
+                                    </td>
+                                    <td>0/3</td>
+                                    <td>¥680</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="tooltip" title="详情">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="维护">
+                                            <i class="fas fa-wrench"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>CQ_1002</td>
+                                    <td>西区工业园</td>
+                                    <td><span class="badge bg-primary">快充</span></td>
+                                    <td><span class="badge bg-primary">使用中</span></td>
+                                    <td>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-success" style="width: 89%;"></div>
+                                        </div>
+                                        <span class="small">89%</span>
+                                    </td>
+                                    <td>2/3</td>
+                                    <td>¥845</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="tooltip" title="详情">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="维护">
+                                            <i class="fas fa-wrench"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>CQ_1003</td>
+                                    <td>南湖科技园</td>
+                                    <td><span class="badge bg-secondary">慢充</span></td>
+                                    <td><span class="badge bg-primary">使用中</span></td>
+                                    <td>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-warning" style="width: 74%;"></div>
+                                        </div>
+                                        <span class="small">74%</span>
+                                    </td>
+                                    <td>3/3</td>
+                                    <td>¥560</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="tooltip" title="详情">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="维护">
+                                            <i class="fas fa-wrench"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>CQ_1004</td>
+                                    <td>北城商务区</td>
+                                    <td><span class="badge bg-primary">快充</span></td>
+                                    <td><span class="badge bg-primary">使用中</span></td>
+                                    <td>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-success" style="width: 86%;"></div>
+                                        </div>
+                                        <span class="small">86%</span>
+                                    </td>
+                                    <td>1/3</td>
+                                    <td>¥720</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="tooltip" title="详情">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="维护">
+                                            <i class="fas fa-wrench"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>CQ_1005</td>
+                                    <td>中央车站</td>
+                                    <td><span class="badge bg-primary">快充</span></td>
+                                    <td><span class="badge bg-danger">故障</span></td>
+                                    <td>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-danger" style="width: 65%;"></div>
+                                        </div>
+                                        <span class="small">65%</span>
+                                    </td>
+                                    <td>0/3</td>
+                                    <td>¥320</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="tooltip" title="详情">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="维护">
+                                            <i class="fas fa-wrench"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Price Management -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">价格管理</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-7">
+                            <h6>电价策略设置</h6>
+                            <div class="mb-3">
+                                <label class="form-label">基础电价 (电网采购价格)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="base-price" value="0.85" step="0.01" min="0">
+                                    <span class="input-group-text">元/度</span>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">峰时加价率</label>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control" id="peak-markup" value="12" min="0" max="100">
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">谷时折扣率</label>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control" id="valley-discount" value="20" min="0" max="100">
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">服务费</label>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control" id="service-fee" value="0.3" step="0.1" min="0">
+                                            <span class="input-group-text">元/度</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">快充桩额外费率</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="fast-charge-rate" value="15" min="0" max="100">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <button class="btn btn-primary" id="apply-price-btn">应用并模拟结果</button>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-5">
+                            <h6>模拟结果</h6>
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <div class="text-muted">预计日营收变化</div>
+                                        <h5 class="text-success">+8.5%</h5>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-success" style="width: 85%;"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <div class="text-muted">预计用户满意度变化</div>
+                                        <h5 class="text-danger">-2.1%</h5>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-danger" style="width: 21%;"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <div class="text-muted">预计充电需求变化</div>
+                                        <h5 class="text-success">+3.2%</h5>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-success" style="width: 32%;"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <div class="text-muted">综合评分</div>
+                                        <h5>适中</h5>
+                                        <p class="text-muted small">建议：可以略微提高峰时加价率，降低谷时折扣率</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Operation Analysis -->
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">运营分析</h5>
+                    <ul class="nav nav-tabs card-header-tabs mt-2" id="operation-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="time-tab" data-bs-toggle="tab" data-bs-target="#time-analysis" type="button" role="tab">时间分布</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="location-tab" data-bs-toggle="tab" data-bs-target="#location-analysis" type="button" role="tab">地区分布</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="user-tab" data-bs-toggle="tab" data-bs-target="#user-analysis" type="button" role="tab">用户分析</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="revenue-tab" data-bs-toggle="tab" data-bs-target="#revenue-analysis" type="button" role="tab">收益构成</button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content" id="operation-tab-content">
+                        <div class="tab-pane fade show active" id="time-analysis" role="tabpanel">
+                            <canvas id="hourly-demand-chart" height="300"></canvas>
+                        </div>
+                        <div class="tab-pane fade" id="location-analysis" role="tabpanel">
+                            <canvas id="location-usage-chart" height="300"></canvas>
+                        </div>
+                        <div class="tab-pane fade" id="user-analysis" role="tabpanel">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <canvas id="user-type-chart" height="200"></canvas>
+                                </div>
+                                <div class="col-md-6">
+                                    <canvas id="user-profile-chart" height="200"></canvas>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>用户类型</th>
+                                            <th>平均充电量 (kWh)</th>
+                                            <th>平均等待时间 (分钟)</th>
+                                            <th>平均停留时间 (分钟)</th>
+                                            <th>客单价 (元)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>出租车</td>
+                                            <td>35.2</td>
+                                            <td>8.5</td>
+                                            <td>32.6</td>
+                                            <td>48.5</td>
+                                        </tr>
+                                        <tr>
+                                            <td>私家车</td>
+                                            <td>42.8</td>
+                                            <td>15.3</td>
+                                            <td>45.7</td>
+                                            <td>58.2</td>
+                                        </tr>
+                                        <tr>
+                                            <td>网约车</td>
+                                            <td>38.6</td>
+                                            <td>10.2</td>
+                                            <td>35.4</td>
+                                            <td>52.6</td>
+                                        </tr>
+                                        <tr>
+                                            <td>物流车</td>
+                                            <td>58.2</td>
+                                            <td>12.8</td>
+                                            <td>52.3</td>
+                                            <td>76.4</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="revenue-analysis" role="tabpanel">
+                            <canvas id="revenue-composition-chart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Prediction and Planning -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">预测与规划</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>需求预测 (7天)</h6>
+                            <canvas id="demand-forecast-chart" height="200"></canvas>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>站点健康状况预测</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>充电站</th>
+                                            <th>当前健康评分</th>
+                                            <th>预计30天后</th>
+                                            <th>建议</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>城东充电站</td>
+                                            <td><span class="badge bg-success">92%</span></td>
+                                            <td><span class="badge bg-success">90%</span></td>
+                                            <td>正常运行</td>
+                                        </tr>
+                                        <tr>
+                                            <td>南湖科技园</td>
+                                            <td><span class="badge bg-warning">74%</span></td>
+                                            <td><span class="badge bg-danger">65%</span></td>
+                                            <td><span class="text-danger"><i class="fas fa-exclamation-triangle"></i> 计划维护</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td>中央车站</td>
+                                            <td><span class="badge bg-danger">65%</span></td>
+                                            <td><span class="badge bg-danger">55%</span></td>
+                                            <td><span class="text-danger"><i class="fas fa-exclamation-circle"></i> 立即检修</span></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h6>容量规划建议</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card bg-light mb-3">
+                                <div class="card-body">
+                                    <h6 class="mb-3"><i class="fas fa-chart-line text-success me-2"></i>高需求区域</h6>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>南湖科技园</span>
+                                        <span class="text-success">建议增加3个快充桩</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>西区工业园</span>
+                                        <span class="text-success">建议增加2个快充桩</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>中央车站</span>
+                                        <span class="text-success">建议升级现有充电桩</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="mb-3"><i class="fas fa-chart-area text-danger me-2"></i>低利用率区域</h6>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>北城住宅区</span>
+                                        <span class="text-danger">建议减少2个慢充桩</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>老城区商业街</span>
+                                        <span class="text-danger">建议调整定价策略</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>东郊公园</span>
+                                        <span class="text-danger">建议重新评估位置</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3 text-end">
+                        <button class="btn btn-outline-secondary me-2">
+                            <i class="fas fa-download me-1"></i>导出分析报告
+                        </button>
+                        <button class="btn btn-primary">
+                            <i class="fas fa-rocket me-1"></i>生成优化方案
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Operator Help Modal -->
+<div class="modal fade" id="operatorHelpModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">运营商使用帮助</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h6>欢迎使用运营商面板</h6>
+                <p>运营商面板模拟了充电站运营商管理充电桩和分析运营数据的体验，您可以：</p>
+                
+                <ul>
+                    <li>查看和管理充电桩状态</li>
+                    <li>调整充电价格策略并查看模拟效果</li>
+                    <li>分析运营数据，包括时间分布、地区分布、用户行为等</li>
+                    <li>查看未来需求预测和站点健康状况</li>
+                    <li>获取容量规划建议</li>
+                </ul>
+                
+                <h6>如何使用</h6>
+                <ol>
+                    <li>点击"开始模拟"开始仿真</li>
+                    <li>使用"充电桩管理"面板监控和管理充电桩</li>
+                    <li>通过"价格管理"面板调整价格策略，查看对营收的影响</li>
+                    <li>利用"运营分析"面板分析不同维度的运营数据</li>
+                    <li>参考"预测与规划"面板制定未来发展计划</li>
+                </ol>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">明白了</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+<!-- Custom JavaScript -->
+<script src="/static/js/operator.js"></script>
+</body>
+</html>

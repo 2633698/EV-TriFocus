@@ -1,0 +1,3231 @@
+{
+    "timestamp": "2025-04-07T00:00:00",
+    "progress": 100.0,
+    "metrics": {
+        "user_satisfaction": -0.7395026528822555,
+        "operator_profit": -1.0,
+        "grid_friendliness": -0.72,
+        "total_reward": -0.8118010611529022
+    },
+    "grid_load": 50.0,
+    "chargers": [
+        {
+            "id": "CQ_0001",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.78980569410334,
+                "lng": 114.39492066247217
+            },
+            "location": "\u57ce\u4e1c\u5145\u7535\u7ad9",
+            "type": "fast",
+            "health_score": 95,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0002",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.78756001029613,
+                "lng": 114.40570333712121
+            },
+            "location": "\u57ce\u4e1c\u5145\u7535\u7ad9",
+            "type": "slow",
+            "health_score": 74,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0003",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.776196909190986,
+                "lng": 114.39287936506383
+            },
+            "location": "\u57ce\u4e1c\u5145\u7535\u7ad9",
+            "type": "fast",
+            "health_score": 71,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0004",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.772515930376844,
+                "lng": 114.40530392209597
+            },
+            "location": "\u57ce\u4e1c\u5145\u7535\u7ad9",
+            "type": "fast",
+            "health_score": 72,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0005",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.72166134543605,
+                "lng": 114.1877997805499
+            },
+            "location": "\u897f\u533a\u5de5\u4e1a\u56ed",
+            "type": "fast",
+            "health_score": 95,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0006",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.724634576892043,
+                "lng": 114.17664374556533
+            },
+            "location": "\u897f\u533a\u5de5\u4e1a\u56ed",
+            "type": "fast",
+            "health_score": 100,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0007",
+            "status": "failure",
+            "queue_length": 0,
+            "position": {
+                "lat": 30.71093154589301,
+                "lng": 114.17767319642535
+            },
+            "location": "\u897f\u533a\u5de5\u4e1a\u56ed",
+            "type": "slow",
+            "health_score": 67,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0008",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.71466207881773,
+                "lng": 114.18118218967308
+            },
+            "location": "\u897f\u533a\u5de5\u4e1a\u56ed",
+            "type": "fast",
+            "health_score": 85,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0009",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.620623007088426,
+                "lng": 114.32478363593115
+            },
+            "location": "\u5357\u6e56\u79d1\u6280\u56ed",
+            "type": "slow",
+            "health_score": 91,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0010",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.627040512378066,
+                "lng": 114.32523667859
+            },
+            "location": "\u5357\u6e56\u79d1\u6280\u56ed",
+            "type": "fast",
+            "health_score": 95,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0011",
+            "status": "failure",
+            "queue_length": 0,
+            "position": {
+                "lat": 30.612033267053665,
+                "lng": 114.3172482803979
+            },
+            "location": "\u5357\u6e56\u79d1\u6280\u56ed",
+            "type": "fast",
+            "health_score": 66,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0012",
+            "status": "failure",
+            "queue_length": 0,
+            "position": {
+                "lat": 30.61129177472312,
+                "lng": 114.32128947916931
+            },
+            "location": "\u5357\u6e56\u79d1\u6280\u56ed",
+            "type": "fast",
+            "health_score": 66,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0013",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.841277155894495,
+                "lng": 114.2534848643426
+            },
+            "location": "\u5317\u57ce\u5546\u52a1\u533a",
+            "type": "fast",
+            "health_score": 100,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0014",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.844340756961326,
+                "lng": 114.24890015441326
+            },
+            "location": "\u5317\u57ce\u5546\u52a1\u533a",
+            "type": "fast",
+            "health_score": 86,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0015",
+            "status": "failure",
+            "queue_length": 0,
+            "position": {
+                "lat": 30.842074416858864,
+                "lng": 114.25074809192151
+            },
+            "location": "\u5317\u57ce\u5546\u52a1\u533a",
+            "type": "fast",
+            "health_score": 67,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0016",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.845302095871066,
+                "lng": 114.24055419295547
+            },
+            "location": "\u5317\u57ce\u5546\u52a1\u533a",
+            "type": "fast",
+            "health_score": 91,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0017",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.745432186683534,
+                "lng": 114.28486016716641
+            },
+            "location": "\u4e2d\u592e\u8f66\u7ad9",
+            "type": "fast",
+            "health_score": 90,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0018",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.755105899609926,
+                "lng": 114.27237113386134
+            },
+            "location": "\u4e2d\u592e\u8f66\u7ad9",
+            "type": "fast",
+            "health_score": 76,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0019",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.74355300926493,
+                "lng": 114.28572342258359
+            },
+            "location": "\u4e2d\u592e\u8f66\u7ad9",
+            "type": "fast",
+            "health_score": 85,
+            "daily_revenue": 0
+        },
+        {
+            "id": "CQ_0020",
+            "status": "occupied",
+            "queue_length": 3,
+            "position": {
+                "lat": 30.741233238416644,
+                "lng": 114.28638670211527
+            },
+            "location": "\u4e2d\u592e\u8f66\u7ad9",
+            "type": "fast",
+            "health_score": 77,
+            "daily_revenue": 0
+        }
+    ],
+    "users": [
+        {
+            "id": "USER_0001",
+            "soc": 28.74604408836812,
+            "position": {
+                "lat": 30.857209,
+                "lng": 114.425026
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.38,
+            "price_sensitivity": 0.36,
+            "range_anxiety": 0.66
+        },
+        {
+            "id": "USER_0002",
+            "soc": 25.410786651267212,
+            "position": {
+                "lat": 30.544802,
+                "lng": 114.447646
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.73,
+            "price_sensitivity": 0.42,
+            "range_anxiety": 0.51
+        },
+        {
+            "id": "USER_0003",
+            "soc": 26.639502214776414,
+            "position": {
+                "lat": 30.906881,
+                "lng": 114.27114
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.45,
+            "price_sensitivity": 0.31,
+            "range_anxiety": 0.37
+        },
+        {
+            "id": "USER_0004",
+            "soc": 23.65145661169935,
+            "position": {
+                "lat": 30.708344,
+                "lng": 114.218693
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.56,
+            "price_sensitivity": 0.89,
+            "range_anxiety": 0.58
+        },
+        {
+            "id": "USER_0005",
+            "soc": 7.597591886169341,
+            "position": {
+                "lat": 30.749751,
+                "lng": 114.245657
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.67,
+            "price_sensitivity": 0.65,
+            "range_anxiety": 0.66
+        },
+        {
+            "id": "USER_0006",
+            "soc": 28.670621564919923,
+            "position": {
+                "lat": 30.988192,
+                "lng": 114.365303
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.64,
+            "price_sensitivity": 0.71,
+            "range_anxiety": 0.43
+        },
+        {
+            "id": "USER_0007",
+            "soc": 0,
+            "position": {
+                "lat": 30.790632,
+                "lng": 114.129377
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.49,
+            "price_sensitivity": 0.32,
+            "range_anxiety": 0.52
+        },
+        {
+            "id": "USER_0008",
+            "soc": 14.614138875737778,
+            "position": {
+                "lat": 30.611619,
+                "lng": 114.383392
+            },
+            "status": "waiting",
+            "user_profile": "economic",
+            "time_sensitivity": 0.34,
+            "price_sensitivity": 0.8,
+            "range_anxiety": 0.72
+        },
+        {
+            "id": "USER_0009",
+            "soc": 29.605940025295872,
+            "position": {
+                "lat": 30.796911,
+                "lng": 114.401955
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.64,
+            "price_sensitivity": 0.86,
+            "range_anxiety": 0.43
+        },
+        {
+            "id": "USER_0010",
+            "soc": 2.876999536746654,
+            "position": {
+                "lat": 30.881514,
+                "lng": 114.436081
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.62,
+            "price_sensitivity": 0.64,
+            "range_anxiety": 0.79
+        },
+        {
+            "id": "USER_0011",
+            "soc": 26.900702245820867,
+            "position": {
+                "lat": 30.864786,
+                "lng": 114.325368
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.64,
+            "price_sensitivity": 0.51,
+            "range_anxiety": 0.75
+        },
+        {
+            "id": "USER_0012",
+            "soc": 4.511143521464101,
+            "position": {
+                "lat": 30.830081,
+                "lng": 114.446101
+            },
+            "status": "traveling",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.71,
+            "price_sensitivity": 0.44,
+            "range_anxiety": 0.79
+        },
+        {
+            "id": "USER_0013",
+            "soc": 9.840824812116226,
+            "position": {
+                "lat": 30.640197,
+                "lng": 114.027766
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.47,
+            "price_sensitivity": 0.46,
+            "range_anxiety": 0.6
+        },
+        {
+            "id": "USER_0014",
+            "soc": 29.675815204605488,
+            "position": {
+                "lat": 30.994436,
+                "lng": 114.373332
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.8,
+            "price_sensitivity": 0.79,
+            "range_anxiety": 0.56
+        },
+        {
+            "id": "USER_0015",
+            "soc": 22.693967173180564,
+            "position": {
+                "lat": 30.629486,
+                "lng": 114.038713
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.51,
+            "price_sensitivity": 0.76,
+            "range_anxiety": 0.7
+        },
+        {
+            "id": "USER_0016",
+            "soc": 27.460670889227817,
+            "position": {
+                "lat": 30.695878,
+                "lng": 114.334717
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.42,
+            "price_sensitivity": 0.88,
+            "range_anxiety": 0.46
+        },
+        {
+            "id": "USER_0017",
+            "soc": 30.24198933942092,
+            "position": {
+                "lat": 30.786835,
+                "lng": 114.072743
+            },
+            "status": "idle",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.82,
+            "price_sensitivity": 0.86,
+            "range_anxiety": 0.55
+        },
+        {
+            "id": "USER_0018",
+            "soc": 19.57062761778883,
+            "position": {
+                "lat": 30.986274,
+                "lng": 114.010608
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.86,
+            "price_sensitivity": 0.47,
+            "range_anxiety": 0.49
+        },
+        {
+            "id": "USER_0019",
+            "soc": 1.405897979043085,
+            "position": {
+                "lat": 30.80582,
+                "lng": 114.320602
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.39,
+            "price_sensitivity": 0.5,
+            "range_anxiety": 0.61
+        },
+        {
+            "id": "USER_0020",
+            "soc": 16.58893357988673,
+            "position": {
+                "lat": 30.980041,
+                "lng": 114.127897
+            },
+            "status": "waiting",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.81,
+            "price_sensitivity": 0.85,
+            "range_anxiety": 0.73
+        },
+        {
+            "id": "USER_0021",
+            "soc": 4.78502810987574,
+            "position": {
+                "lat": 30.654478,
+                "lng": 114.17003
+            },
+            "status": "traveling",
+            "user_profile": "economic",
+            "time_sensitivity": 0.4,
+            "price_sensitivity": 0.84,
+            "range_anxiety": 0.39
+        },
+        {
+            "id": "USER_0022",
+            "soc": 0,
+            "position": {
+                "lat": 30.620718,
+                "lng": 114.0191
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.54,
+            "price_sensitivity": 0.6,
+            "range_anxiety": 0.42
+        },
+        {
+            "id": "USER_0023",
+            "soc": 14.781198997330081,
+            "position": {
+                "lat": 30.781959,
+                "lng": 114.344049
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.68,
+            "price_sensitivity": 0.32,
+            "range_anxiety": 0.47
+        },
+        {
+            "id": "USER_0024",
+            "soc": 0,
+            "position": {
+                "lat": 30.585968,
+                "lng": 114.347586
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.71,
+            "price_sensitivity": 0.41,
+            "range_anxiety": 0.48
+        },
+        {
+            "id": "USER_0025",
+            "soc": 11.851811547271318,
+            "position": {
+                "lat": 30.961335,
+                "lng": 114.157618
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.42,
+            "price_sensitivity": 0.77,
+            "range_anxiety": 0.75
+        },
+        {
+            "id": "USER_0026",
+            "soc": 14.763781104728155,
+            "position": {
+                "lat": 30.77546,
+                "lng": 114.014087
+            },
+            "status": "waiting",
+            "user_profile": "planned",
+            "time_sensitivity": 0.71,
+            "price_sensitivity": 0.67,
+            "range_anxiety": 0.35
+        },
+        {
+            "id": "USER_0027",
+            "soc": 0,
+            "position": {
+                "lat": 30.560598,
+                "lng": 114.030572
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.33,
+            "price_sensitivity": 0.5,
+            "range_anxiety": 0.45
+        },
+        {
+            "id": "USER_0028",
+            "soc": 28.842174167619987,
+            "position": {
+                "lat": 30.77807,
+                "lng": 114.457037
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.65,
+            "price_sensitivity": 0.5,
+            "range_anxiety": 0.52
+        },
+        {
+            "id": "USER_0029",
+            "soc": 0,
+            "position": {
+                "lat": 30.869504,
+                "lng": 114.07422
+            },
+            "status": "traveling",
+            "user_profile": "planned",
+            "time_sensitivity": 0.46,
+            "price_sensitivity": 0.73,
+            "range_anxiety": 0.34
+        },
+        {
+            "id": "USER_0030",
+            "soc": 27.345725701007122,
+            "position": {
+                "lat": 30.750054,
+                "lng": 114.166059
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.54,
+            "price_sensitivity": 0.81,
+            "range_anxiety": 0.49
+        },
+        {
+            "id": "USER_0031",
+            "soc": 9.034224000811694,
+            "position": {
+                "lat": 30.6126,
+                "lng": 114.155991
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.7,
+            "price_sensitivity": 0.57,
+            "range_anxiety": 0.3
+        },
+        {
+            "id": "USER_0032",
+            "soc": 29.7933080114626,
+            "position": {
+                "lat": 30.941398,
+                "lng": 114.252301
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.52,
+            "price_sensitivity": 0.62,
+            "range_anxiety": 0.63
+        },
+        {
+            "id": "USER_0033",
+            "soc": 0,
+            "position": {
+                "lat": 30.600145,
+                "lng": 114.322465
+            },
+            "status": "traveling",
+            "user_profile": "economic",
+            "time_sensitivity": 0.4,
+            "price_sensitivity": 0.73,
+            "range_anxiety": 0.63
+        },
+        {
+            "id": "USER_0034",
+            "soc": 39.43925931340189,
+            "position": {
+                "lat": 30.769188,
+                "lng": 114.283954
+            },
+            "status": "waiting",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.88,
+            "price_sensitivity": 0.69,
+            "range_anxiety": 0.85
+        },
+        {
+            "id": "USER_0035",
+            "soc": 5.369059314361748,
+            "position": {
+                "lat": 30.74848,
+                "lng": 114.478943
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.63,
+            "price_sensitivity": 0.8,
+            "range_anxiety": 0.52
+        },
+        {
+            "id": "USER_0036",
+            "soc": 8.483935957401929,
+            "position": {
+                "lat": 30.576665,
+                "lng": 114.086436
+            },
+            "status": "waiting",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.77,
+            "price_sensitivity": 0.47,
+            "range_anxiety": 0.75
+        },
+        {
+            "id": "USER_0037",
+            "soc": 29.89794532894705,
+            "position": {
+                "lat": 30.839874,
+                "lng": 114.000201
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.66,
+            "price_sensitivity": 0.37,
+            "range_anxiety": 0.39
+        },
+        {
+            "id": "USER_0038",
+            "soc": 19.39455071982251,
+            "position": {
+                "lat": 30.502649,
+                "lng": 114.028391
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.82,
+            "price_sensitivity": 0.52,
+            "range_anxiety": 0.55
+        },
+        {
+            "id": "USER_0039",
+            "soc": 0,
+            "position": {
+                "lat": 30.819414,
+                "lng": 114.067518
+            },
+            "status": "traveling",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.36,
+            "price_sensitivity": 0.34,
+            "range_anxiety": 0.31
+        },
+        {
+            "id": "USER_0040",
+            "soc": 25.856246295619407,
+            "position": {
+                "lat": 30.714758,
+                "lng": 114.024014
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.32,
+            "price_sensitivity": 0.68,
+            "range_anxiety": 0.44
+        },
+        {
+            "id": "USER_0041",
+            "soc": 39.53971868430539,
+            "position": {
+                "lat": 30.939139,
+                "lng": 114.27107
+            },
+            "status": "waiting",
+            "user_profile": "urgent",
+            "time_sensitivity": 0.85,
+            "price_sensitivity": 0.36,
+            "range_anxiety": 0.63
+        },
+        {
+            "id": "USER_0042",
+            "soc": 19.587308049455448,
+            "position": {
+                "lat": 30.743773,
+                "lng": 114.071875
+            },
+            "status": "waiting",
+            "user_profile": "planned",
+            "time_sensitivity": 0.42,
+            "price_sensitivity": 0.8,
+            "range_anxiety": 0.36
+        },
+        {
+            "id": "USER_0043",
+            "soc": 27.870100713257823,
+            "position": {
+                "lat": 30.86207,
+                "lng": 114.099901
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.77,
+            "price_sensitivity": 0.68,
+            "range_anxiety": 0.55
+        },
+        {
+            "id": "USER_0044",
+            "soc": 13.222405814195191,
+            "position": {
+                "lat": 30.954143,
+                "lng": 114.209776
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.45,
+            "price_sensitivity": 0.39,
+            "range_anxiety": 0.45
+        },
+        {
+            "id": "USER_0045",
+            "soc": 24.080398402498247,
+            "position": {
+                "lat": 30.69109,
+                "lng": 114.188808
+            },
+            "status": "waiting",
+            "user_profile": "planned",
+            "time_sensitivity": 0.32,
+            "price_sensitivity": 0.66,
+            "range_anxiety": 0.36
+        },
+        {
+            "id": "USER_0046",
+            "soc": 11.477218547992967,
+            "position": {
+                "lat": 30.551914,
+                "lng": 114.008927
+            },
+            "status": "waiting",
+            "user_profile": "economic",
+            "time_sensitivity": 0.38,
+            "price_sensitivity": 0.85,
+            "range_anxiety": 0.36
+        },
+        {
+            "id": "USER_0047",
+            "soc": 13.854042135571568,
+            "position": {
+                "lat": 30.787105,
+                "lng": 114.247966
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.66,
+            "price_sensitivity": 0.66,
+            "range_anxiety": 0.58
+        },
+        {
+            "id": "USER_0048",
+            "soc": 29.490121913223437,
+            "position": {
+                "lat": 30.857075,
+                "lng": 114.341038
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.31,
+            "price_sensitivity": 0.47,
+            "range_anxiety": 0.51
+        },
+        {
+            "id": "USER_0049",
+            "soc": 45.69581278287584,
+            "position": {
+                "lat": 30.970834,
+                "lng": 114.272517
+            },
+            "status": "idle",
+            "user_profile": "economic",
+            "time_sensitivity": 0.4,
+            "price_sensitivity": 0.82,
+            "range_anxiety": 0.42
+        },
+        {
+            "id": "USER_0050",
+            "soc": 12.527905279248316,
+            "position": {
+                "lat": 30.616525,
+                "lng": 114.310152
+            },
+            "status": "waiting",
+            "user_profile": "balanced",
+            "time_sensitivity": 0.48,
+            "price_sensitivity": 0.69,
+            "range_anxiety": 0.66
+        }
+    ],
+    "metrics_history": [
+        {
+            "timestamp": "2025-04-05T00:15:00",
+            "rewards": {
+                "user_satisfaction": -0.2952231632056085,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.6460892652822434
+            },
+            "grid_load": 40.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T00:30:00",
+            "rewards": {
+                "user_satisfaction": -0.3112849494146471,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.6525139797658588
+            },
+            "grid_load": 40.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T00:45:00",
+            "rewards": {
+                "user_satisfaction": -0.318079125989717,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.6552316503958868
+            },
+            "grid_load": 40.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T01:00:00",
+            "rewards": {
+                "user_satisfaction": -0.32469284851123004,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.657877139404492
+            },
+            "grid_load": 40.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T01:15:00",
+            "rewards": {
+                "user_satisfaction": -0.332030153769315,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.648812061507726
+            },
+            "grid_load": 35.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-05T01:30:00",
+            "rewards": {
+                "user_satisfaction": -0.33787783577306707,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.6511511343092268
+            },
+            "grid_load": 35.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-05T01:45:00",
+            "rewards": {
+                "user_satisfaction": -0.3431469643774111,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.6532587857509644
+            },
+            "grid_load": 35.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-05T02:00:00",
+            "rewards": {
+                "user_satisfaction": -0.34715464712072186,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.6548618588482887
+            },
+            "grid_load": 35.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-05T02:15:00",
+            "rewards": {
+                "user_satisfaction": -0.3503687872536143,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.6501475149014457
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-05T02:30:00",
+            "rewards": {
+                "user_satisfaction": -0.3543334490465766,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.6517333796186306
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-05T02:45:00",
+            "rewards": {
+                "user_satisfaction": -0.35991680559789385,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.6539667222391575
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-05T03:00:00",
+            "rewards": {
+                "user_satisfaction": -0.36385361496274693,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.6555414459850988
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-05T03:15:00",
+            "rewards": {
+                "user_satisfaction": -0.36674102638427253,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.668696410553709
+            },
+            "grid_load": 28.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-05T03:30:00",
+            "rewards": {
+                "user_satisfaction": -0.36957199825305065,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.6698287993012202
+            },
+            "grid_load": 28.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-05T03:45:00",
+            "rewards": {
+                "user_satisfaction": -0.37243935959812113,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.6709757438392484
+            },
+            "grid_load": 28.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-05T04:00:00",
+            "rewards": {
+                "user_satisfaction": -0.3754714697567162,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.6721885879026864
+            },
+            "grid_load": 28.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-05T04:15:00",
+            "rewards": {
+                "user_satisfaction": -0.3806480325812506,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.8,
+                "total_reward": -0.6922592130325003
+            },
+            "grid_load": 27.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 10
+        },
+        {
+            "timestamp": "2025-04-05T04:30:00",
+            "rewards": {
+                "user_satisfaction": -0.38447283072566896,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.8,
+                "total_reward": -0.6937891322902676
+            },
+            "grid_load": 27.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 10
+        },
+        {
+            "timestamp": "2025-04-05T04:45:00",
+            "rewards": {
+                "user_satisfaction": -0.3896842706233119,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.8,
+                "total_reward": -0.6958737082493247
+            },
+            "grid_load": 27.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 10
+        },
+        {
+            "timestamp": "2025-04-05T05:00:00",
+            "rewards": {
+                "user_satisfaction": -0.393593929691745,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.8,
+                "total_reward": -0.697437571876698
+            },
+            "grid_load": 27.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 10
+        },
+        {
+            "timestamp": "2025-04-05T05:15:00",
+            "rewards": {
+                "user_satisfaction": -0.39859937158859804,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.6874397486354392
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T05:30:00",
+            "rewards": {
+                "user_satisfaction": -0.402260760546051,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.6889043042184204
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T05:45:00",
+            "rewards": {
+                "user_satisfaction": -0.40466625990249994,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.6898665039609999
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T06:00:00",
+            "rewards": {
+                "user_satisfaction": -0.4072270230356443,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.6908908092142577
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-05T06:15:00",
+            "rewards": {
+                "user_satisfaction": -0.4098144693297088,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6599999999999999,
+                "total_reward": -0.6619257877318835
+            },
+            "grid_load": 45.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 17
+        },
+        {
+            "timestamp": "2025-04-05T06:30:00",
+            "rewards": {
+                "user_satisfaction": -0.41245922562681725,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6599999999999999,
+                "total_reward": -0.6629836902507269
+            },
+            "grid_load": 45.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 17
+        },
+        {
+            "timestamp": "2025-04-05T06:45:00",
+            "rewards": {
+                "user_satisfaction": -0.4149042359688111,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6599999999999999,
+                "total_reward": -0.6639616943875244
+            },
+            "grid_load": 45.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 17
+        },
+        {
+            "timestamp": "2025-04-05T07:00:00",
+            "rewards": {
+                "user_satisfaction": -0.4174639382927461,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6599999999999999,
+                "total_reward": -0.6649855753170985
+            },
+            "grid_load": 45.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 17
+        },
+        {
+            "timestamp": "2025-04-05T07:15:00",
+            "rewards": {
+                "user_satisfaction": -0.4200980515639956,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.45999999999999996,
+                "total_reward": -0.6060392206255982
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 27
+        },
+        {
+            "timestamp": "2025-04-05T07:30:00",
+            "rewards": {
+                "user_satisfaction": -0.4228188414117673,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.45999999999999996,
+                "total_reward": -0.6071275365647069
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 27
+        },
+        {
+            "timestamp": "2025-04-05T07:45:00",
+            "rewards": {
+                "user_satisfaction": -0.4253373002932712,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.45999999999999996,
+                "total_reward": -0.6081349201173085
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 27
+        },
+        {
+            "timestamp": "2025-04-05T08:00:00",
+            "rewards": {
+                "user_satisfaction": -0.42795801825436464,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.45999999999999996,
+                "total_reward": -0.6091832073017458
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 27
+        },
+        {
+            "timestamp": "2025-04-05T08:15:00",
+            "rewards": {
+                "user_satisfaction": -0.4305430318776563,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.38,
+                "total_reward": -0.5862172127510625
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 31
+        },
+        {
+            "timestamp": "2025-04-05T08:30:00",
+            "rewards": {
+                "user_satisfaction": -0.4328713887161274,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.38,
+                "total_reward": -0.587148555486451
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 31
+        },
+        {
+            "timestamp": "2025-04-05T08:45:00",
+            "rewards": {
+                "user_satisfaction": -0.4409381243985402,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.38,
+                "total_reward": -0.5903752497594161
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 31
+        },
+        {
+            "timestamp": "2025-04-05T09:00:00",
+            "rewards": {
+                "user_satisfaction": -0.4459084664629358,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.38,
+                "total_reward": -0.5923633865851743
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 31
+        },
+        {
+            "timestamp": "2025-04-05T09:15:00",
+            "rewards": {
+                "user_satisfaction": -0.4482530795028804,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.30000000000000004,
+                "total_reward": -0.5693012318011521
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 35
+        },
+        {
+            "timestamp": "2025-04-05T09:30:00",
+            "rewards": {
+                "user_satisfaction": -0.4505516228006474,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.30000000000000004,
+                "total_reward": -0.5702206491202589
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 35
+        },
+        {
+            "timestamp": "2025-04-05T09:45:00",
+            "rewards": {
+                "user_satisfaction": -0.45281212287835126,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.30000000000000004,
+                "total_reward": -0.5711248491513405
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 35
+        },
+        {
+            "timestamp": "2025-04-05T10:00:00",
+            "rewards": {
+                "user_satisfaction": -0.45508710674051966,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.30000000000000004,
+                "total_reward": -0.5720348426962079
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 35
+        },
+        {
+            "timestamp": "2025-04-05T10:15:00",
+            "rewards": {
+                "user_satisfaction": -0.45744073146619724,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.4829762925864789
+            },
+            "grid_load": 82.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 42
+        },
+        {
+            "timestamp": "2025-04-05T10:30:00",
+            "rewards": {
+                "user_satisfaction": -0.46223400398270964,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.48489360159308387
+            },
+            "grid_load": 82.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 42
+        },
+        {
+            "timestamp": "2025-04-05T10:45:00",
+            "rewards": {
+                "user_satisfaction": -0.46538750701074727,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.4861550028042989
+            },
+            "grid_load": 82.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 42
+        },
+        {
+            "timestamp": "2025-04-05T11:00:00",
+            "rewards": {
+                "user_satisfaction": -0.4676268405026832,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.4870507362010733
+            },
+            "grid_load": 82.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 42
+        },
+        {
+            "timestamp": "2025-04-05T11:15:00",
+            "rewards": {
+                "user_satisfaction": -0.469865158877372,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.4879460635509488
+            },
+            "grid_load": 84.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T11:30:00",
+            "rewards": {
+                "user_satisfaction": -0.4720642035140614,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.48882568140562455
+            },
+            "grid_load": 84.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T11:45:00",
+            "rewards": {
+                "user_satisfaction": -0.4741094683061672,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.4896437873224669
+            },
+            "grid_load": 84.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T12:00:00",
+            "rewards": {
+                "user_satisfaction": -0.47622937040870705,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.49049174816348284
+            },
+            "grid_load": 84.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T12:15:00",
+            "rewards": {
+                "user_satisfaction": -0.47844610654144004,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.5213784426165761
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T12:30:00",
+            "rewards": {
+                "user_satisfaction": -0.4805477306974527,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.5222190922789811
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T12:45:00",
+            "rewards": {
+                "user_satisfaction": -0.4849574057707232,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.5239829623082893
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T13:00:00",
+            "rewards": {
+                "user_satisfaction": -0.48810526430516576,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.5252421057220663
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T13:15:00",
+            "rewards": {
+                "user_satisfaction": -0.49014076103211923,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.5260563044128477
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T13:30:00",
+            "rewards": {
+                "user_satisfaction": -0.49232591650257906,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.5269303666010317
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T13:45:00",
+            "rewards": {
+                "user_satisfaction": -0.4966998303867315,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.5286799321546926
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T14:00:00",
+            "rewards": {
+                "user_satisfaction": -0.5000024349541086,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.5300009739816435
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-05T14:15:00",
+            "rewards": {
+                "user_satisfaction": -0.5020982931880219,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.18000000000000005,
+                "total_reward": -0.5548393172752089
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 41
+        },
+        {
+            "timestamp": "2025-04-05T14:30:00",
+            "rewards": {
+                "user_satisfaction": -0.5039946230755109,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.18000000000000005,
+                "total_reward": -0.5555978492302044
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 41
+        },
+        {
+            "timestamp": "2025-04-05T14:45:00",
+            "rewards": {
+                "user_satisfaction": -0.5059579448797036,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.18000000000000005,
+                "total_reward": -0.5563831779518815
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 41
+        },
+        {
+            "timestamp": "2025-04-05T15:00:00",
+            "rewards": {
+                "user_satisfaction": -0.507925862791093,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.18000000000000005,
+                "total_reward": -0.5571703451164373
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 41
+        },
+        {
+            "timestamp": "2025-04-05T15:15:00",
+            "rewards": {
+                "user_satisfaction": -0.5099595215977436,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.31999999999999995,
+                "total_reward": -0.5999838086390974
+            },
+            "grid_load": 65.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 34
+        },
+        {
+            "timestamp": "2025-04-05T15:30:00",
+            "rewards": {
+                "user_satisfaction": -0.511967954590677,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.31999999999999995,
+                "total_reward": -0.6007871818362708
+            },
+            "grid_load": 65.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 34
+        },
+        {
+            "timestamp": "2025-04-05T15:45:00",
+            "rewards": {
+                "user_satisfaction": -0.5139722502363431,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.31999999999999995,
+                "total_reward": -0.6015889000945372
+            },
+            "grid_load": 65.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 34
+        },
+        {
+            "timestamp": "2025-04-05T16:00:00",
+            "rewards": {
+                "user_satisfaction": -0.5191795612133543,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.31999999999999995,
+                "total_reward": -0.6036718244853417
+            },
+            "grid_load": 65.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 34
+        },
+        {
+            "timestamp": "2025-04-05T16:15:00",
+            "rewards": {
+                "user_satisfaction": -0.5250777813265173,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.48,
+                "total_reward": -0.654031112530607
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 26
+        },
+        {
+            "timestamp": "2025-04-05T16:30:00",
+            "rewards": {
+                "user_satisfaction": -0.5269229202106791,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.48,
+                "total_reward": -0.6547691680842717
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 26
+        },
+        {
+            "timestamp": "2025-04-05T16:45:00",
+            "rewards": {
+                "user_satisfaction": -0.5286721570073765,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.48,
+                "total_reward": -0.6554688628029506
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 26
+        },
+        {
+            "timestamp": "2025-04-05T17:00:00",
+            "rewards": {
+                "user_satisfaction": -0.5302823162333998,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.48,
+                "total_reward": -0.65611292649336
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 26
+        },
+        {
+            "timestamp": "2025-04-05T17:15:00",
+            "rewards": {
+                "user_satisfaction": -0.5321776916281826,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.5800000000000001,
+                "total_reward": -0.6868710766512731
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 21
+        },
+        {
+            "timestamp": "2025-04-05T17:30:00",
+            "rewards": {
+                "user_satisfaction": -0.5339414632823538,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.5800000000000001,
+                "total_reward": -0.6875765853129415
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 21
+        },
+        {
+            "timestamp": "2025-04-05T17:45:00",
+            "rewards": {
+                "user_satisfaction": -0.5357925606914495,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.5800000000000001,
+                "total_reward": -0.6883170242765798
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 21
+        },
+        {
+            "timestamp": "2025-04-05T18:00:00",
+            "rewards": {
+                "user_satisfaction": -0.5377324391371933,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.5800000000000001,
+                "total_reward": -0.6890929756548774
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 21
+        },
+        {
+            "timestamp": "2025-04-05T18:15:00",
+            "rewards": {
+                "user_satisfaction": -0.5394778154562211,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5157911261824885
+            },
+            "grid_load": 85.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 20
+        },
+        {
+            "timestamp": "2025-04-05T18:30:00",
+            "rewards": {
+                "user_satisfaction": -0.5443676816327376,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.517747072653095
+            },
+            "grid_load": 85.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 20
+        },
+        {
+            "timestamp": "2025-04-05T18:45:00",
+            "rewards": {
+                "user_satisfaction": -0.5508426943426373,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.520337077737055
+            },
+            "grid_load": 85.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 20
+        },
+        {
+            "timestamp": "2025-04-05T19:00:00",
+            "rewards": {
+                "user_satisfaction": -0.5526185318308949,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.521047412732358
+            },
+            "grid_load": 85.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 20
+        },
+        {
+            "timestamp": "2025-04-05T19:15:00",
+            "rewards": {
+                "user_satisfaction": -0.5543923026928631,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5217569210771452
+            },
+            "grid_load": 90.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 18
+        },
+        {
+            "timestamp": "2025-04-05T19:30:00",
+            "rewards": {
+                "user_satisfaction": -0.5560985253209341,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5224394101283736
+            },
+            "grid_load": 90.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 18
+        },
+        {
+            "timestamp": "2025-04-05T19:45:00",
+            "rewards": {
+                "user_satisfaction": -0.5602298826337831,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5240919530535133
+            },
+            "grid_load": 90.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 18
+        },
+        {
+            "timestamp": "2025-04-05T20:00:00",
+            "rewards": {
+                "user_satisfaction": -0.5618561327789657,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5247424531115863
+            },
+            "grid_load": 90.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 18
+        },
+        {
+            "timestamp": "2025-04-05T20:15:00",
+            "rewards": {
+                "user_satisfaction": -0.5650265317226764,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6799999999999999,
+                "total_reward": -0.7300106126890705
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 16
+        },
+        {
+            "timestamp": "2025-04-05T20:30:00",
+            "rewards": {
+                "user_satisfaction": -0.5667577853494183,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6799999999999999,
+                "total_reward": -0.7307031141397673
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 16
+        },
+        {
+            "timestamp": "2025-04-05T20:45:00",
+            "rewards": {
+                "user_satisfaction": -0.5684351870509068,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6799999999999999,
+                "total_reward": -0.7313740748203627
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 16
+        },
+        {
+            "timestamp": "2025-04-05T21:00:00",
+            "rewards": {
+                "user_satisfaction": -0.5701930504225555,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6799999999999999,
+                "total_reward": -0.7320772201690222
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 16
+        },
+        {
+            "timestamp": "2025-04-05T21:15:00",
+            "rewards": {
+                "user_satisfaction": -0.5719546680057623,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.7387818672023049
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-05T21:30:00",
+            "rewards": {
+                "user_satisfaction": -0.573671026758837,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.7394684107035348
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-05T21:45:00",
+            "rewards": {
+                "user_satisfaction": -0.5754114971944294,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.7401645988777718
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-05T22:00:00",
+            "rewards": {
+                "user_satisfaction": -0.5771678420831938,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.7408671368332775
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-05T22:15:00",
+            "rewards": {
+                "user_satisfaction": -0.5788829335576684,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.7535531734230674
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-05T22:30:00",
+            "rewards": {
+                "user_satisfaction": -0.5805969570019414,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.7542387828007765
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-05T22:45:00",
+            "rewards": {
+                "user_satisfaction": -0.5846896357321617,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.7558758542928646
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-05T23:00:00",
+            "rewards": {
+                "user_satisfaction": -0.5864546560190991,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.7565818624076396
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-05T23:15:00",
+            "rewards": {
+                "user_satisfaction": -0.5902888613108048,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.7521155445243219
+            },
+            "grid_load": 50.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-05T23:30:00",
+            "rewards": {
+                "user_satisfaction": -0.5918132611182516,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.7527253044473006
+            },
+            "grid_load": 50.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-05T23:45:00",
+            "rewards": {
+                "user_satisfaction": -0.5957729693585139,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.7543091877434055
+            },
+            "grid_load": 50.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-06T00:00:00",
+            "rewards": {
+                "user_satisfaction": -0.5972553202000572,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.7549021280800229
+            },
+            "grid_load": 50.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-06T00:15:00",
+            "rewards": {
+                "user_satisfaction": -0.5988288382094856,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.7675315352837943
+            },
+            "grid_load": 40.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-06T00:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6004442418769774,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.768177696750791
+            },
+            "grid_load": 40.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-06T00:45:00",
+            "rewards": {
+                "user_satisfaction": -0.6021515304394844,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.7688606121757937
+            },
+            "grid_load": 40.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-06T01:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6061410270070938,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.7704564108028376
+            },
+            "grid_load": 40.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-06T01:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6078222401955862,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.7591288960782344
+            },
+            "grid_load": 35.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-06T01:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6093946745823451,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.759757869832938
+            },
+            "grid_load": 35.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-06T01:45:00",
+            "rewards": {
+                "user_satisfaction": -0.6110066850552661,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.7604026740221064
+            },
+            "grid_load": 35.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-06T02:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6125454037776287,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.7610181615110514
+            },
+            "grid_load": 35.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-06T02:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6165154743607035,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.7566061897442814
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-06T02:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6179822888125894,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.7571929155250358
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-06T02:45:00",
+            "rewards": {
+                "user_satisfaction": -0.6195120609276431,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.7578048243710572
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-06T03:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6210900824336858,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.7584360329734743
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-06T03:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6226265376086099,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.771050615043444
+            },
+            "grid_load": 28.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-06T03:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6256777378207266,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.7722710951282906
+            },
+            "grid_load": 28.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-06T03:45:00",
+            "rewards": {
+                "user_satisfaction": -0.6273068230010379,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.7729227292004152
+            },
+            "grid_load": 28.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-06T04:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6288560738209009,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.7735424295283604
+            },
+            "grid_load": 28.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-06T04:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6303614123059857,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.8,
+                "total_reward": -0.7921445649223943
+            },
+            "grid_load": 27.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 10
+        },
+        {
+            "timestamp": "2025-04-06T04:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6319292833363974,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.8,
+                "total_reward": -0.792771713334559
+            },
+            "grid_load": 27.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 10
+        },
+        {
+            "timestamp": "2025-04-06T04:45:00",
+            "rewards": {
+                "user_satisfaction": -0.6335494542315909,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.8,
+                "total_reward": -0.7934197816926364
+            },
+            "grid_load": 27.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 10
+        },
+        {
+            "timestamp": "2025-04-06T05:00:00",
+            "rewards": {
+                "user_satisfaction": -0.635229620391095,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.8,
+                "total_reward": -0.794091848156438
+            },
+            "grid_load": 27.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 10
+        },
+        {
+            "timestamp": "2025-04-06T05:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6368901267701013,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.7827560507080404
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-06T05:30:00",
+            "rewards": {
+                "user_satisfaction": -0.640898211311474,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.7843592845245896
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-06T05:45:00",
+            "rewards": {
+                "user_satisfaction": -0.6424878115340831,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.7849951246136332
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-06T06:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6440004195191206,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.76,
+                "total_reward": -0.7856001678076482
+            },
+            "grid_load": 30.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 12
+        },
+        {
+            "timestamp": "2025-04-06T06:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6454344800492808,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6599999999999999,
+                "total_reward": -0.7561737920197122
+            },
+            "grid_load": 45.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 17
+        },
+        {
+            "timestamp": "2025-04-06T06:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6469700343445839,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6599999999999999,
+                "total_reward": -0.7567880137378336
+            },
+            "grid_load": 45.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 17
+        },
+        {
+            "timestamp": "2025-04-06T06:45:00",
+            "rewards": {
+                "user_satisfaction": -0.6485005953745469,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6599999999999999,
+                "total_reward": -0.7574002381498187
+            },
+            "grid_load": 45.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 17
+        },
+        {
+            "timestamp": "2025-04-06T07:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6499934088835988,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6599999999999999,
+                "total_reward": -0.7579973635534395
+            },
+            "grid_load": 45.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 17
+        },
+        {
+            "timestamp": "2025-04-06T07:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6515459279908107,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.45999999999999996,
+                "total_reward": -0.6986183711963243
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 27
+        },
+        {
+            "timestamp": "2025-04-06T07:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6529200711532365,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.45999999999999996,
+                "total_reward": -0.6991680284612946
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 27
+        },
+        {
+            "timestamp": "2025-04-06T07:45:00",
+            "rewards": {
+                "user_satisfaction": -0.654396038405791,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.45999999999999996,
+                "total_reward": -0.6997584153623164
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 27
+        },
+        {
+            "timestamp": "2025-04-06T08:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6558494967601909,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.45999999999999996,
+                "total_reward": -0.7003397987040764
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 27
+        },
+        {
+            "timestamp": "2025-04-06T08:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6573000733582288,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.38,
+                "total_reward": -0.6769200293432915
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 31
+        },
+        {
+            "timestamp": "2025-04-06T08:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6588908692241083,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.38,
+                "total_reward": -0.6775563476896433
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 31
+        },
+        {
+            "timestamp": "2025-04-06T08:45:00",
+            "rewards": {
+                "user_satisfaction": -0.6604710205326982,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.38,
+                "total_reward": -0.6781884082130792
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 31
+        },
+        {
+            "timestamp": "2025-04-06T09:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6621736406578561,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.38,
+                "total_reward": -0.6788694562631424
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 31
+        },
+        {
+            "timestamp": "2025-04-06T09:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6637314568353718,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.30000000000000004,
+                "total_reward": -0.6554925827341487
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 35
+        },
+        {
+            "timestamp": "2025-04-06T09:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6675810187334048,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.30000000000000004,
+                "total_reward": -0.6570324074933619
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 35
+        },
+        {
+            "timestamp": "2025-04-06T09:45:00",
+            "rewards": {
+                "user_satisfaction": -0.6690730895442614,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.30000000000000004,
+                "total_reward": -0.6576292358177045
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 35
+        },
+        {
+            "timestamp": "2025-04-06T10:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6706087703146473,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.30000000000000004,
+                "total_reward": -0.6582435081258589
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 35
+        },
+        {
+            "timestamp": "2025-04-06T10:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6720628120144635,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5688251248057854
+            },
+            "grid_load": 82.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 42
+        },
+        {
+            "timestamp": "2025-04-06T10:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6735614575136066,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5694245830054426
+            },
+            "grid_load": 82.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 42
+        },
+        {
+            "timestamp": "2025-04-06T10:45:00",
+            "rewards": {
+                "user_satisfaction": -0.6750227698387569,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5700091079355027
+            },
+            "grid_load": 82.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 42
+        },
+        {
+            "timestamp": "2025-04-06T11:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6765220160556237,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5706088064222494
+            },
+            "grid_load": 82.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 42
+        },
+        {
+            "timestamp": "2025-04-06T11:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6780060783021167,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5712024313208467
+            },
+            "grid_load": 84.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-06T11:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6795607667163068,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5718243066865227
+            },
+            "grid_load": 84.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-06T11:45:00",
+            "rewards": {
+                "user_satisfaction": -0.6810371987161283,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5724148794864513
+            },
+            "grid_load": 84.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-06T12:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6824311796795177,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5729724718718071
+            },
+            "grid_load": 84.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-06T12:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6838796127876674,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.603551845115067
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-06T12:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6853233700142715,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.6041293480057086
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-06T12:45:00",
+            "rewards": {
+                "user_satisfaction": -0.686894009792844,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.6047576039171376
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-06T13:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6884168997303091,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.6053667598921236
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-06T13:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6898456533949369,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.6059382613579748
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-06T13:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6912990130861757,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.6065196052344703
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-06T13:45:00",
+            "rewards": {
+                "user_satisfaction": -0.6925920624926527,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.6070368249970611
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-06T14:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6939053576112441,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.09999999999999998,
+                "total_reward": -0.6075621430444976
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 45
+        },
+        {
+            "timestamp": "2025-04-06T14:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6952052421079804,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.18000000000000005,
+                "total_reward": -0.6320820968431922
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 41
+        },
+        {
+            "timestamp": "2025-04-06T14:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6964717389511803,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.18000000000000005,
+                "total_reward": -0.6325886955804721
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 41
+        },
+        {
+            "timestamp": "2025-04-06T14:45:00",
+            "rewards": {
+                "user_satisfaction": -0.697705157046826,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.18000000000000005,
+                "total_reward": -0.6330820628187305
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 41
+        },
+        {
+            "timestamp": "2025-04-06T15:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6989262416558103,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.18000000000000005,
+                "total_reward": -0.6335704966623241
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 41
+        },
+        {
+            "timestamp": "2025-04-06T15:15:00",
+            "rewards": {
+                "user_satisfaction": -0.7003025077624716,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.31999999999999995,
+                "total_reward": -0.6761210031049886
+            },
+            "grid_load": 65.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 34
+        },
+        {
+            "timestamp": "2025-04-06T15:30:00",
+            "rewards": {
+                "user_satisfaction": -0.7015084274888803,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.31999999999999995,
+                "total_reward": -0.6766033709955521
+            },
+            "grid_load": 65.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 34
+        },
+        {
+            "timestamp": "2025-04-06T15:45:00",
+            "rewards": {
+                "user_satisfaction": -0.7027398822700107,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.31999999999999995,
+                "total_reward": -0.6770959529080043
+            },
+            "grid_load": 65.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 34
+        },
+        {
+            "timestamp": "2025-04-06T16:00:00",
+            "rewards": {
+                "user_satisfaction": -0.7040951622292677,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.31999999999999995,
+                "total_reward": -0.6776380648917071
+            },
+            "grid_load": 65.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 34
+        },
+        {
+            "timestamp": "2025-04-06T16:15:00",
+            "rewards": {
+                "user_satisfaction": -0.705359641050227,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.48,
+                "total_reward": -0.7261438564200908
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 26
+        },
+        {
+            "timestamp": "2025-04-06T16:30:00",
+            "rewards": {
+                "user_satisfaction": -0.7066359435341882,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.48,
+                "total_reward": -0.7266543774136753
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 26
+        },
+        {
+            "timestamp": "2025-04-06T16:45:00",
+            "rewards": {
+                "user_satisfaction": -0.7079783321198161,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.48,
+                "total_reward": -0.7271913328479265
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 26
+        },
+        {
+            "timestamp": "2025-04-06T17:00:00",
+            "rewards": {
+                "user_satisfaction": -0.7091211774403985,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.48,
+                "total_reward": -0.7276484709761594
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 26
+        },
+        {
+            "timestamp": "2025-04-06T17:15:00",
+            "rewards": {
+                "user_satisfaction": -0.7103763744838003,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.5800000000000001,
+                "total_reward": -0.7581505497935201
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 21
+        },
+        {
+            "timestamp": "2025-04-06T17:30:00",
+            "rewards": {
+                "user_satisfaction": -0.7139938136873271,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.5800000000000001,
+                "total_reward": -0.7595975254749309
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 21
+        },
+        {
+            "timestamp": "2025-04-06T17:45:00",
+            "rewards": {
+                "user_satisfaction": -0.7152431787580823,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.5800000000000001,
+                "total_reward": -0.7600972715032329
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 21
+        },
+        {
+            "timestamp": "2025-04-06T18:00:00",
+            "rewards": {
+                "user_satisfaction": -0.71654315294632,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.5800000000000001,
+                "total_reward": -0.760617261178528
+            },
+            "grid_load": 75.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 21
+        },
+        {
+            "timestamp": "2025-04-06T18:15:00",
+            "rewards": {
+                "user_satisfaction": -0.7176988947225905,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5870795578890362
+            },
+            "grid_load": 85.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 20
+        },
+        {
+            "timestamp": "2025-04-06T18:30:00",
+            "rewards": {
+                "user_satisfaction": -0.7188102719446859,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5875241087778744
+            },
+            "grid_load": 85.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 20
+        },
+        {
+            "timestamp": "2025-04-06T18:45:00",
+            "rewards": {
+                "user_satisfaction": -0.719807269206128,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5879229076824513
+            },
+            "grid_load": 85.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 20
+        },
+        {
+            "timestamp": "2025-04-06T19:00:00",
+            "rewards": {
+                "user_satisfaction": -0.723185026002977,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5892740104011908
+            },
+            "grid_load": 85.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 20
+        },
+        {
+            "timestamp": "2025-04-06T19:15:00",
+            "rewards": {
+                "user_satisfaction": -0.724118304016611,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5896473216066445
+            },
+            "grid_load": 90.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 18
+        },
+        {
+            "timestamp": "2025-04-06T19:30:00",
+            "rewards": {
+                "user_satisfaction": -0.7250343860321478,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5900137544128591
+            },
+            "grid_load": 90.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 18
+        },
+        {
+            "timestamp": "2025-04-06T19:45:00",
+            "rewards": {
+                "user_satisfaction": -0.7260268114074084,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5904107245629634
+            },
+            "grid_load": 90.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 18
+        },
+        {
+            "timestamp": "2025-04-06T20:00:00",
+            "rewards": {
+                "user_satisfaction": -0.727061569515336,
+                "operator_profit": -1.0,
+                "grid_friendliness": 0,
+                "total_reward": -0.5908246278061344
+            },
+            "grid_load": 90.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 18
+        },
+        {
+            "timestamp": "2025-04-06T20:15:00",
+            "rewards": {
+                "user_satisfaction": -0.728000741717325,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6799999999999999,
+                "total_reward": -0.7952002966869299
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 16
+        },
+        {
+            "timestamp": "2025-04-06T20:30:00",
+            "rewards": {
+                "user_satisfaction": -0.728821915695052,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6799999999999999,
+                "total_reward": -0.7955287662780207
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 16
+        },
+        {
+            "timestamp": "2025-04-06T20:45:00",
+            "rewards": {
+                "user_satisfaction": -0.7295715242641475,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6799999999999999,
+                "total_reward": -0.7958286097056589
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 16
+        },
+        {
+            "timestamp": "2025-04-06T21:00:00",
+            "rewards": {
+                "user_satisfaction": -0.730448214696809,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.6799999999999999,
+                "total_reward": -0.7961792858787236
+            },
+            "grid_load": 80.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 16
+        },
+        {
+            "timestamp": "2025-04-06T21:15:00",
+            "rewards": {
+                "user_satisfaction": -0.7312329903669588,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.8024931961467835
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-06T21:30:00",
+            "rewards": {
+                "user_satisfaction": -0.7320344669592185,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.8028137867836873
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-06T21:45:00",
+            "rewards": {
+                "user_satisfaction": -0.7328023202199928,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.8031209280879971
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-06T22:00:00",
+            "rewards": {
+                "user_satisfaction": -0.7335487575978272,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.7,
+                "total_reward": -0.8034195030391309
+            },
+            "grid_load": 70.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 15
+        },
+        {
+            "timestamp": "2025-04-06T22:15:00",
+            "rewards": {
+                "user_satisfaction": -0.734338493286908,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.8157353973147632
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-06T22:30:00",
+            "rewards": {
+                "user_satisfaction": -0.7350486605376927,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.8160194642150771
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-06T22:45:00",
+            "rewards": {
+                "user_satisfaction": -0.735804621383268,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.8163218485533071
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-06T23:00:00",
+            "rewards": {
+                "user_satisfaction": -0.7365262066507483,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.74,
+                "total_reward": -0.8166104826602993
+            },
+            "grid_load": 60.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 13
+        },
+        {
+            "timestamp": "2025-04-06T23:15:00",
+            "rewards": {
+                "user_satisfaction": -0.7373013848726311,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.8109205539490524
+            },
+            "grid_load": 50.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-06T23:30:00",
+            "rewards": {
+                "user_satisfaction": -0.7380409332445634,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.8112163732978254
+            },
+            "grid_load": 50.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-06T23:45:00",
+            "rewards": {
+                "user_satisfaction": -0.7387665567168584,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.8115066226867433
+            },
+            "grid_load": 50.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        },
+        {
+            "timestamp": "2025-04-07T00:00:00",
+            "rewards": {
+                "user_satisfaction": -0.7395026528822555,
+                "operator_profit": -1.0,
+                "grid_friendliness": -0.72,
+                "total_reward": -0.8118010611529022
+            },
+            "grid_load": 50.0,
+            "ev_load": 0.0,
+            "renewable_ratio": 14
+        }
+    ]
+}
