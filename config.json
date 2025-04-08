@@ -1,6 +1,6 @@
 {
     "environment": {
-        "charger_count": 6,
+        "charger_count": 60,
         "chargers_per_station": 4,
         "grid_id": "DEFAULT001",
         "map_bounds": {

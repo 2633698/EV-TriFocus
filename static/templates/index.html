@@ -413,6 +413,52 @@
                 <!-- 充电站状态将通过JavaScript动态填充 -->
             </div>
         </div>
+
+        <div class="row mt-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">电网负载监控</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="gridLoadChart" style="width: 100%; height: 300px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">实时负载指标</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col">
+                                <div class="metric-item">
+                                    <label>总负载</label>
+                                    <h3 id="totalLoad">0 kW</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col">
+                                <div class="metric-item">
+                                    <label>EV充电负载</label>
+                                    <h3 id="evLoad">0 kW</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col">
+                                <div class="metric-item">
+                                    <label>可再生能源比例</label>
+                                    <h3 id="renewableRatio">0%</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Configuration Modal -->

@@ -363,123 +363,100 @@ class ChargingEnvironment:
         return users
     
     def _initialize_chargers(self):
-        """
-        Initialize charging stations and chargers with hierarchical structure
-        - Each station contains multiple chargers
-        - All chargers in a station share the same location
-        - Each station represents a physical location like a mall or business center
-        """
+        """Initialize charging stations with different types and locations"""
         chargers = {}
+        charger_count = self.config.get("charger_count", 10)
+        chargers_per_station = self.config.get("chargers_per_station", 4)
+        station_count = self.config.get("station_count", 5)
+        failure_rate = self.config.get("charger_failure_rate", 0.0)
+
+        # Get map bounds for random positioning
+        map_bounds = self.config.get("map_bounds", {
+            "min_lat": 30.0,
+            "max_lat": 30.3,
+            "min_lng": 116.0,
+            "max_lng": 116.3
+        })
         
-        # 获取配置中的站点数和每站充电桩数
-        station_count = self.config.get("station_count", 20)
-        chargers_per_station = self.config.get("chargers_per_station", 20)
-        region_count = self.config.get("region_count", 5)
-        
-        logger.info(f"Initializing {station_count} stations with {chargers_per_station} chargers each across {region_count} regions")
-        
-        # 计算总充电桩数量
-        self.charger_count = station_count * chargers_per_station
-        
-        # 动态创建城市区域作为充电站分布的中心
-        regions = []
-        region_names = ["市中心", "城市南部", "城市北部", "东部新区", "西部工业区", 
-                        "东南郊区", "西南郊区", "北部开发区", "科技园区", "大学城"]
-                        
-        # 确保名称列表长度足够
-        if len(region_names) < region_count:
-            for i in range(len(region_names), region_count):
-                region_names.append(f"区域{i+1}")
-                
-        # 设置第一个区域为市中心，权重更高
-        regions.append({"name": region_names[0], "lat": 30.75, "lng": 114.25, "weight": 0.3})
-        
-        # 平均分配剩余区域
-        remaining_weight = 0.7
-        per_region_weight = remaining_weight / (region_count - 1) if region_count > 1 else 0
-        
-        # 绕着中心点创建其他区域
-        for i in range(1, region_count):
-            # 以中心为原点，计算角度和半径
-            angle = (i-1) * (2 * math.pi / (region_count - 1))
-            radius = 0.1 + (i % 3) * 0.03  # 0.1-0.16范围内的半径，创造不同距离
-            
-            # 计算坐标
-            lat = 30.75 + radius * math.sin(angle)
-            lng = 114.25 + radius * math.cos(angle)
-            
-            regions.append({
-                "name": region_names[i],
-                "lat": lat,
-                "lng": lng,
-                "weight": per_region_weight
+        # Define locations and their coordinates
+        # Either use pre-defined locations or generate random ones based on map_bounds
+        locations = []
+        for i in range(station_count):
+            locations.append({
+                "name": f"充电站{i+1}",
+                "lat": random.uniform(map_bounds.get("min_lat", 30.0), map_bounds.get("max_lat", 30.3)),
+                "lng": random.uniform(map_bounds.get("min_lng", 116.0), map_bounds.get("max_lng", 116.3))
             })
+
+        # 生成充电桩，分配类型和功率
+        current_id = 1
         
-        # 确保权重总和为1
-        total_weight = sum(region["weight"] for region in regions)
-        if total_weight != 1.0:
-            for i in range(len(regions)):
-                regions[i]["weight"] = regions[i]["weight"] / total_weight
+        # 超级快充的比例
+        superfast_ratio = 0.1  # 10%的充电桩是超级快充
+        fast_ratio = 0.4  # 40%的充电桩是快充
+        # 剩余50%是普通充电桩
         
-        charger_id_counter = 1
-        
-        # 为每个区域创建充电站
-        for region_idx, region in enumerate(regions):
-            region_station_count = max(1, int(station_count * region["weight"]))
-            
-            # 在该区域中分布站点
-            for station_idx in range(region_station_count):
-                # 生成站点ID
-                station_id = f"STATION_{region_idx+1}_{station_idx+1}"
+        for location in locations:
+            # 为每个位置生成多个充电桩
+            for i in range(chargers_per_station):
+                charger_id = f"charger_{current_id}"
                 
-                # 站点位置（在区域中心周围随机分布）
-                station_position = {
-                    "lat": region["lat"] + random.uniform(-0.05, 0.05),
-                    "lng": region["lng"] + random.uniform(-0.05, 0.05)
-                }
+                # 决定充电桩类型
+                rand_val = random.random()
                 
-                # 站点名称
-                station_name = f"{region['name']}充电站{station_idx+1}"
+                if rand_val < superfast_ratio:
+                    charger_type = "superfast"
+                    charger_power = random.uniform(250, 400)  # 超级快充 250-400kW
+                    price_multiplier = 1.5  # 超级快充费用更高
+                elif rand_val < superfast_ratio + fast_ratio:
+                    charger_type = "fast"
+                    charger_power = random.uniform(60, 120)  # 快充 60-120kW
+                    price_multiplier = 1.2  # 快充费用较高
+                else:
+                    charger_type = "normal"
+                    charger_power = random.uniform(7, 20)  # 慢充 7-20kW
+                    price_multiplier = 1.0  # 标准费用
                 
-                # 生成该站点内的所有充电桩
-                for i in range(chargers_per_station):
-                    charger_id = f"CHARGER_{charger_id_counter:04d}"
-                    charger_id_counter += 1
+                # 判断充电桩是否故障
+                is_failure = random.random() < failure_rate
                     
-                    # 充电桩类型（快充占比60%，慢充占比40%）
-                    charger_type = "fast" if random.random() < 0.6 else "slow"
-                    max_power = 120 if charger_type == "fast" else 60  # kW
-                    
-                    # 充电桩价格倍率（快充略贵）
-                    price_multiplier = 1.2 if charger_type == "fast" else 1.0
-                    
-                    # 充电桩在站点内的具体位置（非常接近，只有微小偏差）
-                    position = {
-                        "lat": station_position["lat"] + random.uniform(-0.001, 0.001),
-                        "lng": station_position["lng"] + random.uniform(-0.001, 0.001)
-                    }
-                    
-                    chargers[charger_id] = {
+                chargers[charger_id] = {
                         "charger_id": charger_id,
-                        "station_id": station_id, 
-                        "station_name": station_name,
-                        "region_name": region["name"],
+                    "location": location["name"],
                         "type": charger_type,
-                        "max_power": max_power,
-                        "position": position,
-                        "price_multiplier": price_multiplier,
-                        "status": "available",  # available, occupied, failure
+                    "max_power": charger_power,
+                    "position": {
+                        "lat": location["lat"] + random.uniform(-0.005, 0.005),  # 略微偏移于位置中心
+                        "lng": location["lng"] + random.uniform(-0.005, 0.005)
+                    },
+                    "status": "failure" if is_failure else "available",
                         "current_user": None,
-                        "charging_end_time": None,
                         "queue": [],
-                        "daily_revenue": 0,
-                        "daily_energy": 0,
-                        "failure_prob": 0.002  # 故障概率降低
-                    }
+                    "queue_capacity": 10,
+                    "daily_revenue": 0.0,
+                    "daily_energy": 0.0,
+                    "utilization_rate": 0.0,
+                    "price_multiplier": price_multiplier,
+                    "region": f"Region_{random.randint(1, self.config.get('region_count', 4))}"  # 分配一个区域ID
+                }
+                current_id += 1
         
-        # 保证我们得到准确的充电桩数量
-        actual_charger_count = len(chargers)
-        logger.info(f"Created {actual_charger_count} chargers across {station_count} stations in {len(regions)} regions")
+        # 确保总数正确（可能因为locations*chargers_per_station大于charger_count）
+        if current_id - 1 > charger_count:
+            # 删除多余的充电桩
+            excess = current_id - 1 - charger_count
+            keys_to_remove = list(chargers.keys())[-excess:]
+            for key in keys_to_remove:
+                del chargers[key]
+        
+        # 日志摘要
+        superfast_count = sum(1 for c in chargers.values() if c["type"] == "superfast") 
+        fast_count = sum(1 for c in chargers.values() if c["type"] == "fast")
+        normal_count = sum(1 for c in chargers.values() if c["type"] == "normal")
+        failure_count = sum(1 for c in chargers.values() if c["status"] == "failure")
+        
+        logger.info(f"已初始化 {len(chargers)} 个充电桩: {superfast_count} 超级快充, "
+                   f"{fast_count} 快充, {normal_count} 慢充, {failure_count} 故障")
         
         return chargers
     
@@ -1237,17 +1214,95 @@ class ChargingEnvironment:
                     # 当前SOC和电池容量
                     current_soc = user.get("soc", 0)
                     battery_capacity = user.get("battery_capacity", 60)
-                    target_soc = user.get("target_soc", 95) # Target SOC, default to 95%
-
+                    target_soc = user.get("target_soc", 85) # 默认充到85%而不是95%，加快周转
+                    
                     # 1. 计算达到目标所需的SOC和能量
                     soc_needed = max(0, target_soc - current_soc)
                     energy_needed = (soc_needed / 100.0) * battery_capacity
 
-                    # 2. 计算此时间步内最大可提供的能量
-                    charging_rate = charger.get("max_power", 60)  # kW
-                    max_energy_this_step = charging_rate * time_step_hours
+                    # 2. 计算充电功率和充电时间
+                    # 充电桩类型判断
+                    charger_type = charger.get("type", "normal")
+                    charger_power = charger.get("max_power", 60)  # kW
+                    
+                    # 调整基础充电效率 - 降低以延长充电时间
+                    charge_efficiency = 0.85  # 提高默认充电效率到0.85
+                    
+                    # 根据充电桩类型和电池当前状态设置充电功率
+                    if charger_type == "superfast":
+                        # 超级快充模式 (250-400kW高压快充)
+                        if current_soc < 50:
+                            actual_power = charger_power * charge_efficiency
+                        elif current_soc < 80:
+                            # 50%-80%区间降低功率
+                            soc_factor = 1.0 - ((current_soc - 50) / 30) * 0.3  # 50%-80%之间功率降低30%
+                            actual_power = charger_power * soc_factor * charge_efficiency
+                        else:
+                            # 超过80%后，功率急剧降低保护电池
+                            soc_factor = 1.0 - ((current_soc - 80) / 20) * 0.9  # 80%-100%之间功率降低90%
+                            actual_power = charger_power * soc_factor * charge_efficiency
+                    elif charger_type == "fast":
+                        # 快充模式 - 直流快充
+                        if current_soc < 50:
+                            actual_power = charger_power * charge_efficiency
+                        elif current_soc < 80:
+                            # 50%-80%区间降低功率
+                            soc_factor = 1.0 - ((current_soc - 50) / 30) * 0.4  # 50%-80%之间功率降低40%
+                            actual_power = charger_power * soc_factor * charge_efficiency
+                        else:
+                            # 超过80%后，功率急剧降低保护电池
+                            soc_factor = 1.0 - ((current_soc - 80) / 20) * 0.8  # 80%-100%之间功率降低80%
+                            actual_power = charger_power * soc_factor * charge_efficiency
+                    else:
+                        # 普通充电桩（交流慢充）
+                        if current_soc < 50:
+                            actual_power = charger_power * charge_efficiency
+                        elif current_soc < 90:
+                            # 50%-90%区间轻微降低功率
+                            soc_factor = 1.0 - ((current_soc - 50) / 40) * 0.2  # 50%-90%之间功率降低20%
+                            actual_power = charger_power * soc_factor * charge_efficiency
+                        else:
+                            # 90%以后严重降功率
+                            soc_factor = 1.0 - ((current_soc - 90) / 10) * 0.7  # 90%-100%之间功率降低70%
+                            actual_power = charger_power * soc_factor * charge_efficiency
+                    
+                    # 添加电池化学特性因素 - 模拟电池内阻随充电时间增加而增大
+                    # 获取充电开始时间
+                    charging_start_time = charger.get("charging_start_time", self.current_time)
+                    charging_duration_minutes = (self.current_time - charging_start_time).total_seconds() / 60
+                    
+                    # 计算电池内阻增加因子 - 充电时间越长，效率越低
+                    battery_resistance_factor = max(0.7, 1.0 - (charging_duration_minutes / 180) * 0.3)  # 3小时后效率降低30%
+                    actual_power = actual_power * battery_resistance_factor
+                    
+                    # 3. 考虑温度影响
+                    # 获取环境温度（如果系统模拟了温度）
+                    ambient_temp = self.grid_status.get("ambient_temperature", 25)  # 默认25℃
+                    
+                    # 温度对充电效率的影响 - 增强影响
+                    temp_factor = 1.0
+                    if ambient_temp < 0:
+                        # 低温严重影响充电效率
+                        temp_factor = 0.6  # 低温下效率降低40%
+                    elif ambient_temp < 10:
+                        # 较低温度轻微影响充电效率
+                        temp_factor = 0.8  # 降低20%
+                    elif ambient_temp > 40:
+                        # 高温对充电也有影响
+                        temp_factor = 0.85  # 降低15%
+                    elif ambient_temp > 30:
+                        # 30-40度也有轻微影响
+                        temp_factor = 0.9  # 降低10%
+                    
+                    # 4. 模拟充电器效率波动
+                    # 添加随机波动因子，模拟充电过程中的不稳定性
+                    random_efficiency_factor = random.uniform(0.95, 1.0)
+                    
+                    # 5. 计算此时间步内最大可提供的能量（考虑所有因素）
+                    actual_power = actual_power * temp_factor * random_efficiency_factor
+                    max_energy_this_step = actual_power * time_step_hours
 
-                    # 3. 确定实际充电量 (取较小值)
+                    # 6. 确定实际充电量 (取较小值)
                     actual_charging_amount = min(energy_needed, max_energy_this_step)
                     
                     # 防止充电量为负或零导致问题
@@ -1260,7 +1315,7 @@ class ChargingEnvironment:
                          else:
                               continue # Skip the rest of the charging logic for this user this step
                     else:
-                        # 4. 计算实际的SOC增加和新的SOC
+                        # 计算实际的SOC增加和新的SOC
                         actual_soc_increase = (actual_charging_amount / battery_capacity) * 100 if battery_capacity > 0 else 0
                         new_soc = min(100, current_soc + actual_soc_increase)
                     
@@ -1284,9 +1339,8 @@ class ChargingEnvironment:
                     charger["daily_revenue"] = charger.get("daily_revenue", 0) + revenue
                     charger["daily_energy"] = charger.get("daily_energy", 0) + actual_charging_amount
                     
-                    # 检查充电是否完成 (达到目标SOC 或 接近满电)
-                    # 使用一个小的容忍度，例如 0.5% SOC
-                    if new_soc >= target_soc - 0.5 or new_soc >= 99.5:
+                    # 检查充电是否完成 (达到目标SOC)
+                    if new_soc >= target_soc - 0.5:  # 移除 or new_soc >= 99.5 条件，使用目标SOC
                         # 充电完成
                         charging_end_time = self.current_time
                         charging_start_time = charger.get("charging_start_time", charging_end_time - timedelta(minutes=30))
@@ -1298,43 +1352,66 @@ class ChargingEnvironment:
                         if "charging_history" not in user:
                             user["charging_history"] = []
                             
-                            user["charging_history"].append({
+                        # 计算充电满意度
+                        # 根据充电时间和用户期望进行计算
+                        expected_time = 0
+                        if charger_type == "fast":
+                            # 快充期望时间：30分钟至1.5小时（取中间值）
+                            expected_time = 60
+                        elif charger_type == "superfast":
+                            # 超级快充期望时间：15-20分钟
+                            expected_time = 17.5
+                        else:
+                            # 慢充期望时间：6-12小时（取中间值）
+                            expected_time = 540
+                        
+                        # 计算时间满意度：实际时间与期望时间的比较
+                        time_satisfaction = min(1.0, expected_time / max(charging_time, 1.0))
+                        
+                        # 综合考虑充电金额、充电速度等因素
+                        price_sensitivity = user.get("price_sensitivity", 0.5)
+                        price_satisfaction = max(0.0, 1.0 - (price_sensitivity * (revenue / 50.0)))  # 假设50元是基准价格
+                        
+                        # 计算最终满意度（0-1范围）
+                        final_satisfaction = 0.7 * time_satisfaction + 0.3 * price_satisfaction
+                            
+                        user["charging_history"].append({
                                 "charger_id": charger_id,
                             "start_time": charging_start_time,
                                 "end_time": charging_end_time,
                                 "charging_amount": actual_charging_amount,
                                 "cost": revenue,
-                                "satisfaction": 0.8  # 简化的满意度值
+                            "charging_time": charging_time,
+                            "satisfaction": final_satisfaction
                             })
                         
-                        logger.info(f"User {user_id} finished charging at {charger_id}. Final SOC: {new_soc:.1f}%, Time: {charging_time:.1f} min")
+                        logger.info(f"User {user_id} finished charging at {charger_id}. Final SOC: {new_soc:.1f}%, Time: {charging_time:.1f} min, Satisfaction: {final_satisfaction:.2f}")
                         
                         # Update user and charging station status
                         user["status"] = "post_charge" # Set status indicating charge is complete
                         user["target_charger"] = None
                         user["destination"] = None # Clear destination after charging
                         user["route"] = None # Clear route
-                        user["post_charge_timer"] = random.randint(2, 5) # Initialize timer (e.g., 2-5 steps)
+                        user["post_charge_timer"] = random.randint(1, 3) # Initialize timer (e.g., 2-4 steps)
 
                         # 处理队列中的下一个用户
-                        if charger["queue"]:
+                        while charger["queue"]:  # 使用while循环处理队列
                             next_user_id = charger["queue"].pop(0)
                             if next_user_id in self.users:
                                 next_user = self.users[next_user_id]
-                                charger["current_user"] = next_user_id
-                                charger["charging_start_time"] = self.current_time
-                                next_user["status"] = "charging"
-                                logger.info(f"Next user {next_user_id} from queue started charging at {charger_id}")
-                            else:
-                                # Queued user not found, log warning and set charger to available
-                                logger.warning(f"User {next_user_id} in queue not found in self.users!")
-                                charger["status"] = "available"
-                                charger["current_user"] = None
-                        else:
-                            # No users in queue, set charger to available
+                                if next_user.get("status") == "waiting":
+                                    charger["current_user"] = next_user_id
+                                    charger["status"] = "occupied"
+                                    charger["charging_start_time"] = self.current_time
+                                    next_user["status"] = "charging"
+                                    # 设置新用户的目标SOC
+                                    next_user["target_soc"] = min(85, next_user.get("soc", 0) + 50)  # 每次至少充50%
+                                    logger.info(f"Next user {next_user_id} started charging at {charger_id}")
+                                    break
+                            
+                        if not charger.get("current_user"):
                             charger["status"] = "available"
-                            charger["current_user"] = None
-                            logger.info(f"Charger {charger_id} now available (no queue)")
+                            logger.info(f"No valid waiting users in queue for {charger_id}")
                     else:
                         # User ID不在用户列表中，修复状态
                         logger.warning(f"Charger {charger_id} has invalid current_user {user_id}. Fixing state.")
@@ -2913,6 +2990,7 @@ class ChargingScheduler:
         time_sensitivity = user.get("time_sensitivity", 0.5)  # 时间敏感度
         price_sensitivity = user.get("price_sensitivity", 0.5)  # 价格敏感度
         is_fast_charger = charger.get("type", "normal") == "fast"
+        is_superfast_charger = charger.get("type", "normal") == "superfast"
         queue_length = len(charger.get("queue", []))
         
         # 1. 距离因素 - 距离越近越好
@@ -2929,7 +3007,39 @@ class ChargingScheduler:
         
         # 2. 等待时间因素
         # 基于充电器类型和队列估计等待时间（分钟）
-        base_charge_time = 30 if is_fast_charger else 60  # 基础充电时间估计
+        base_charge_time = 0
+        if is_superfast_charger:
+            # 超级快充 15-20分钟充至80%
+            base_charge_time = 15
+        elif is_fast_charger:
+            # 标准快充 30分钟-1.5小时充至80%
+            base_charge_time = 45
+        else:
+            # 慢充 6-12小时
+            base_charge_time = 360
+            
+        # 根据电池容量调整充电时间
+        battery_capacity = user.get("battery_capacity", 60)  # kWh
+        capacity_factor = battery_capacity / 60.0  # 相对于标准60kWh的比例
+        base_charge_time = base_charge_time * capacity_factor
+        
+        # 考虑SOC影响
+        # 如果SOC已经很高，充电会更快；SOC很低，需要更长时间
+        soc_remaining = (100 - user_soc) / 100.0
+        if soc_remaining < 0.2:  # 80%以上电量
+            base_charge_time *= 0.7  # 充电较快
+        elif soc_remaining > 0.8:  # 20%以下电量
+            base_charge_time *= 1.2  # 充电较慢
+            
+        # 考虑环境温度影响（如果系统模拟了温度）
+        ambient_temp = 25  # 默认温度
+        if hasattr(self, 'grid_status') and isinstance(self.grid_status, dict):
+            ambient_temp = self.grid_status.get("ambient_temperature", 25)
+            
+        if ambient_temp < 0:
+            base_charge_time *= 1.3  # 低温下充电慢30%
+        elif ambient_temp < 10:
+            base_charge_time *= 1.15  # 低温下充电慢15%
         
         # 考虑充电桩当前状态
         current_queue_time = 0
@@ -2960,9 +3070,19 @@ class ChargingScheduler:
         # 充电速度匹配度 - 紧急用户更喜欢快充
         charger_speed_match = 0.5
         if urgency_factor > 0.5:  # 较为紧急
-            charger_speed_match = 0.8 if is_fast_charger else 0.3  # 紧急用户强烈偏好快充
+            if is_superfast_charger:
+                charger_speed_match = 0.95  # 紧急用户极度偏好超级快充
+            elif is_fast_charger:
+                charger_speed_match = 0.8  # 紧急用户强烈偏好快充
+            else:
+                charger_speed_match = 0.3  # 紧急用户不喜欢慢充
         else:  # 不太紧急
-            charger_speed_match = 0.6 if is_fast_charger else 0.5  # 不那么紧急的用户对充电速度不太敏感
+            if is_superfast_charger:
+                charger_speed_match = 0.7  # 非紧急用户也喜欢超级快充
+            elif is_fast_charger:
+                charger_speed_match = 0.6  # 非紧急用户也喜欢快充
+            else:
+                charger_speed_match = 0.5  # 不紧急的用户对慢充接受度更高
             
         # 4. 组合用户偏好和充电器特性
         # 距离满意度

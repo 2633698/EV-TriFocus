@@ -14,8 +14,8 @@ function updateGridLoadChart(data) {
     const evLoads = [];
     const totalLoads = [];
     
-    // 最多取最近12小时的数据点
-    const maxPoints = Math.min(12, data.history.length);
+    // 最多取最近24小时的数据点
+    const maxPoints = Math.min(24, data.history.length);
     const historyData = data.history.slice(-maxPoints);
     
     historyData.forEach(point => {
@@ -41,7 +41,7 @@ function updateGridLoadChart(data) {
         const baseLoad = gridStatus.current_load || 0;
         
         // 获取EV负载（确保存在）
-        const evLoad = (gridStatus.ev_load || 0) * 0.2; // 电动车负载的贡献系数
+        const evLoad = gridStatus.ev_load || 0; // 移除0.2系数,显示实际负载
         
         // 总负载 = 基础负载 + EV负载
         const totalLoad = baseLoad + evLoad;
@@ -98,9 +98,10 @@ function updateGridLoadChart(data) {
                     beginAtZero: true,
                     title: {
                         display: true,
-                        text: '负载 (%)'
+                        text: '负载 (kW)'
                     },
-                    suggestedMax: 100
+                    // 动态计算y轴最大值
+                    suggestedMax: Math.max(...totalLoads) * 1.1
                 },
                 x: {
                     title: {
@@ -120,13 +121,20 @@ function updateGridLoadChart(data) {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            return `${context.dataset.label}: ${context.raw.toFixed(1)}%`;
+                            return `${context.dataset.label}: ${context.raw.toFixed(2)} kW`;
                         }
                     }
                 },
                 legend: {
                     position: 'top'
                 }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            animation: {
+                duration: 500
             }
         }
     });

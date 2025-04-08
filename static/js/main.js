@@ -326,42 +326,54 @@ function initializeCharts() {
             datasets: [
                 {
                     label: '电网基础负载',
-                    data: Array(24).fill(0), // Start with zeros, update later
-                    borderColor: '#6c757d',
-                    backgroundColor: 'rgba(108, 117, 125, 0.1)',
-                    borderDashed: [5, 5],
-                    tension: 0.1,
-                    fill: true,
-                    pointRadius: 0 // Hide points for base load
+                    data: Array(24).fill(0),
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: true
                 },
                 {
                     label: '充电负载',
                     data: Array(24).fill(0),
-                    borderColor: '#0dcaf0',
-                    backgroundColor: 'rgba(13, 202, 240, 0.2)',
-                    tension: 0.1,
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
                     fill: true
                 },
                 {
                     label: '总负载',
-                    data: Array(24).fill(0), // Start with zeros, update later
-                    borderColor: '#dc3545',
-                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                    tension: 0.1,
-                    borderWidth: 2,
-                    fill: false
+                    data: Array(24).fill(0),
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    fill: false,
+                    borderWidth: 2
                 }
             ]
         },
         options: {
             responsive: true,
-            interaction: {
-                mode: 'index',
-                intersect: false,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '负载 (kW)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: '时间'
+                    }
+                }
             },
             plugins: {
+                title: {
+                    display: true,
+                    text: '电网负载分布'
+                },
                 legend: {
-                    position: 'top',
+                    display: true,
+                    position: 'top'
                 },
                 annotation: {
                     annotations: {
@@ -370,38 +382,28 @@ function initializeCharts() {
                             xMin: 7,
                             xMax: 10,
                             yMin: 0,
-                            yMax: 100,
+                            yMax: 'max',
                             backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                            borderColor: 'rgba(255, 99, 132, 0)',
+                            borderColor: 'transparent',
                         },
                         peakArea2: {
                             type: 'box',
                             xMin: 18,
                             xMax: 21,
                             yMin: 0,
-                            yMax: 100,
+                            yMax: 'max',
                             backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                            borderColor: 'rgba(255, 99, 132, 0)',
+                            borderColor: 'transparent',
                         },
                         valleyArea: {
                             type: 'box',
                             xMin: 0,
                             xMax: 5,
                             yMin: 0,
-                            yMax: 100,
+                            yMax: 'max',
                             backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                            borderColor: 'rgba(54, 162, 235, 0)',
-                        },
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    min: 0,
-                    // max: 100, // Make max dynamic later based on data
-                    title: {
-                        display: true,
-                        text: '负载（kW 或 %）' // Adjust label
+                            borderColor: 'transparent',
+                        }
                     }
                 }
             }
@@ -1404,11 +1406,6 @@ function updateUIWithStateData(state) {
         updateMapWithUsers(state.users);
     }
     
-    // Update grid load if available
-    if (state.grid_load !== undefined) {
-        updateGridLoadChart(state.grid_load);
-    }
-    
     // 如果有结果数据，清除地图的默认提示信息
     if ((state.users && state.users.length > 0) || (state.chargers && state.chargers.length > 0)) {
         showMapContent();
@@ -1419,11 +1416,16 @@ function updateUIWithStateData(state) {
         updateMetrics(state.metrics);
     }
 
-    // Update grid load chart with the full grid_status object
+    // 处理电网数据 - 不重复调用updateGridLoadChart
     if (state.grid_status) {
-        console.log("updateUIWithStateData: Received grid_status:", JSON.stringify(state.grid_status)); // ADD LOGGING
-        updateGridLoadChart(state.grid_status); // Pass the whole object
+        console.log("updateUIWithStateData: Received grid_status:", JSON.stringify(state.grid_status));
+        // 只传递grid_status对象，不再单独传递grid_load
+        updateGridLoadChart(state.grid_status);
     }
+    // 之前有冗余调用，现在删除这部分代码
+    // else if (state.grid_load !== undefined) {
+    //     updateGridLoadChart(state.grid_load);
+    // }
 
     // Update agent decision panel if multi-agent is active and data available
     if (isMultiAgent && state.agent_decisions) {
@@ -2682,59 +2684,157 @@ function updateChargerHeatmap(chargers) {
 }
 
 // Update grid load chart
-function updateGridLoadChart(gridStatus) { // Accept the full gridStatus object
-    console.log("updateGridLoadChart received gridStatus:", gridStatus);
-    if (!gridLoadChart) {
-        console.error("Grid load chart object is not initialized.");
-        return;
-    }
-    if (!gridStatus || typeof gridStatus !== 'object') {
-        console.error("Invalid gridStatus object received:", gridStatus);
+function updateGridLoadChart(gridStatus) {
+    // 确保gridStatus对象存在
+    if (!gridStatus) {
+        console.warn('未收到电网状态数据');
         return;
     }
 
-    // Extract data points, ensuring they are numbers and handle undefined/null
-    const currentHour = new Date(gridStatus.timestamp).getHours();
-    const currentBaseLoad = Number(gridStatus.base_load) || 0;
-    const currentEvLoad = Number(gridStatus.ev_load) || 0;
-    const currentTotalLoad = Number(gridStatus.grid_load) || 0; // Use grid_load from status
-
-    console.log(`UpdateGridLoadChart Data Point (Hour ${currentHour}): Base=${currentBaseLoad}, EV=${currentEvLoad}, Total=${currentTotalLoad}`);
-
-    // Check if datasets exist and have the right length
-    if (!gridLoadChart.data.datasets || gridLoadChart.data.datasets.length < 3 ||
-        !gridLoadChart.data.datasets[0].data || gridLoadChart.data.datasets[0].data.length !== 24 ||
-        !gridLoadChart.data.datasets[1].data || gridLoadChart.data.datasets[1].data.length !== 24 ||
-        !gridLoadChart.data.datasets[2].data || gridLoadChart.data.datasets[2].data.length !== 24) {
-        console.error("Grid load chart datasets are not properly initialized or have incorrect length.");
-        // Optionally, try to re-initialize or reset data arrays here if needed
-        // For now, just log the error and return to avoid further issues.
-        // gridLoadChart.data.datasets[0].data = Array(24).fill(0);
-        // gridLoadChart.data.datasets[1].data = Array(24).fill(0);
-        // gridLoadChart.data.datasets[2].data = Array(24).fill(0);
+    const ctx = document.getElementById('gridLoadChart');
+    if (!ctx) {
+        console.error('找不到图表canvas元素');
         return;
     }
 
-    // Update the data for the current hour
-    // Ensure index is within bounds
-    if (currentHour >= 0 && currentHour < 24) {
-        gridLoadChart.data.datasets[0].data[currentHour] = currentBaseLoad; // Base Load
-        gridLoadChart.data.datasets[1].data[currentHour] = currentEvLoad;   // EV Load
-        gridLoadChart.data.datasets[2].data[currentHour] = currentTotalLoad; // Total Load
-
-        console.log(`Chart data updated for hour ${currentHour}:`, {
-            base: gridLoadChart.data.datasets[0].data[currentHour],
-            ev: gridLoadChart.data.datasets[1].data[currentHour],
-            total: gridLoadChart.data.datasets[2].data[currentHour]
+    // 如果图表不存在，则初始化
+    if (!window.gridLoadChart) {
+        window.gridLoadChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+                datasets: [
+                    {
+                        label: '电网基础负载',
+                        data: Array(24).fill(0),
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        fill: true
+                    },
+                    {
+                        label: '充电负载',
+                        data: Array(24).fill(0),
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        fill: true
+                    },
+                    {
+                        label: '总负载',
+                        data: Array(24).fill(0),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        fill: false,
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '负载 (kW)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: '时间'
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '电网负载分布'
+                    },
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    annotation: {
+                        annotations: {
+                            peakArea: {
+                                type: 'box',
+                                xMin: 7,
+                                xMax: 10,
+                                yMin: 0,
+                                yMax: 'max',
+                                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                                borderColor: 'transparent',
+                            },
+                            peakArea2: {
+                                type: 'box',
+                                xMin: 18,
+                                xMax: 21,
+                                yMin: 0,
+                                yMax: 'max',
+                                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                                borderColor: 'transparent',
+                            },
+                            valleyArea: {
+                                type: 'box',
+                                xMin: 0,
+                                xMax: 5,
+                                yMin: 0,
+                                yMax: 'max',
+                                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                                borderColor: 'transparent',
+                            }
+                        }
+                    }
+                }
+            }
         });
-
-        // Update the chart
-        gridLoadChart.update();
-        console.log("Grid load chart updated successfully.");
-    } else {
-        console.error(`Invalid hour (${currentHour}) obtained from timestamp.`);
     }
-} // End of updateGridLoadChart
+
+    // 获取当前小时
+    const currentHour = new Date().getHours();
+    
+    // 更新基础负载数据
+    if (Array.isArray(gridStatus.base_load)) {
+        window.gridLoadChart.data.datasets[0].data = gridStatus.base_load;
+    } else if (typeof gridStatus.grid_load === 'number') {
+        // 如果只有当前时刻的数据，保持历史数据不变，只更新当前时刻
+        let baseLoadData = [...window.gridLoadChart.data.datasets[0].data];
+        baseLoadData[currentHour] = gridStatus.grid_load - (gridStatus.ev_load || 0);
+        window.gridLoadChart.data.datasets[0].data = baseLoadData;
+    }
+
+    // 更新EV充电负载数据
+    if (typeof gridStatus.ev_load === 'number') {
+        let evLoadData = [...window.gridLoadChart.data.datasets[1].data];
+        evLoadData[currentHour] = gridStatus.ev_load;
+        window.gridLoadChart.data.datasets[1].data = evLoadData;
+    }
+
+    // 计算并更新总负载
+    const baseLoadData = window.gridLoadChart.data.datasets[0].data;
+    const evLoadData = window.gridLoadChart.data.datasets[1].data;
+    const totalLoadData = baseLoadData.map((base, i) => base + (evLoadData[i] || 0));
+    window.gridLoadChart.data.datasets[2].data = totalLoadData;
+
+    // 更新图表
+    window.gridLoadChart.update();
+
+    // 更新负载指标显示
+    const totalLoadElement = document.getElementById('totalLoad');
+    const evLoadElement = document.getElementById('evLoad');
+    const renewableRatioElement = document.getElementById('renewableRatio');
+
+    if (totalLoadElement) {
+        totalLoadElement.textContent = `${(gridStatus.grid_load || 0).toFixed(1)} kW`;
+    }
+    if (evLoadElement) {
+        evLoadElement.textContent = `${(gridStatus.ev_load || 0).toFixed(1)} kW`;
+    }
+    if (renewableRatioElement) {
+        renewableRatioElement.textContent = `${(gridStatus.renewable_ratio || 0).toFixed(1)}%`;
+    }
+}
 
 // Update trend indicators
 function updateTrend(element, current, previous) {
@@ -3853,121 +3953,87 @@ function updateMainMetricsChart() {
 }
 
 // 更新电网负载图表
-function updateGridLoadChart() {
-    if (!gridLoadChart) return;
-    
-    // 检查是否有数据
-    if (!simulation.metricsHistory || 
-        !simulation.metricsHistory.timestamps ||
-        simulation.metricsHistory.timestamps.length === 0) {
-        console.warn("No metrics history data available for grid load chart update");
+function updateGridLoadChart(gridStatus) {
+    // 确保gridStatus对象存在
+    if (!gridStatus) {
+        console.warn('未收到电网状态数据');
         return;
     }
-    
-    console.log("Updating grid load chart with", simulation.metricsHistory.timestamps.length, "data points");
-    
-    // 正确格式化时间戳以便在x轴上清晰展示
-    const formattedLabels = simulation.metricsHistory.timestamps.map(ts => {
-        try {
-            // 首先检查是否已经是格式化后的字符串
-            if (typeof ts === 'string' && ts.includes('-') && ts.includes(':')) {
-                // 已经格式化的情况，只提取时间部分 (HH:MM)
-                const timePart = ts.split(' ')[1];
-                if (timePart && timePart.includes(':')) {
-                    return timePart.substring(0, 5); // 只取HH:MM部分
+
+    const ctx = document.getElementById('gridLoadChart');
+    if (!ctx) {
+        console.error('找不到图表canvas元素');
+        return;
+    }
+
+    // 如果图表不存在，则初始化
+    if (!window.gridLoadChart) {
+        window.gridLoadChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+                datasets: [
+                    {
+                        label: '电网基础负载',
+                        data: Array(24).fill(0),
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        fill: true
+                    },
+                    {
+                        label: '充电负载',
+                        data: Array(24).fill(0),
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        fill: true
+                    },
+                    {
+                        label: '总负载',
+                        data: Array(24).fill(0),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        fill: false,
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '负载 (kW)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: '时间'
+                        }
+                    }
                 }
-                return ts;
             }
-            
-            // 否则假设是ISO日期字符串并转换
-            const date = new Date(ts);
-            if (isNaN(date.getTime())) {
-                console.warn("Invalid timestamp in metrics history:", ts);
-                return "无效时间";
-            }
-            
-            // 返回格式化为HH:MM的时间
-            return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-        } catch (e) {
-            console.error("Error formatting chart timestamp:", e);
-            return "错误";
-        }
-    });
-    
-    // 准备图表数据
-    const baseLoads = [];
-    const evLoads = [];
-    const totalLoads = [];
-    
-    // 处理每个时间点的数据
-    for (let i = 0; i < simulation.metricsHistory.timestamps.length; i++) {
-        // 获取基础负载和EV负载
-        let baseLoad = 0;
-        let evLoad = 0;
-        
-        // 从历史记录中获取负载数据
-        if (simulation.metricsHistory.grid_status && 
-            Array.isArray(simulation.metricsHistory.grid_status)) {
-            const gridStatus = simulation.metricsHistory.grid_status[i] || {};
-            baseLoad = gridStatus.current_load || 0;
-            evLoad = (gridStatus.ev_load || 0) * 0.2;  // EV负载的贡献系数
-        } else if (simulation.metricsHistory.baseLoad && 
-                  Array.isArray(simulation.metricsHistory.baseLoad)) {
-            baseLoad = simulation.metricsHistory.baseLoad[i] || 0;
-            evLoad = (simulation.metricsHistory.evLoad && 
-                     Array.isArray(simulation.metricsHistory.evLoad)) ? 
-                     (simulation.metricsHistory.evLoad[i] || 0) * 0.2 : 0;
-        }
-        
-        // 计算总负载
-        const totalLoad = baseLoad + evLoad;
-        
-        // 将数据添加到数据集
-        baseLoads.push(baseLoad);
-        evLoads.push(evLoad);
-        totalLoads.push(totalLoad);
+        });
     }
-    
-    // 确保图表已经初始化，包含正确的数据集数量
-    if (!gridLoadChart.data.datasets || gridLoadChart.data.datasets.length !== 3) {
-        gridLoadChart.data.datasets = [
-            {
-                label: '基础负载',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true
-            },
-            {
-                label: 'EV充电负载',
-                backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                borderColor: 'rgba(255, 99, 132, 1)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true
-            },
-            {
-                label: '总负载',
-                backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: false
-            }
-        ];
-    }
-    
+
     // 更新图表数据
-    gridLoadChart.data.labels = formattedLabels;
-    gridLoadChart.data.datasets[0].data = baseLoads;
-    gridLoadChart.data.datasets[1].data = evLoads;
-    gridLoadChart.data.datasets[2].data = totalLoads;
+    const currentHour = new Date().getHours();
+    const baseLoad = gridStatus.base_load || 0;
+    const evLoad = gridStatus.ev_load || 0;
     
-    // 更新图表
-    gridLoadChart.update();
-    
-    console.log("Grid load chart updated with base load, EV load, and total load");
+    window.gridLoadChart.data.datasets[0].data[currentHour] = baseLoad;
+    window.gridLoadChart.data.datasets[1].data[currentHour] = evLoad;
+    window.gridLoadChart.data.datasets[2].data[currentHour] = baseLoad + evLoad;
+    window.gridLoadChart.update();
+
+    // 更新指标显示
+    document.getElementById('totalLoad').textContent = `${(baseLoad + evLoad).toFixed(2)} kW`;
+    document.getElementById('evLoad').textContent = `${evLoad.toFixed(2)} kW`;
+    document.getElementById('renewableRatio').textContent = 
+        `${((gridStatus.renewable_ratio || 0) * 100).toFixed(1)}%`;
 }
 
 // Update trend indicators
@@ -4321,4 +4387,23 @@ startSimBtn.disabled = true; // Disabled until WebSocket connects
 stopSimBtn.disabled = true;
 pauseResumeBtn.disabled = true;
 // ... existing code ...
+// ... existing code ...
+
+// 定期更新图表
+setInterval(() => {
+    fetch('/api/grid_status')
+        .then(response => response.json())
+        .then(data => {
+            updateGridLoadChart(data);
+        })
+        .catch(error => {
+            console.error('获取电网状态失败:', error);
+        });
+}, 5000);
+
+// 页面加载时初始化图表
+document.addEventListener('DOMContentLoaded', () => {
+    initializeGridLoadChart();
+});
+
 // ... existing code ...
