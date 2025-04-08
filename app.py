@@ -82,8 +82,8 @@ def load_config():
             },
             "grid": {
                 "base_load": [
-                    40, 35, 30, 28, 27, 30, 45, 60, 75, 80, 82, 84,
-                    80, 75, 70, 65, 70, 75, 85, 90, 80, 70, 60, 50
+                    4000, 3500, 3000, 2800, 2700, 3000, 4500, 6000, 7500, 8000, 8200, 8400,
+                    8000, 7500, 7000, 6500, 7000, 7500, 8500, 9000, 8000, 7000, 6000, 5000
                 ],
                 "peak_hours": [7, 8, 9, 10, 18, 19, 20, 21],
                 "valley_hours": [0, 1, 2, 3, 4, 5]
@@ -147,7 +147,12 @@ def initialize_system():
 
         # Initialize environment
         logger.info("Initializing ChargingEnvironment")
-        system_obj.env = ChargingEnvironment(config["environment"])
+        # 合并environment和grid配置
+        env_config = {
+            **config["environment"],
+            "grid": config.get("grid", {})  # 添加grid配置
+        }
+        system_obj.env = ChargingEnvironment(env_config)
 
         # Initialize scheduler (which handles internal algorithm selection)
         logger.info(f"Initializing ChargingScheduler with algorithm: {config['scheduler'].get('scheduling_algorithm', 'rule_based')}")

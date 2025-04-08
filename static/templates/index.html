@@ -281,18 +281,18 @@
                     <div class="card-body">
                         <div class="tab-content" id="analysis-content">
                             <div class="tab-pane fade show active" id="time-series" role="tabpanel">
-                                <canvas id="metrics-chart" height="300"></canvas>
+                                <canvas id="metrics-chart" height="150"></canvas>
                             </div>
                             <div class="tab-pane fade" id="heatmap" role="tabpanel">
-                                <div id="charger-heatmap-container" style="height: 300px;">
+                                <div id="charger-heatmap-container" style="height: 650px;">
                                     <canvas id="charger-heatmap"></canvas>
                                 </div>
                             </div>
                             <div class="tab-pane fade" id="user-analytics" role="tabpanel">
-                                <canvas id="user-wait-time-chart" height="300"></canvas>
+                                <canvas id="user-wait-time-chart" height="150"></canvas>
                             </div>
                             <div class="tab-pane fade" id="grid-analytics" role="tabpanel">
-                                <canvas id="grid-load-chart" height="300"></canvas>
+                                <canvas id="grid-load-chart" height="150"></canvas>
                             </div>
                         </div>
                     </div>
@@ -329,6 +329,60 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 电网负载监控 -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">电网负载监控</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">日均负载分布</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="gridLoadChart" style="width: 100%; height: 300px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">实时负载指标</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col">
+                                                <div class="metric-item">
+                                                    <label>总负载</label>
+                                                    <h3 id="totalLoad">0 kW</h3>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row mt-3">
+                                            <div class="col">
+                                                <div class="metric-item">
+                                                    <label>EV充电负载</label>
+                                                    <h3 id="evLoad">0 kW</h3>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row mt-3">
+                                            <div class="col">
+                                                <div class="metric-item">
+                                                    <label>可再生能源比例</label>
+                                                    <h3 id="renewableRatio">0%</h3>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -340,7 +394,7 @@
                         <h5 class="mb-0">地图视图</h5>
                     </div>
                     <div class="card-body">
-                        <div id="map-container" style="height: 400px;">
+                        <div id="map-container" style="height: 700px;">
                             <!-- The map will be rendered here -->
                             <div class="text-center py-5 bg-light">
                                 <h5>地图视图将在将在模拟开始后显示</h5>
@@ -411,52 +465,6 @@
             <h3>充电站状态</h3>
             <div id="charging-stations" class="charging-stations-container">
                 <!-- 充电站状态将通过JavaScript动态填充 -->
-            </div>
-        </div>
-
-        <div class="row mt-4">
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">电网负载监控</h5>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="gridLoadChart" style="width: 100%; height: 300px;"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">实时负载指标</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col">
-                                <div class="metric-item">
-                                    <label>总负载</label>
-                                    <h3 id="totalLoad">0 kW</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col">
-                                <div class="metric-item">
-                                    <label>EV充电负载</label>
-                                    <h3 id="evLoad">0 kW</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col">
-                                <div class="metric-item">
-                                    <label>可再生能源比例</label>
-                                    <h3 id="renewableRatio">0%</h3>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>

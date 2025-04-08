@@ -1416,16 +1416,33 @@ function updateUIWithStateData(state) {
         updateMetrics(state.metrics);
     }
 
-    // 处理电网数据 - 不重复调用updateGridLoadChart
+    // 处理电网数据 - 调整为符合charts.js中updateGridLoadChart的格式
     if (state.grid_status) {
         console.log("updateUIWithStateData: Received grid_status:", JSON.stringify(state.grid_status));
-        // 只传递grid_status对象，不再单独传递grid_load
-        updateGridLoadChart(state.grid_status);
+        
+        // 创建符合charts.js中updateGridLoadChart函数期望的数据结构
+        const gridData = {
+            history: state.history || []  // 直接使用后端提供的历史数据
+        };
+        
+        // 更新实时负载指标显示
+        const totalLoadElement = document.getElementById('totalLoad');
+        const evLoadElement = document.getElementById('evLoad');
+        const renewableRatioElement = document.getElementById('renewableRatio');
+
+        if (totalLoadElement) {
+            totalLoadElement.textContent = `${(state.grid_status.grid_load || 0).toFixed(1)} kW`;
+        }
+        if (evLoadElement) {
+            evLoadElement.textContent = `${(state.grid_status.ev_load || 0).toFixed(1)} kW`;
+        }
+        if (renewableRatioElement) {
+            renewableRatioElement.textContent = `${(state.grid_status.renewable_ratio || 0).toFixed(1)}%`;
+        }
+        
+        // 使用charts.js中的updateGridLoadChart函数更新图表
+        updateGridLoadChart(gridData);
     }
-    // 之前有冗余调用，现在删除这部分代码
-    // else if (state.grid_load !== undefined) {
-    //     updateGridLoadChart(state.grid_load);
-    // }
 
     // Update agent decision panel if multi-agent is active and data available
     if (isMultiAgent && state.agent_decisions) {
@@ -3620,10 +3637,26 @@ window.loadSimulationResult = async function(filename) {
                 
                 // 更新电网负载图表
                 if (gridLoadChart && series.grid_load && series.ev_load) {
-                    gridLoadChart.data.labels = simulation.metricsHistory.timestamps;
-                    gridLoadChart.data.datasets[0].data = series.grid_load;
-                    gridLoadChart.data.datasets[1].data = series.ev_load;
-                    gridLoadChart.update();
+                    // 构建符合charts.js中updateGridLoadChart期望的数据格式
+                    const gridData = {
+                        history: []
+                    };
+                    
+                    // 为每个时间点创建历史记录
+                    for (let i = 0; i < series.grid_load.length; i++) {
+                        gridData.history.push({
+                            timestamp: series.timestamps[i],
+                            grid_status: {
+                                current_load: series.grid_load[i] || 0,
+                                ev_load: series.ev_load[i] || 0,
+                                renewable_ratio: series.renewable_ratio[i] || 0
+                            }
+                        });
+                    }
+                    
+                    // 调用charts.js中的函数更新图表
+                    updateGridLoadChart(gridData);
+                    console.log("Updated grid load chart with filtered time series data");
                 }
                 
                 // 如果启用了多智能体，更新相关图表
@@ -3835,10 +3868,25 @@ function loadSimulationResult(filename) {
                 
                 // 更新电网负载图表
                 if (gridLoadChart && filteredGridLoad.length > 0 && filteredEVLoad.length > 0) {
-                    gridLoadChart.data.labels = formattedTimestamps;
-                    gridLoadChart.data.datasets[0].data = filteredGridLoad;
-                    gridLoadChart.data.datasets[1].data = filteredEVLoad;
-                    gridLoadChart.update();
+                    // 构建符合charts.js中updateGridLoadChart期望的数据格式
+                    const gridData = {
+                        history: []
+                    };
+                    
+                    // 为每个时间点创建历史记录
+                    for (let i = 0; i < formattedTimestamps.length; i++) {
+                        gridData.history.push({
+                            timestamp: filteredTimestamps[i],
+                            grid_status: {
+                                current_load: filteredGridLoad[i] || 0,
+                                ev_load: filteredEVLoad[i] || 0,
+                                renewable_ratio: filteredRenewableRatio[i] || 0
+                            }
+                        });
+                    }
+                    
+                    // 调用charts.js中的函数更新图表
+                    updateGridLoadChart(gridData);
                     console.log("Updated grid load chart with filtered time series data");
                 }
             }
@@ -3950,90 +3998,6 @@ function updateMainMetricsChart() {
         simulation.metricsHistory.totalReward : metrics.total_reward || [];
     
     mainMetricsChart.update();
-}
-
-// 更新电网负载图表
-function updateGridLoadChart(gridStatus) {
-    // 确保gridStatus对象存在
-    if (!gridStatus) {
-        console.warn('未收到电网状态数据');
-        return;
-    }
-
-    const ctx = document.getElementById('gridLoadChart');
-    if (!ctx) {
-        console.error('找不到图表canvas元素');
-        return;
-    }
-
-    // 如果图表不存在，则初始化
-    if (!window.gridLoadChart) {
-        window.gridLoadChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: Array.from({length: 24}, (_, i) => `${i}:00`),
-                datasets: [
-                    {
-                        label: '电网基础负载',
-                        data: Array(24).fill(0),
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        fill: true
-                    },
-                    {
-                        label: '充电负载',
-                        data: Array(24).fill(0),
-                        borderColor: 'rgba(255, 99, 132, 1)',
-                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                        fill: true
-                    },
-                    {
-                        label: '总负载',
-                        data: Array(24).fill(0),
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        fill: false,
-                        borderWidth: 2
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: '负载 (kW)'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: '时间'
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    // 更新图表数据
-    const currentHour = new Date().getHours();
-    const baseLoad = gridStatus.base_load || 0;
-    const evLoad = gridStatus.ev_load || 0;
-    
-    window.gridLoadChart.data.datasets[0].data[currentHour] = baseLoad;
-    window.gridLoadChart.data.datasets[1].data[currentHour] = evLoad;
-    window.gridLoadChart.data.datasets[2].data[currentHour] = baseLoad + evLoad;
-    window.gridLoadChart.update();
-
-    // 更新指标显示
-    document.getElementById('totalLoad').textContent = `${(baseLoad + evLoad).toFixed(2)} kW`;
-    document.getElementById('evLoad').textContent = `${evLoad.toFixed(2)} kW`;
-    document.getElementById('renewableRatio').textContent = 
-        `${((gridStatus.renewable_ratio || 0) * 100).toFixed(1)}%`;
 }
 
 // Update trend indicators

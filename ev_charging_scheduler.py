@@ -462,26 +462,33 @@ class ChargingEnvironment:
     
     def _initialize_grid(self):
         """Initialize grid status"""
-        # Base load as percentage of capacity for each hour (0-23)
-        base_load = [40, 35, 30, 28, 27, 30, 45, 60, 75, 80, 82, 84, 
-                     80, 75, 70, 65, 70, 75, 85, 90, 80, 70, 60, 50]
+        # 从配置文件中读取基础负载
+        grid_config = self.config.get("grid", {})
+        base_load = grid_config.get("base_load", [
+            4000, 3500, 3000, 2800, 2700, 3000, 4500, 6000, 7500, 8000, 8200, 8400,
+            8000, 7500, 7000, 6500, 7000, 7500, 8500, 9000, 8000, 7000, 6000, 5000
+        ])
         
-        # Peak and valley hours
-        peak_hours = [7, 8, 9, 10, 18, 19, 20, 21]
-        valley_hours = [0, 1, 2, 3, 4, 5]
+        # 从配置文件中读取峰谷时段
+        peak_hours = grid_config.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21])
+        valley_hours = grid_config.get("valley_hours", [0, 1, 2, 3, 4, 5])
         
-        # Renewable generation
-        solar_generation = [0, 0, 0, 0, 0, 0, 2, 10, 18, 25, 30, 32, 
-                           30, 28, 25, 20, 10, 3, 0, 0, 0, 0, 0, 0]  # % of demand
-        wind_generation = [12, 14, 15, 13, 10, 12, 15, 17, 13, 10, 12, 13, 
-                          15, 17, 16, 14, 16, 18, 20, 18, 16, 15, 13, 14]  # % of demand
+        # 可再生能源生成
+        solar_generation = grid_config.get("solar_generation", [
+            0, 0, 0, 0, 0, 0, 2000, 1000, 1800, 2500, 3000, 3200,
+            3000, 2800, 2500, 2000, 1000, 300, 0, 0, 0, 0, 0, 0
+        ])
+        wind_generation = grid_config.get("wind_generation", [
+            1200, 1400, 1500, 1300, 1000, 1200, 1500, 1700, 1300, 1000, 1200, 1300,
+            1500, 1700, 1600, 1400, 1600, 1800, 2000, 1800, 1600, 1500, 1300, 1400
+        ])
         
-        # Electricity prices
-        normal_price = 0.85  # yuan/kWh
-        peak_price = 1.2  # yuan/kWh
-        valley_price = 0.4  # yuan/kWh
+        # 电价设置
+        normal_price = grid_config.get("normal_price", 0.85)  # yuan/kWh
+        peak_price = grid_config.get("peak_price", 1.2)  # yuan/kWh
+        valley_price = grid_config.get("valley_price", 0.4)  # yuan/kWh
         
-        # Calculate current price directly based on current hour
+        # 根据当前小时计算电价
         current_hour = self.current_time.hour
         if current_hour in peak_hours:
             current_price = peak_price
@@ -490,7 +497,14 @@ class ChargingEnvironment:
         else:
             current_price = normal_price
         
-        return {
+        # 确保base_load是一个包含24个值的列表
+        if not isinstance(base_load, list) or len(base_load) != 24:
+            logger.warning(f"Invalid base_load in config: {base_load}. Using default values.")
+            base_load = [4000, 3500, 3000, 2800, 2700, 3000, 4500, 6000, 7500, 8000, 8200, 8400,
+                        8000, 7500, 7000, 6500, 7000, 7500, 8500, 9000, 8000, 7000, 6000, 5000]
+        
+        # 初始化电网状态
+        grid_status = {
             "base_load": base_load,
             "current_load": base_load[self.current_time.hour],
             "peak_hours": peak_hours,
@@ -503,10 +517,13 @@ class ChargingEnvironment:
             "current_price": current_price,
             "load_balance_index": 0.85,
             "renewable_ratio": (solar_generation[self.current_time.hour] + 
-                               wind_generation[self.current_time.hour]),
+                               wind_generation[self.current_time.hour]) / base_load[self.current_time.hour] * 100,
             "ev_load": 0,
             "grid_load": base_load[self.current_time.hour]
         }
+        
+        logger.info(f"Grid initialized with base_load: {base_load}")
+        return grid_status
     
     def get_current_state(self):
         """Return the current state of the environment"""
@@ -517,15 +534,34 @@ class ChargingEnvironment:
         # Get current hour and load
         hour = self.current_time.hour
         
-        return {
+        # 构建基本状态
+        state = {
             "timestamp": self.current_time.isoformat(),
             "users": users_list,
             "chargers": chargers_list,
-            "grid_load": self.grid_status.get("grid_load", 0),
-            "ev_load": self.grid_status.get("ev_load", 0),
-            "renewable_ratio": self.grid_status.get("renewable_ratio", 0),
-            "current_price": self.grid_status.get("current_price", 0.85)
+            "grid_status": self.grid_status.copy()  # 复制当前电网状态
         }
+        
+        # 添加历史数据
+        if hasattr(self, 'history') and self.history:
+            # 创建历史记录的副本，避免修改原始数据
+            history_data = []
+            for h in self.history:
+                history_entry = {
+                    "timestamp": h["timestamp"],
+                    "grid_status": {
+                        "current_load": h["grid_status"].get("current_load", 0),
+                        "grid_load": h["grid_status"].get("grid_load", 0),
+                        "ev_load": h["grid_status"].get("ev_load", 0),
+                        "renewable_ratio": h["grid_status"].get("renewable_ratio", 0)
+                    }
+                }
+                history_data.append(history_entry)
+            state["history"] = history_data
+        else:
+            state["history"] = []
+        
+        return state
     
     def _get_current_price(self, hour):
         """Get electricity price based on the hour"""
@@ -1467,96 +1503,82 @@ class ChargingEnvironment:
         """Update grid state based on current time and EV load with robustness"""
         hour = self.current_time.hour
 
-        # Safely get prerequisite grid data or use defaults
-        # Ensure grid_status itself is a dict
+        # 确保grid_status是一个字典
         if not isinstance(self.grid_status, dict):
-             logger.error("Critical error: self.grid_status is not a dictionary! Reinitializing.")
-             self.grid_status = self._initialize_grid() # Attempt reinitialization
+            logger.error("Critical error: self.grid_status is not a dictionary! Reinitializing.")
+            self.grid_status = self._initialize_grid()
 
-        base_load_profile = self.grid_status.get("base_load", [50]*24) # Default to flat 50 if missing
-        solar_profile = self.grid_status.get("solar_generation", [0]*24)
-        wind_generation = self.grid_status.get("wind_generation", [10]*24)
+        # 从配置文件获取基础负载配置
+        base_load_profile = self.config.get("grid", {}).get("base_load", [5000]*24)  # 默认值改为5000
+        if not isinstance(base_load_profile, list) or len(base_load_profile) != 24:
+            logger.warning(f"Invalid base_load_profile in config: {base_load_profile}. Using default.")
+            base_load_profile = [5000]*24  # 默认值改为5000
 
-        # Ensure profiles have correct length (robustness)
-        if not isinstance(base_load_profile, list) or len(base_load_profile) < 24:
-             logger.warning(f"Invalid base_load_profile: {base_load_profile}. Using default.")
-             base_load_profile = [50]*24
-        if not isinstance(solar_profile, list) or len(solar_profile) < 24:
-             logger.warning(f"Invalid solar_profile: {solar_profile}. Using default.")
-             solar_profile = [0]*24
-        if not isinstance(wind_generation, list) or len(wind_generation) < 24:
-            logger.warning(f"Invalid wind_generation: {wind_generation}. Using default.")
-            wind_generation = [10]*24
-
-        # Get current values for the hour
+        # 获取当前小时的基础负载
         try:
-             base_load = base_load_profile[hour]
-             renewable_ratio = solar_profile[hour] + wind_generation[hour]
+            base_load = base_load_profile[hour]
         except IndexError:
-             logger.warning(f"_update_grid_state: Hour {hour} out of range for profile data (len {len(base_load_profile)}). Using defaults.")
-             base_load = 50
-             renewable_ratio = 10
-        except TypeError as e:
-            logger.error(f"_update_grid_state: TypeError accessing profile data for hour {hour}: {e}. Profiles: Base={base_load_profile}, Solar={solar_profile}, Wind={wind_generation}. Using defaults.")
-            base_load = 50
-            renewable_ratio = 10
+            logger.warning(f"Hour {hour} out of range for base_load_profile. Using default value.")
+            base_load = 5000  # 默认值改为5000
 
-        # Update current price (already safe via helper)
-        current_price = self._get_current_price(hour)
-
-        # Calculate total load
+        # 更新电网状态
         ev_load = self.grid_status.get("ev_load", 0)
-        grid_load = base_load + ev_load # Correctly sum base load and EV load
+        grid_load = base_load + ev_load
 
-        # ADD LOGGING HERE
+        # 添加调试日志
         logger.debug(f"_update_grid_state: Hour={hour}, BaseLoad={base_load:.2f}, EVLoad={ev_load:.2f}, TotalGridLoad={grid_load:.2f}")
 
-        # Calculate load balance index (simplified, using profile)
-        load_balance_index = 0.8 # Placeholder
-        try:
-            # Ensure profile contains numbers
-            numeric_base_load = [x for x in base_load_profile if isinstance(x, (int, float))]
-            if numeric_base_load:
-                 load_variance = np.var(numeric_base_load) # Variance of the base profile
-                 max_load = max(numeric_base_load) * 1.2 # Max of base profile
-                 if max_load > 0:
-                      load_balance_index = 1 - (load_variance / (max_load ** 2))
-                 load_balance_index = max(0, min(1, load_balance_index)) # Clamp between 0 and 1
-            else:
-                 logger.warning("Base load profile contains no numeric values for variance calculation.")
-        except Exception as e:
-             logger.warning(f"Could not calculate load balance index: {e}")
-             load_balance_index = 0.8 # Fallback
+        # 更新可再生能源比例
+        renewable_ratio = self.grid_status.get("renewable_ratio", 10)
 
-        # --- Preserve existing keys --- #
-        # Create a new dict preserving old relevant keys and updating calculated values
+        # 更新电价
+        current_price = self._get_current_price(hour)
+
+        # 创建新的电网状态
         new_grid_status = {
-            # Preserve essential static keys using .get() from the potentially incomplete self.grid_status
             "base_load": base_load_profile,
+            "current_load": base_load,
+            "grid_load": grid_load,
+            "ev_load": ev_load,
+            "renewable_ratio": renewable_ratio,
+            "current_price": current_price,
             "peak_hours": self.grid_status.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21]),
             "valley_hours": self.grid_status.get("valley_hours", [0, 1, 2, 3, 4, 5]),
-            "solar_generation": solar_profile,
-            "wind_generation": wind_generation,
             "normal_price": self.grid_status.get("normal_price", 0.85),
             "peak_price": self.grid_status.get("peak_price", 1.2),
-            "valley_price": self.grid_status.get("valley_price", 0.4),
-
-            # Update calculated values for the current step
-            "current_load": base_load, # Base load for the current hour
-            "grid_load": grid_load, # Total grid load for the current hour
-            "ev_load": ev_load, # EV load contribution (from _simulate_charging_stations)
-            "renewable_ratio": renewable_ratio, # Renewable ratio for the current hour
-            "current_price": current_price, # Price for the current hour
-            "load_balance_index": load_balance_index
+            "valley_price": self.grid_status.get("valley_price", 0.4)
         }
-        self.grid_status = new_grid_status # Assign the complete new dictionary
+
+        self.grid_status = new_grid_status
     
     def _save_current_state(self):
         """保存当前状态到历史记录"""
+        # 获取当前状态
         state = self.get_current_state()
-        state["grid_status"] = self.grid_status.copy()
+        
+        # 添加完整的负载数据
+        state["grid_status"] = {
+            "current_load": self.grid_status.get("current_load", 0),
+            "grid_load": self.grid_status.get("grid_load", 0),
+            "ev_load": self.grid_status.get("ev_load", 0),
+            "renewable_ratio": self.grid_status.get("renewable_ratio", 0),
+            "current_price": self.grid_status.get("current_price", 0.85),
+            "base_load": self.grid_status.get("base_load", []),
+            "peak_hours": self.grid_status.get("peak_hours", []),
+            "valley_hours": self.grid_status.get("valley_hours", [])
+        }
+        
+        # 如果历史记录不存在，创建一个新的
+        if not hasattr(self, 'history'):
+            self.history = []
+        
+        # 添加到历史记录
         self.history.append(state)
         
+        # 限制历史记录长度，只保留最近24小时的数据
+        if len(self.history) > 24 * (60 // self.time_step_minutes):  # 24小时的数据点数
+            self.history = self.history[-(24 * (60 // self.time_step_minutes)):]
+    
     def reset(self):
         """重置环境到初始状态，返回初始状态"""
         # 重置当前时间
