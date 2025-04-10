@@ -1,7 +1,7 @@
 {
     "environment": {
-        "charger_count": 20,
-        "chargers_per_station": 4,
+        "charger_count": 200,
+        "chargers_per_station": 15,
         "grid_id": "DEFAULT001",
         "map_bounds": {
             "max_lat": 30.05,
@@ -9,11 +9,11 @@
             "max_lng": 116.05,
             "min_lng": 116
         },
-        "region_count": 5,
+        "region_count": 8,
         "simulation_days": 3,
-        "station_count": 10,
+        "station_count": 20,
         "time_step_minutes": 15,
-        "user_count": 60,
+        "user_count": 600,
         "charger_failure_rate": 0
     },
     "grid": {
