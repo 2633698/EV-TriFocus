@@ -635,7 +635,9 @@ class ChargingEnvironment:
                     
                     # 更新用户状态
                     user["status"] = "waiting"
-                    logger.debug(f"User {user_id} reached charger {charger_id} and joined queue.")
+                    # 记录初始SOC
+                    user["initial_soc"] = user.get("soc", 0)
+                    logger.debug(f"User {user_id} reached charger {charger_id} and joined queue. Initial SOC: {user['initial_soc']:.1f}%")
         
         # 模拟用户行为（包括移动、SOC变化等）
         self._simulate_user_behavior()
@@ -954,39 +956,35 @@ class ChargingEnvironment:
             # Also include 'post_charge' users who might decide to charge again if needed
             if user_status in ["idle", "traveling", "post_charge"] and not user.get("target_charger"):
                 # 当SOC较低时强制充电
-                if current_soc <= 35:  # 提高强制充电阈值到35%
+                if current_soc <= 20:  # 降低强制充电阈值到20%
                     user["needs_charge_decision"] = True
                     logger.debug(f"User {user_id} SOC critical ({current_soc:.1f}%), forcing charge need.")
                 else:
                     # 计算充电概率
                     charging_prob = self._calculate_charging_probability(user, self.current_time.hour)
                     
-                    # 添加额外因素增加充电概率
-                    # 1. 如果用户刚完成充电不久，降低充电概率
+                    # 添加额外因素影响充电概率
+                    # 1. 如果用户刚完成充电不久，大幅降低充电概率
                     timer_value = user.get("post_charge_timer") # Get value which might be None
                     if user_status == "post_charge" and isinstance(timer_value, int) and timer_value > 0:
-                        charging_prob *= 0.7  # 提高post-charge状态的充电概率
+                        charging_prob *= 0.3  # 降低post-charge状态的充电概率
                     
-                    # 2. 如果用户正在随机旅行，增加充电概率
+                    # 2. 如果用户正在随机旅行，适度增加充电概率
                     if user_status == "traveling" and user.get("last_destination_type") == "random":
-                        charging_prob *= 1.5  # 增加随机旅行时的充电概率
+                        charging_prob *= 1.2  # 适度增加随机旅行时的充电概率
                     
-                    # 3. 如果用户是出租车或网约车，增加充电概率
+                    # 3. 如果用户是出租车或网约车，适度增加充电概率
                     if user.get("user_type") in ["taxi", "ride_hailing"]:
-                        charging_prob *= 1.5  # 增加商业用户的充电概率
+                        charging_prob *= 1.3  # 适度增加商业用户的充电概率
                     
-                    # 4. 如果当前是高峰时段，增加充电概率
+                    # 4. 如果当前是高峰时段，适度增加充电概率
                     hour = self.current_time.hour
                     if hour in [7, 8, 9, 17, 18, 19]:
-                        charging_prob *= 1.4  # 增加高峰期的充电概率
+                        charging_prob *= 1.2  # 适度增加高峰期的充电概率
                     
-                    # 5. 如果SOC在35-50%之间，增加充电概率
-                    if 35 < current_soc <= 50:
-                        charging_prob *= 1.3
-                    
-                    if random.random() < charging_prob:
-                        user["needs_charge_decision"] = True
-                        logger.debug(f"User {user_id} decided to seek charging (SOC: {current_soc:.1f}%, FinalProb: {charging_prob:.2f})")
+                    # 5. 如果SOC在20-35%之间，增加充电概率
+                    if 20 < current_soc <= 35:
+                        charging_prob *= 1.2  # 适度增加低电量时的充电概率
 
             # --- State transition based on charging need ---
             if user["needs_charge_decision"]:
@@ -1217,7 +1215,7 @@ class ChargingEnvironment:
     
     def _simulate_charging_stations(self):
         """模拟充电站操作，处理充电过程并计算总EV负载"""
-        time_step_hours = self.time_step_minutes / 60
+        time_step_hours = round(self.time_step_minutes / 60, 4)  # 使用round避免精度问题
         total_ev_load = 0
         
         # 统计信息 - 运行时诊断
@@ -1229,6 +1227,9 @@ class ChargingEnvironment:
         
         # 遍历所有充电桩
         for charger_id, charger in self.chargers.items():
+            # 初始化充电量变量
+            actual_charging_amount = 0
+            
             # 跳过故障状态的充电桩
             if charger.get("status") == "failure":
                 continue
@@ -1250,188 +1251,121 @@ class ChargingEnvironment:
                     # 当前SOC和电池容量
                     current_soc = user.get("soc", 0)
                     battery_capacity = user.get("battery_capacity", 60)
-                    target_soc = user.get("target_soc", 85) # 默认充到85%而不是95%，加快周转
+                    target_soc = user.get("target_soc", 85)
                     
                     # 1. 计算达到目标所需的SOC和能量
                     soc_needed = max(0, target_soc - current_soc)
                     energy_needed = (soc_needed / 100.0) * battery_capacity
 
                     # 2. 计算充电功率和充电时间
-                    # 充电桩类型判断
+                    # 充电桩类型判断和功率设置
                     charger_type = charger.get("type", "normal")
-                    charger_power = charger.get("max_power", 60)  # kW
-                    
-                    # 调整基础充电效率 - 降低以延长充电时间
-                    charge_efficiency = 0.85  # 提高默认充电效率到0.85
-                    
-                    # 根据充电桩类型和电池当前状态设置充电功率
                     if charger_type == "superfast":
-                        # 超级快充模式 (250-400kW高压快充)
-                        if current_soc < 50:
-                            actual_power = charger_power * charge_efficiency
-                        elif current_soc < 80:
-                            # 50%-80%区间降低功率
-                            soc_factor = 1.0 - ((current_soc - 50) / 30) * 0.3  # 50%-80%之间功率降低30%
-                            actual_power = charger_power * soc_factor * charge_efficiency
-                        else:
-                            # 超过80%后，功率急剧降低保护电池
-                            soc_factor = 1.0 - ((current_soc - 80) / 20) * 0.9  # 80%-100%之间功率降低90%
-                            actual_power = charger_power * soc_factor * charge_efficiency
+                        charger_power = 180  # 超级快充 180kW
                     elif charger_type == "fast":
-                        # 快充模式 - 直流快充
-                        if current_soc < 50:
-                            actual_power = charger_power * charge_efficiency
-                        elif current_soc < 80:
-                            # 50%-80%区间降低功率
-                            soc_factor = 1.0 - ((current_soc - 50) / 30) * 0.4  # 50%-80%之间功率降低40%
-                            actual_power = charger_power * soc_factor * charge_efficiency
-                        else:
-                            # 超过80%后，功率急剧降低保护电池
-                            soc_factor = 1.0 - ((current_soc - 80) / 20) * 0.8  # 80%-100%之间功率降低80%
-                            actual_power = charger_power * soc_factor * charge_efficiency
+                        charger_power = 120  # 快充 120kW
                     else:
-                        # 普通充电桩（交流慢充）
-                        if current_soc < 50:
-                            actual_power = charger_power * charge_efficiency
-                        elif current_soc < 90:
-                            # 50%-90%区间轻微降低功率
-                            soc_factor = 1.0 - ((current_soc - 50) / 40) * 0.2  # 50%-90%之间功率降低20%
-                            actual_power = charger_power * soc_factor * charge_efficiency
-                        else:
-                            # 90%以后严重降功率
-                            soc_factor = 1.0 - ((current_soc - 90) / 10) * 0.7  # 90%-100%之间功率降低70%
-                            actual_power = charger_power * soc_factor * charge_efficiency
+                        charger_power = 60   # 慢充 60kW
                     
-                    # 添加电池化学特性因素 - 模拟电池内阻随充电时间增加而增大
+                    # 基础充电效率
+                    base_efficiency = 0.92
+                
+                    charge_efficiency = base_efficiency
+                    soc_factor = 1.0    
+                    # 根据SOC调整充电功率
+                    if current_soc < 20:
+                        # 低SOC时保持较高功率
+                        actual_power = charger_power * charge_efficiency
+                    elif current_soc < 50:
+                        # 20-50% SOC时线性降低
+                        soc_factor = 1.0 - ((current_soc - 20) / 30) * 0.1
+                        actual_power = charger_power * soc_factor * charge_efficiency
+                    elif current_soc < 80:
+                        # 50-80% SOC时加速降低
+                        soc_factor = 0.9 - ((current_soc - 50) / 30) * 0.2
+                        actual_power = charger_power * soc_factor * charge_efficiency
+                    else:
+                        # 80%以上SOC时显著降低
+                        soc_factor = 0.7 - ((current_soc - 80) / 20) * 0.5
+                        actual_power = charger_power * max(0.1, soc_factor) * charge_efficiency
+
+                    # 记录充电效率信息
+                    logger.debug(f"Charging efficiency factors - Base: {base_efficiency:.2f}, " 
+                                f"SOC({current_soc}%): {soc_factor:.2f}, Final Power: {actual_power:.2f}kW")
+                    
                     # 获取充电开始时间
                     charging_start_time = charger.get("charging_start_time", self.current_time)
                     charging_duration_minutes = (self.current_time - charging_start_time).total_seconds() / 60
                     
-                    # 计算电池内阻增加因子 - 充电时间越长，效率越低
-                    battery_resistance_factor = max(0.7, 1.0 - (charging_duration_minutes / 180) * 0.3)  # 3小时后效率降低30%
-                    actual_power = actual_power * battery_resistance_factor
-                    
-                    # 3. 考虑温度影响
-                    # 获取环境温度（如果系统模拟了温度）
-                    ambient_temp = self.grid_status.get("ambient_temperature", 25)  # 默认25℃
-                    
-                    # 温度对充电效率的影响 - 增强影响
-                    temp_factor = 1.0
-                    if ambient_temp < 0:
-                        # 低温严重影响充电效率
-                        temp_factor = 0.6  # 低温下效率降低40%
-                    elif ambient_temp < 10:
-                        # 较低温度轻微影响充电效率
-                        temp_factor = 0.8  # 降低20%
-                    elif ambient_temp > 40:
-                        # 高温对充电也有影响
-                        temp_factor = 0.85  # 降低15%
-                    elif ambient_temp > 30:
-                        # 30-40度也有轻微影响
-                        temp_factor = 0.9  # 降低10%
-                    
-                    # 4. 模拟充电器效率波动
-                    # 添加随机波动因子，模拟充电过程中的不稳定性
-                    random_efficiency_factor = random.uniform(0.95, 1.0)
-                    
-                    # 5. 计算此时间步内最大可提供的能量（考虑所有因素）
-                    actual_power = actual_power * temp_factor * random_efficiency_factor
-                    max_energy_this_step = actual_power * time_step_hours
-
-                    # 6. 确定实际充电量 (取较小值)
-                    actual_charging_amount = min(energy_needed, max_energy_this_step)
-                    
-                    # 防止充电量为负或零导致问题
-                    if actual_charging_amount <= 0.01:
-                         logger.debug(f"User {user_id} at {charger_id} needs negligible charge ({actual_charging_amount:.2f} kWh). Skipping charge this step.")
-                         # Optionally, consider finishing charge if SOC is already high
-                         if current_soc >= target_soc - 1: # Allow tolerance
-                              new_soc = current_soc # Keep SOC as is
-                              # Go directly to finish logic below
-                         else:
-                              continue # Skip the rest of the charging logic for this user this step
+                    # 最大充电时间限制
+                    max_charging_time = 0
+                    if charger_type == "superfast":
+                        max_charging_time = 30  # 超级快充最多30分钟
+                    elif charger_type == "fast":
+                        max_charging_time = 60  # 快充最多60分钟
                     else:
-                        # 计算实际的SOC增加和新的SOC
-                        actual_soc_increase = (actual_charging_amount / battery_capacity) * 100 if battery_capacity > 0 else 0
-                        new_soc = min(100, current_soc + actual_soc_increase)
+                        max_charging_time = 180  # 慢充最多3小时
                     
-                    # 记录之前的SOC用于日志 (使用current_soc，它是更新前的值)
-                    logger.info(f"User {user_id} charging at {charger_id}: SOC {current_soc:.1f}% -> {new_soc:.1f}% (+{actual_soc_increase:.1f}%), Needed: {energy_needed:.2f}kWh, Provided: {actual_charging_amount:.2f}kWh")
+                    # 使用round避免浮点数精度问题
+                    charging_duration_minutes = round(charging_duration_minutes, 2)
                     
-                    # 更新用户SOC和续航里程
-                    user["soc"] = new_soc
-                    user["current_range"] = user.get("max_range", 400) * (new_soc / 100)
-                    
-                    # 添加到总负载 (使用实际充电量对应的平均功率)
-                    actual_power_used = actual_charging_amount / time_step_hours if time_step_hours > 0 else 0
-                    total_ev_load += actual_power_used # Use average power based on actual energy transferred
-                    
-                    # 计算收入 (基于实际充电量)
-                    current_price = self.grid_status.get("current_price", 0.85)
-                    price_multiplier = charger.get("price_multiplier", 1.0)
-                    revenue = actual_charging_amount * current_price * price_multiplier
-                    
-                    # 更新充电桩收入和能源统计
-                    charger["daily_revenue"] = charger.get("daily_revenue", 0) + revenue
-                    charger["daily_energy"] = charger.get("daily_energy", 0) + actual_charging_amount
-                    
-                    # 检查充电是否完成 (达到目标SOC)
-                    if new_soc >= target_soc - 0.5:  # 移除 or new_soc >= 99.5 条件，使用目标SOC
-                        # 充电完成
-                        charging_end_time = self.current_time
-                        charging_start_time = charger.get("charging_start_time", charging_end_time - timedelta(minutes=30))
+                    # 如果超过最大充电时间，强制结束充电
+                    if charging_duration_minutes + 0.01 >= max_charging_time:  # 添加小的容差
+                        logger.warning(f"User {user_id} charging time exceeded limit ({max_charging_time} min, actual: {charging_duration_minutes:.2f} min). Force ending charging session.")
                         
-                        # 计算实际充电时间（分钟）
-                        charging_time = (charging_end_time - charging_start_time).total_seconds() / 60
+                        # 正确计算本次充电的总电量和最终SOC
+                        # 按时间比例计算实际充到了多少SOC
+                        initial_soc = user.get("initial_soc", current_soc)
+                        soc_to_charge = target_soc - initial_soc
+                        time_ratio = min(1.0, charging_duration_minutes / max_charging_time)
+                        actual_soc_increase = soc_to_charge * time_ratio
+                        new_soc = initial_soc + actual_soc_increase
                         
-                        # 记录充电历史
-                        if "charging_history" not in user:
-                            user["charging_history"] = []
-                            
-                        # 计算充电满意度
-                        # 根据充电时间和用户期望进行计算
-                        expected_time = 0
-                        if charger_type == "fast":
-                            # 快充期望时间：30分钟至1.5小时（取中间值）
-                            expected_time = 60
-                        elif charger_type == "superfast":
-                            # 超级快充期望时间：15-20分钟
-                            expected_time = 17.5
-                        else:
-                            # 慢充期望时间：6-12小时（取中间值）
-                            expected_time = 540
+                        # 计算实际充电量(kWh)
+                        actual_charging_amount = (actual_soc_increase / 100) * battery_capacity
+                        if actual_charging_amount < 0:
+                            actual_charging_amount = 0
+                            new_soc = initial_soc
                         
-                        # 计算时间满意度：实际时间与期望时间的比较
-                        time_satisfaction = min(1.0, expected_time / max(charging_time, 1.0))
-                        
-                        # 综合考虑充电金额、充电速度等因素
-                        price_sensitivity = user.get("price_sensitivity", 0.5)
-                        price_satisfaction = max(0.0, 1.0 - (price_sensitivity * (revenue / 50.0)))  # 假设50元是基准价格
-                        
-                        # 计算最终满意度（0-1范围）
-                        final_satisfaction = 0.7 * time_satisfaction + 0.3 * price_satisfaction
-                            
-                        user["charging_history"].append({
-                                "charger_id": charger_id,
-                            "start_time": charging_start_time,
-                                "end_time": charging_end_time,
-                                "charging_amount": actual_charging_amount,
-                                "cost": revenue,
-                            "charging_time": charging_time,
-                            "satisfaction": final_satisfaction
-                            })
-                        
-                        logger.info(f"User {user_id} finished charging at {charger_id}. Final SOC: {new_soc:.1f}%, Time: {charging_time:.1f} min, Satisfaction: {final_satisfaction:.2f}")
-                        
-                        # Update user and charging station status
-                        user["status"] = "post_charge" # Set status indicating charge is complete
+                        # 强制结束充电会话
+                        charger["status"] = "available"
+                        charger["current_user"] = None
+                        user["status"] = "post_charge"
                         user["target_charger"] = None
-                        user["destination"] = None # Clear destination after charging
-                        user["route"] = None # Clear route
-                        user["post_charge_timer"] = random.randint(1, 3) # Initialize timer (e.g., 2-4 steps)
-
+                        user["destination"] = None
+                        user["route"] = None
+                        user["post_charge_timer"] = random.randint(1, 3)
+                        
+                        # 更新用户SOC和续航里程
+                        user["soc"] = new_soc
+                        user["current_range"] = user.get("max_range", 400) * (new_soc / 100)
+                        
+                        # 记录充电会话信息
+                        charging_session = {
+                            "user_id": user_id,
+                            "charger_id": charger_id,
+                            "start_time": charger.get("charging_start_time"),
+                            "end_time": self.current_time,
+                            "duration_minutes": charging_duration_minutes,
+                            "initial_soc": initial_soc,
+                            "final_soc": new_soc,
+                            "energy_charged": actual_charging_amount,
+                            "termination_reason": "time_limit_exceeded"
+                        }
+                        
+                        # 添加到充电历史
+                        if not hasattr(self, "charging_history"):
+                            self.charging_history = []
+                        self.charging_history.append(charging_session)
+                        
+                        # 添加到总负载
+                        actual_power_used = actual_charging_amount / time_step_hours if time_step_hours > 0 else 0
+                        total_ev_load += actual_power_used
+                        
+                        logger.info(f"Charging session ended: Total energy charged: {actual_charging_amount:.2f} kWh, Final SOC: {new_soc:.1f}%")
+                        
                         # 处理队列中的下一个用户
-                        while charger["queue"]:  # 使用while循环处理队列
+                        while charger["queue"]:
                             next_user_id = charger["queue"].pop(0)
                             if next_user_id in self.users:
                                 next_user = self.users[next_user_id]
@@ -1440,19 +1374,118 @@ class ChargingEnvironment:
                                     charger["status"] = "occupied"
                                     charger["charging_start_time"] = self.current_time
                                     next_user["status"] = "charging"
-                                    # 设置新用户的目标SOC
-                                    next_user["target_soc"] = min(85, next_user.get("soc", 0) + 50)  # 每次至少充50%
+                                    next_user["target_soc"] = min(85, next_user.get("soc", 0) + 50)
+                                    next_user["initial_soc"] = next_user.get("soc", 0)  # 记录初始SOC
                                     logger.info(f"Next user {next_user_id} started charging at {charger_id}")
                                     break
-                            
+                        
                         if not charger.get("current_user"):
                             charger["status"] = "available"
                             logger.info(f"No valid waiting users in queue for {charger_id}")
+                        
+                        # 不要在这里return，继续处理下一个充电桩
+                        continue
                     else:
-                        # User ID不在用户列表中，修复状态
-                        logger.warning(f"Charger {charger_id} has invalid current_user {user_id}. Fixing state.")
-                        charger["status"] = "available"
-                        charger["current_user"] = None
+                        # 计算此时间步内最大可提供的能量
+                        max_energy_this_step = actual_power * time_step_hours
+                        actual_charging_amount = min(energy_needed, max_energy_this_step)
+                        
+                        if actual_charging_amount <= 0.01:
+                            if current_soc >= target_soc - 1:
+                                new_soc = current_soc
+                                actual_charging_amount = 0
+                            else:
+                                # 如果充电量太小但还没达到目标，继续处理下一个充电桩
+                                continue
+                        else:
+                            actual_soc_increase = (actual_charging_amount / battery_capacity) * 100 if battery_capacity > 0 else 0
+                            new_soc = min(100, current_soc + actual_soc_increase)
+                            logger.info(f"User {user_id} charging: SOC {current_soc:.1f}% -> {new_soc:.1f}% (+{actual_soc_increase:.1f}%), Energy: {actual_charging_amount:.2f} kWh")
+                        
+                        # 更新用户SOC和续航里程
+                        user["soc"] = new_soc
+                        user["current_range"] = user.get("max_range", 400) * (new_soc / 100)
+                        
+                        # 添加到总负载
+                        actual_power_used = actual_charging_amount / time_step_hours if time_step_hours > 0 else 0
+                        total_ev_load += actual_power_used
+                        
+                        # 计算收入
+                        current_price = self.grid_status.get("current_price", 0.85)
+                        price_multiplier = charger.get("price_multiplier", 1.0)
+                        revenue = actual_charging_amount * current_price * price_multiplier
+                        
+                        # 更新充电桩收入和能源统计
+                        charger["daily_revenue"] = charger.get("daily_revenue", 0) + revenue
+                        charger["daily_energy"] = charger.get("daily_energy", 0) + actual_charging_amount
+                        
+                        # 检查充电是否完成
+                        if new_soc >= target_soc - 0.5 or charging_duration_minutes + 0.01 >= max_charging_time:  # 添加小的容差
+                            # 充电完成
+                            charging_end_time = self.current_time
+                            charging_start_time = charger.get("charging_start_time", charging_end_time - timedelta(minutes=30))
+                            charging_time = round((charging_end_time - charging_start_time).total_seconds() / 60, 2)  # 使用round避免精度问题
+                            
+                            # 记录充电历史
+                            if "charging_history" not in user:
+                                user["charging_history"] = []
+                            
+                            # 计算满意度
+                            expected_time = 0
+                            if charger_type == "superfast":
+                                expected_time = 20
+                            elif charger_type == "fast":
+                                expected_time = 45
+                            else:
+                                expected_time = 120
+                            
+                            time_satisfaction = min(1.0, expected_time / max(charging_time, 1.0))
+                            price_sensitivity = user.get("price_sensitivity", 0.5)
+                            price_satisfaction = max(0.0, 1.0 - (price_sensitivity * (revenue / 50.0)))
+                            final_satisfaction = 0.7 * time_satisfaction + 0.3 * price_satisfaction
+                            
+                            user["charging_history"].append({
+                                "charger_id": charger_id,
+                                "start_time": charging_start_time,
+                                "end_time": charging_end_time,
+                                "charging_amount": actual_charging_amount,
+                                "cost": revenue,
+                                "charging_time": charging_time,
+                                "satisfaction": final_satisfaction
+                            })
+                            
+                            logger.info(f"User {user_id} finished charging at {charger_id}. Final SOC: {new_soc:.1f}%, Time: {charging_time:.1f} min, Satisfaction: {final_satisfaction:.2f}")
+                            
+                            # 更新用户和充电站状态
+                            user["status"] = "post_charge"
+                            user["target_charger"] = None
+                            user["destination"] = None
+                            user["route"] = None
+                            user["post_charge_timer"] = random.randint(1, 3)
+                            
+                            # 处理队列中的下一个用户
+                            while charger["queue"]:
+                                next_user_id = charger["queue"].pop(0)
+                                if next_user_id in self.users:
+                                    next_user = self.users[next_user_id]
+                                    if next_user.get("status") == "waiting":
+                                        charger["current_user"] = next_user_id
+                                        charger["status"] = "occupied"
+                                        charger["charging_start_time"] = self.current_time
+                                        next_user["status"] = "charging"
+                                        next_user["target_soc"] = min(85, next_user.get("soc", 0) + 50)
+                                        next_user["initial_soc"] = next_user.get("soc", 0)  # 记录初始SOC
+                                        logger.info(f"Next user {next_user_id} started charging at {charger_id}")
+                                        break
+                            
+                            if not charger.get("current_user"):
+                                charger["status"] = "available"
+                                logger.info(f"No valid waiting users in queue for {charger_id}")
+                else:
+                    # User ID不在用户列表中，修复状态
+                    logger.warning(f"Charger {charger_id} has invalid current_user {user_id}. Fixing state.")
+                    charger["status"] = "available"
+                    charger["current_user"] = None
             
             # 如果充电桩空闲但有等待用户，开始为第一个用户充电
             elif charger.get("status") == "available" and charger.get("queue"):
@@ -1479,7 +1512,7 @@ class ChargingEnvironment:
         
             # Log if charger is available but queue is empty
             elif charger.get("status") == "available" and not charger.get("queue"):
-                 logger.debug(f"Charger {charger_id} is available, queue is empty.")
+                logger.debug(f"Charger {charger_id} is available, queue is empty.")
             
             # Log if charger is occupied
             elif charger.get("status") == "occupied":
@@ -1493,12 +1526,11 @@ class ChargingEnvironment:
         actual_waiting_users = sum(1 for u in self.users.values() if u.get("status") == "waiting")
         
         logger.info(f"Charging stations summary @ {self.current_time}: {active_chargers}/{total_chargers} active, "
-                  f"{chargers_with_queue} have queues.")
+                f"{chargers_with_queue} have queues.")
         logger.info(f"User status @ {self.current_time}: {charging_users} charging, {actual_waiting_users} waiting, "
-                  f"{traveling_users} traveling, {idle_users} idle, {total_users} total")
+                f"{traveling_users} traveling, {idle_users} idle, {total_users} total")
         
         return total_ev_load
-    
     def _update_grid_state(self):
         """Update grid state based on current time and EV load with robustness"""
         hour = self.current_time.hour
@@ -1793,13 +1825,13 @@ class ChargingEnvironment:
         max_load = 100  # 最大负载基准
         
         # 计算负载比例，但考虑电动车负载的贡献
-        base_load = current_load - (ev_load * 0.2)  # 去除EV负载影响后的基础负载
+        base_load = current_load - (ev_load)  # 去除EV负载影响后的基础负载
         base_load_ratio = base_load / max_load
         
         # EV负载占总负载的比例
         ev_load_ratio = 0
         if current_load > 0:
-            ev_load_ratio = (ev_load * 0.2) / current_load
+            ev_load_ratio = (ev_load) / current_load
         
         # 可再生能源比例
         renewable_ratio = self.grid_status.get("renewable_ratio", 0) / 100  # 使用.get()，转换为0-1
@@ -1849,8 +1881,8 @@ class ChargingEnvironment:
         
         # EV负载占比因子 - EV负载占比过高时轻微惩罚
         ev_concentration_factor = 0
-        if ev_load_ratio > 0.3:  # EV负载超过总负载30%时开始惩罚
-            ev_concentration_factor = -0.2 * (ev_load_ratio - 0.3) / 0.7  # 线性增加惩罚
+        if ev_load_ratio > 0.2:  # EV负载超过总负载20%时开始惩罚
+            ev_concentration_factor = -0.2 * (ev_load_ratio - 0.2) / 0.7  # 线性增加惩罚
         
         # 计算总电网友好度
         grid_friendliness = load_factor + renewable_factor + time_factor + ev_concentration_factor
@@ -1963,47 +1995,47 @@ class ChargingEnvironment:
         profile = user.get("profile", "balanced")
 
         # 1. Base probability using sigmoid curve
-        soc_midpoint = 70  # 中点SOC
-        soc_steepness = 0.08  # 曲线斜率
+        soc_midpoint = 40  # 降低中点SOC到40%
+        soc_steepness = 0.1  # 增加曲线斜率使变化更明显
         
         base_prob = 1 / (1 + math.exp(soc_steepness * (current_soc - soc_midpoint)))
-        base_prob = min(0.99, max(0.35, base_prob))
+        base_prob = min(0.95, max(0.05, base_prob))  # 限制基础概率范围
 
         # 2. 根据用户类型调整概率
         type_factor = 0
         if user_type == "taxi":
-            type_factor = 0.3  # 出租车更倾向于充电
+            type_factor = 0.2  # 降低出租车额外概率
         elif user_type == "delivery":
-            type_factor = 0.25  # 配送车辆更倾向于充电
+            type_factor = 0.15  # 降低配送车辆额外概率
         elif user_type == "business":
-            type_factor = 0.15  # 商务用户略微倾向于充电
+            type_factor = 0.1  # 降低商务用户额外概率
 
         # 3. 根据充电偏好调整概率
         preference_factor = 0
         hour = current_hour
         if charging_preference == "evening" and 17 <= hour <= 22:
-            preference_factor = 0.4
+            preference_factor = 0.2  # 降低时段偏好影响
         elif charging_preference == "night" and (hour <= 5 or hour >= 22):
-            preference_factor = 0.4
+            preference_factor = 0.2
         elif charging_preference == "day" and 9 <= hour <= 16:
-            preference_factor = 0.4
+            preference_factor = 0.2
         elif charging_preference == "flexible":
-            preference_factor = 0.2  # 灵活充电的用户在任何时候都有一定概率充电
+            preference_factor = 0.1  # 降低灵活充电的额外概率
 
         # 4. 根据用户特征调整概率
         profile_factor = 0
         if profile == "anxious":
-            profile_factor = 0.3  # 焦虑型用户更倾向于充电
+            profile_factor = 0.2  # 降低焦虑型用户额外概率
         elif profile == "planner":
-            if 40 <= current_soc <= 80:
-                profile_factor = 0.25  # 规划型用户在中等电量时更倾向于充电
+            if 25 <= current_soc <= 40:  # 降低规划型用户的充电SOC区间
+                profile_factor = 0.15
         elif profile == "economic":
-            profile_factor = -0.1  # 经济型用户略微降低充电倾向
+            profile_factor = -0.1  # 保持经济型用户的降低概率
 
         # 5. SOC紧急充电提升
         emergency_boost = 0
-        if current_soc <= 30:
-            emergency_boost = 0.5 * (1 - current_soc/30)
+        if current_soc <= 25:  # 降低紧急充电的SOC阈值
+            emergency_boost = 0.4 * (1 - current_soc/25)  # 降低紧急提升系数
 
         # 组合所有因素
         charging_prob = base_prob + type_factor + preference_factor + profile_factor + emergency_boost
@@ -2963,7 +2995,7 @@ class ChargingScheduler:
                 user_weight = weights["user_satisfaction"]
                 if urgency > 0.7:  # 非常紧急
                     user_weight = min(0.7, user_weight * 1.5)  # 提升但不超过0.7
-                
+
                 # 智能调整权重
                 combined_score = (
                     user_score * user_weight + 
