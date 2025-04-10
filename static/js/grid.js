@@ -632,17 +632,37 @@ function updateGridData(data) {
 
 // Update grid metrics
 function updateGridMetrics(metrics) {
-    // Update current load
-    animateCounter(currentLoad, parseInt(currentLoad.textContent), metrics.current_load || 65, '', '%');
+    console.log("updateGridMetrics called with:", metrics);
     
-    // Update renewable ratio
-    animateCounter(renewableRatio, parseInt(renewableRatio.textContent), metrics.renewable_ratio || 42, '', '%');
+    // 确保所有数据都是数字类型
+    const safeMetrics = {
+        current_load: parseFloat(metrics.current_load || 0),
+        renewable_ratio: parseFloat(metrics.renewable_ratio || 0),
+        peak_load_ratio: parseFloat(metrics.peak_load_ratio || 0),
+        load_balance_index: parseFloat(metrics.load_balance_index || 0)
+    };
     
-    // Update peak load ratio
-    animateCounter(peakLoadRatio, parseInt(peakLoadRatio.textContent), metrics.peak_load_ratio || 73, '', '%');
+    // 更新当前负载
+    if (currentLoad) {
+        animateCounter(currentLoad, parseInt(currentLoad.textContent) || 0, safeMetrics.current_load, '', '%');
+    }
     
-    // Update load balance index
-    animateCounter(loadBalanceIndex, parseFloat(loadBalanceIndex.textContent), metrics.load_balance_index || 0.85, '', '');
+    // 更新可再生能源比例
+    if (renewableRatio) {
+        animateCounter(renewableRatio, parseInt(renewableRatio.textContent) || 0, safeMetrics.renewable_ratio, '', '%');
+    }
+    
+    // 更新峰值负载比例
+    if (peakLoadRatio) {
+        animateCounter(peakLoadRatio, parseInt(peakLoadRatio.textContent) || 0, safeMetrics.peak_load_ratio, '', '%');
+    }
+    
+    // 更新负载平衡指数
+    if (loadBalanceIndex) {
+        animateCounter(loadBalanceIndex, parseFloat(loadBalanceIndex.textContent) || 0, safeMetrics.load_balance_index, '', '');
+    }
+    
+    console.log("Grid metrics updated successfully");
 }
 
 // Animate counter
@@ -733,18 +753,64 @@ function updateSimulationStatus() {
                 
                 // Update metrics with real data when available
                 const metricsData = {
-                    current_load: gridLoad,
-                    renewable_ratio: Math.round(Math.random() * 10 + 37),
-                    peak_load_ratio: Math.round(Math.random() * 10 + 68),
-                    load_balance_index: (Math.random() * 0.1 + 0.8).toFixed(2)
+                    current_load: data.state.grid_load || 0,
+                    renewable_ratio: data.state.metrics?.renewable_ratio || 0,
+                    peak_load_ratio: 0,
+                    load_balance_index: 0.8
                 };
                 
                 // Use real metrics if available
-                if (data.state.metrics && data.state.metrics.grid_friendliness) {
-                    metricsData.load_balance_index = (0.8 + data.state.metrics.grid_friendliness * 0.2).toFixed(2);
-                    metricsData.peak_load_ratio = Math.round(65 + data.state.metrics.grid_friendliness * 10);
+                if (data.state.metrics) {
+                    // 首先检查数据格式并打印日志
+                    console.log("Grid metrics received:", data.state.metrics);
+                    
+                    // 检查电网友好度指标的值和类型
+                    const gridFriendliness = data.state.metrics.grid_friendliness;
+                    console.log("Grid friendliness value:", gridFriendliness, "type:", typeof gridFriendliness);
+                    
+                    // 确保电网友好度指标是数字且存在
+                    if (gridFriendliness !== undefined && gridFriendliness !== null) {
+                        // 尝试转换为数字类型
+                        const gridValue = parseFloat(gridFriendliness);
+                        
+                        if (!isNaN(gridValue)) {
+                            // 将grid_friendliness从[-1,1]映射到更合适的显示范围
+                            metricsData.load_balance_index = ((1 + gridValue) * 0.5).toFixed(2); // 映射到[0,1]
+                            metricsData.peak_load_ratio = Math.round(50 + gridValue * 25); // 映射到[25,75]
+                            
+                            console.log("Grid friendliness processed:", {
+                                original: gridValue,
+                                loadBalanceIndex: metricsData.load_balance_index,
+                                peakLoadRatio: metricsData.peak_load_ratio
+                            });
+                        } else {
+                            console.error("Grid friendliness value is not a valid number:", gridFriendliness);
+                        }
+                    } else {
+                        console.warn("Grid friendliness value is missing or undefined");
+                    }
+                    
+                    // 使用实际的可再生能源比例
+                    if (typeof data.state.metrics.renewable_ratio === 'number') {
+                        metricsData.renewable_ratio = data.state.metrics.renewable_ratio;
+                    }
+                    
+                    // 使用实际的负载数据
+                    if (typeof data.state.metrics.grid_load === 'number') {
+                        metricsData.current_load = data.state.metrics.grid_load;
+                    } else if (typeof data.state.grid_load === 'number') {
+                        metricsData.current_load = data.state.grid_load;
+                    }
                 }
                 
+                // 确保所有指标都是数字类型
+                Object.keys(metricsData).forEach(key => {
+                    if (typeof metricsData[key] === 'string') {
+                        metricsData[key] = parseFloat(metricsData[key]) || 0;
+                    }
+                });
+                
+                console.log("Updating grid metrics with:", metricsData);
                 updateGridMetrics(metricsData);
                 
                 // Update EV load chart with real data if available

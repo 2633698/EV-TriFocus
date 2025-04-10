@@ -1,0 +1,3785 @@
+{
+    "timestamp": "2025-04-12T00:00:00",
+    "progress": 100.0,
+    "metrics": {
+        "user_satisfaction": -0.8482836399575129,
+        "operator_profit": -0.8,
+        "grid_friendliness": 1.0,
+        "total_reward": -0.2793134559830051,
+        "uncoordinated_user_satisfaction": 0.0,
+        "uncoordinated_operator_profit": -0.8,
+        "uncoordinated_grid_friendliness": 0.2,
+        "uncoordinated_total_reward": -0.18
+    },
+    "grid_load": 8.333333333333332,
+    "chargers": [
+        {
+            "charger_id": "charger_1",
+            "location": "\u5145\u7535\u7ad91",
+            "type": "fast",
+            "max_power": 108.99246739786412,
+            "position": {
+                "lat": 30.052666204936113,
+                "lng": 116.03879331704809
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.2,
+            "region": "Region_2",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_2",
+            "location": "\u5145\u7535\u7ad91",
+            "type": "normal",
+            "max_power": 19.126120044129458,
+            "position": {
+                "lat": 30.048443580358857,
+                "lng": 116.03202279220048
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_2",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_3",
+            "location": "\u5145\u7535\u7ad91",
+            "type": "normal",
+            "max_power": 7.007683745853356,
+            "position": {
+                "lat": 30.051874531807155,
+                "lng": 116.02951122999936
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_2",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_4",
+            "location": "\u5145\u7535\u7ad91",
+            "type": "normal",
+            "max_power": 11.307199743460526,
+            "position": {
+                "lat": 30.044101974775828,
+                "lng": 116.03735348808735
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_4",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_5",
+            "location": "\u5145\u7535\u7ad92",
+            "type": "superfast",
+            "max_power": 382.61275817028906,
+            "position": {
+                "lat": 30.009812788153877,
+                "lng": 116.02913913165185
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.5,
+            "region": "Region_1",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_6",
+            "location": "\u5145\u7535\u7ad92",
+            "type": "normal",
+            "max_power": 18.51767987451017,
+            "position": {
+                "lat": 30.016233778907605,
+                "lng": 116.02478366039422
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_3",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_7",
+            "location": "\u5145\u7535\u7ad92",
+            "type": "normal",
+            "max_power": 11.031585937747895,
+            "position": {
+                "lat": 30.014476172227845,
+                "lng": 116.02962700636351
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_1",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_8",
+            "location": "\u5145\u7535\u7ad92",
+            "type": "fast",
+            "max_power": 107.47252203452675,
+            "position": {
+                "lat": 30.017160473315858,
+                "lng": 116.02944529943245
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.2,
+            "region": "Region_4",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_9",
+            "location": "\u5145\u7535\u7ad93",
+            "type": "superfast",
+            "max_power": 349.46638554094704,
+            "position": {
+                "lat": 30.037108689537277,
+                "lng": 116.03158310641412
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.5,
+            "region": "Region_5",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_10",
+            "location": "\u5145\u7535\u7ad93",
+            "type": "normal",
+            "max_power": 17.973611105621632,
+            "position": {
+                "lat": 30.034976926693925,
+                "lng": 116.03176852362422
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_3",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_11",
+            "location": "\u5145\u7535\u7ad93",
+            "type": "normal",
+            "max_power": 12.982951180719454,
+            "position": {
+                "lat": 30.036594481156367,
+                "lng": 116.02544112124644
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_1",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_12",
+            "location": "\u5145\u7535\u7ad93",
+            "type": "normal",
+            "max_power": 16.4956840754326,
+            "position": {
+                "lat": 30.0316048219015,
+                "lng": 116.03133107170179
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_2",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_13",
+            "location": "\u5145\u7535\u7ad94",
+            "type": "fast",
+            "max_power": 77.56761960426167,
+            "position": {
+                "lat": 30.02793551342751,
+                "lng": 116.0235051638882
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.2,
+            "region": "Region_4",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_14",
+            "location": "\u5145\u7535\u7ad94",
+            "type": "fast",
+            "max_power": 77.88933642406775,
+            "position": {
+                "lat": 30.024658465452685,
+                "lng": 116.02499002364038
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.2,
+            "region": "Region_2",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_15",
+            "location": "\u5145\u7535\u7ad94",
+            "type": "superfast",
+            "max_power": 266.0611251550845,
+            "position": {
+                "lat": 30.025785075808248,
+                "lng": 116.0286854401613
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.5,
+            "region": "Region_4",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_16",
+            "location": "\u5145\u7535\u7ad94",
+            "type": "normal",
+            "max_power": 7.07278906168675,
+            "position": {
+                "lat": 30.019728288133624,
+                "lng": 116.0325553432478
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_3",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_17",
+            "location": "\u5145\u7535\u7ad95",
+            "type": "normal",
+            "max_power": 9.316514620953537,
+            "position": {
+                "lat": 30.017292027971823,
+                "lng": 116.01676198452037
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_1",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_18",
+            "location": "\u5145\u7535\u7ad95",
+            "type": "normal",
+            "max_power": 9.291163939706468,
+            "position": {
+                "lat": 30.020300951912933,
+                "lng": 116.01370268571215
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_2",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_19",
+            "location": "\u5145\u7535\u7ad95",
+            "type": "normal",
+            "max_power": 12.095026486806647,
+            "position": {
+                "lat": 30.01730519188018,
+                "lng": 116.01348759233917
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_1",
+            "previous_revenue": 0.0
+        },
+        {
+            "charger_id": "charger_20",
+            "location": "\u5145\u7535\u7ad95",
+            "type": "normal",
+            "max_power": 15.025742853430652,
+            "position": {
+                "lat": 30.021942771400283,
+                "lng": 116.0198394107859
+            },
+            "status": "available",
+            "current_user": null,
+            "queue": [],
+            "queue_capacity": 10,
+            "daily_revenue": 0.0,
+            "daily_energy": 0.0,
+            "utilization_rate": 0.0,
+            "price_multiplier": 1.0,
+            "region": "Region_2",
+            "previous_revenue": 0.0
+        }
+    ],
+    "users": [
+        {
+            "user_id": "user_1",
+            "vehicle_type": "suv",
+            "user_type": "logistics",
+            "user_profile": "economic",
+            "battery_capacity": 85,
+            "soc": 0,
+            "max_range": 480,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.010067090046842,
+                "lng": 116.00266394859626
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 45.77710633672625,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 29.999067992820322,
+                    "lng": 116.03330943826232
+                },
+                {
+                    "lat": 30.006132676902173,
+                    "lng": 116.01831955515372
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.23525870752958633,
+            "price_sensitivity": 0.811943757694721,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 2
+        },
+        {
+            "user_id": "user_2",
+            "vehicle_type": "truck",
+            "user_type": "taxi",
+            "user_profile": "urgent",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.01142426373863,
+                "lng": 116.02065375698743
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 51.04635370547593,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.025613875081387,
+                    "lng": 116.0264361184678
+                },
+                {
+                    "lat": 30.021307861388607,
+                    "lng": 116.02336661932496
+                },
+                {
+                    "lat": 30.016236084190403,
+                    "lng": 116.02236040362553
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.7206377610426764,
+            "price_sensitivity": 0.1051881732596594,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 3
+        },
+        {
+            "user_id": "user_3",
+            "vehicle_type": "luxury",
+            "user_type": "ride_hailing",
+            "user_profile": "urgent",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.036681708199975,
+                "lng": 116.03173129662902
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 62.56277292377148,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "eco",
+            "time_sensitivity": 0.8304633741242882,
+            "price_sensitivity": 0.19692115634674368,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_4",
+            "vehicle_type": "luxury",
+            "user_type": "ride_hailing",
+            "user_profile": "flexible",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.017458529918578,
+                "lng": 116.00609133263455
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 39.63701555416823,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.42620438419840984,
+            "price_sensitivity": 0.5592974628559566,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_5",
+            "vehicle_type": "truck",
+            "user_type": "ride_hailing",
+            "user_profile": "anxious",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.02882058818178,
+                "lng": 116.03324546400805
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 43.93795458229379,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.018894349480654,
+                    "lng": 116.02873244233213
+                },
+                {
+                    "lat": 30.02372294190084,
+                    "lng": 116.03127522364247
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.6833210523327615,
+            "price_sensitivity": 0.32372867145921996,
+            "range_anxiety": 0.8256109574396245,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 3
+        },
+        {
+            "user_id": "user_6",
+            "vehicle_type": "compact",
+            "user_type": "logistics",
+            "user_profile": "urgent",
+            "battery_capacity": 40,
+            "soc": 0,
+            "max_range": 350,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.0008190815219,
+                "lng": 116.0410299360582
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 34.34404785636038,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.7118904201494799,
+            "price_sensitivity": 0.17000428183036537,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_7",
+            "vehicle_type": "luxury",
+            "user_type": "taxi",
+            "user_profile": "economic",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.05,
+                "lng": 116.03286839191244
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 61.462217241008915,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "eco",
+            "time_sensitivity": 0.3144523753898559,
+            "price_sensitivity": 0.744223542666655,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_8",
+            "vehicle_type": "truck",
+            "user_type": "ride_hailing",
+            "user_profile": "flexible",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.020234308996187,
+                "lng": 116.02460003183597
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 57.533127850362746,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.493781003416616,
+            "price_sensitivity": 0.5635614621414582,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_9",
+            "vehicle_type": "luxury",
+            "user_type": "taxi",
+            "user_profile": "flexible",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.05,
+                "lng": 116
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 68.51835265567352,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.46938996465358546,
+            "price_sensitivity": 0.4898812778627991,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_10",
+            "vehicle_type": "luxury",
+            "user_type": "taxi",
+            "user_profile": "anxious",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.047281571630705,
+                "lng": 116.01715768632026
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 52.62486185764797,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "eco",
+            "time_sensitivity": 0.5401751187489644,
+            "price_sensitivity": 0.3432182110585327,
+            "range_anxiety": 0.857887454963295,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_11",
+            "vehicle_type": "truck",
+            "user_type": "ride_hailing",
+            "user_profile": "urgent",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.044188398773805,
+                "lng": 116.04672533615823
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 40.494780496192206,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.7291567923717339,
+            "price_sensitivity": 0.11445047192480634,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_12",
+            "vehicle_type": "truck",
+            "user_type": "taxi",
+            "user_profile": "urgent",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.025985781093297,
+                "lng": 116.00799543363061
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 65.54288813511788,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.7483492305167588,
+            "price_sensitivity": 0.18276714437784378,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_13",
+            "vehicle_type": "luxury",
+            "user_type": "taxi",
+            "user_profile": "economic",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.05,
+                "lng": 116.01987658258912
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 46.16507585851359,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.30700822343980166,
+            "price_sensitivity": 0.7490415909333333,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_14",
+            "vehicle_type": "luxury",
+            "user_type": "taxi",
+            "user_profile": "flexible",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.02547899442893,
+                "lng": 116.04984958033309
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 51.427156201908474,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.020605394891835,
+                    "lng": 116.03688699576756
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.48302553217746164,
+            "price_sensitivity": 0.5685023746371143,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 2
+        },
+        {
+            "user_id": "user_15",
+            "vehicle_type": "luxury",
+            "user_type": "ride_hailing",
+            "user_profile": "flexible",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.048999258030037,
+                "lng": 116.03558270114193
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 46.87572773082649,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.03218577943247,
+                    "lng": 116.0230009250432
+                },
+                {
+                    "lat": 30.04039986698535,
+                    "lng": 116.02952954800304
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.4303267129700679,
+            "price_sensitivity": 0.4902377602306363,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 1
+        },
+        {
+            "user_id": "user_16",
+            "vehicle_type": "luxury",
+            "user_type": "ride_hailing",
+            "user_profile": "urgent",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.025184077207243,
+                "lng": 116.04741546416156
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 49.72122797922648,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "eco",
+            "time_sensitivity": 0.7881426590230232,
+            "price_sensitivity": 0.14214500928678847,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_17",
+            "vehicle_type": "sedan",
+            "user_type": "private",
+            "user_profile": "urgent",
+            "battery_capacity": 60,
+            "soc": 0,
+            "max_range": 400,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30,
+                "lng": 116.01486043507428
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 39.52288177725361,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.8724317977304579,
+            "price_sensitivity": 0.16441316896437297,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_18",
+            "vehicle_type": "luxury",
+            "user_type": "ride_hailing",
+            "user_profile": "economic",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.021534965884904,
+                "lng": 116.0413238620769
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 43.68206234178062,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "eco",
+            "time_sensitivity": 0.27160727310028293,
+            "price_sensitivity": 0.8136951325269102,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_19",
+            "vehicle_type": "truck",
+            "user_type": "ride_hailing",
+            "user_profile": "flexible",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.005971730141518,
+                "lng": 116.0245192279361
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 37.48452753323174,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.47686020142373436,
+            "price_sensitivity": 0.41580588174697997,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_20",
+            "vehicle_type": "sedan",
+            "user_type": "private",
+            "user_profile": "economic",
+            "battery_capacity": 60,
+            "soc": 0,
+            "max_range": 400,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.015501841291734,
+                "lng": 116.00068757095518
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 56.812501261979506,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.38050641299465615,
+            "price_sensitivity": 0.7640216404522435,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_21",
+            "vehicle_type": "truck",
+            "user_type": "logistics",
+            "user_profile": "economic",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.023083691822347,
+                "lng": 116.01642935800955
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 31.111985300758388,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.2965763319651935,
+            "price_sensitivity": 0.7745381699793823,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_22",
+            "vehicle_type": "suv",
+            "user_type": "ride_hailing",
+            "user_profile": "flexible",
+            "battery_capacity": 85,
+            "soc": 0,
+            "max_range": 480,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.011619919056145,
+                "lng": 116.05
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 64.20178583739245,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.5471293744305825,
+            "price_sensitivity": 0.4069325525356633,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_23",
+            "vehicle_type": "luxury",
+            "user_type": "logistics",
+            "user_profile": "anxious",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.01706050939518,
+                "lng": 116.01315989113888
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 49.500296488437954,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.5727658346556794,
+            "price_sensitivity": 0.32738501063220016,
+            "range_anxiety": 0.7334582298406755,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_24",
+            "vehicle_type": "truck",
+            "user_type": "logistics",
+            "user_profile": "anxious",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.04408115155495,
+                "lng": 116.01734616988004
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 43.39305701972431,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.6235733918949091,
+            "price_sensitivity": 0.39136077755785675,
+            "range_anxiety": 0.6962302044313997,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_25",
+            "vehicle_type": "suv",
+            "user_type": "logistics",
+            "user_profile": "flexible",
+            "battery_capacity": 85,
+            "soc": 0,
+            "max_range": 480,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.04914857073382,
+                "lng": 116.01031793452215
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 41.68196298065615,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.5790329136672957,
+            "price_sensitivity": 0.5851904677901115,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_26",
+            "vehicle_type": "suv",
+            "user_type": "logistics",
+            "user_profile": "urgent",
+            "battery_capacity": 85,
+            "soc": 0,
+            "max_range": 480,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.010656026083193,
+                "lng": 116.0326545106367
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 52.86116611528355,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.024011542302812,
+                    "lng": 116.03668551292665
+                },
+                {
+                    "lat": 30.0191995749594,
+                    "lng": 116.03653148164857
+                },
+                {
+                    "lat": 30.015383283714893,
+                    "lng": 116.03308836899454
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.8942322455328948,
+            "price_sensitivity": 0.22371860898889007,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 2
+        },
+        {
+            "user_id": "user_27",
+            "vehicle_type": "sedan",
+            "user_type": "taxi",
+            "user_profile": "urgent",
+            "battery_capacity": 60,
+            "soc": 0,
+            "max_range": 400,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30,
+                "lng": 116.04866569174816
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 55.17828450655692,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.8100665464045702,
+            "price_sensitivity": 0.26526180752967904,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_28",
+            "vehicle_type": "luxury",
+            "user_type": "taxi",
+            "user_profile": "flexible",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.016768481463558,
+                "lng": 116.04611429995609
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 56.89388050019704,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.4046500972312328,
+            "price_sensitivity": 0.5738014546510235,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_29",
+            "vehicle_type": "compact",
+            "user_type": "logistics",
+            "user_profile": "economic",
+            "battery_capacity": 40,
+            "soc": 0,
+            "max_range": 350,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.04854092636332,
+                "lng": 116.05
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 42.987277798903364,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.2231220260792622,
+            "price_sensitivity": 0.7637783230762552,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_30",
+            "vehicle_type": "sedan",
+            "user_type": "taxi",
+            "user_profile": "urgent",
+            "battery_capacity": 60,
+            "soc": 0,
+            "max_range": 400,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.003220823293567,
+                "lng": 116.0238110776854
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 48.852780679687775,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.7126816376838828,
+            "price_sensitivity": 0.15824410972019237,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_31",
+            "vehicle_type": "luxury",
+            "user_type": "private",
+            "user_profile": "economic",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.0435508923081,
+                "lng": 116.01181941638
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 68.09157191198172,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.3757209909082943,
+            "price_sensitivity": 0.7312263803057197,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_32",
+            "vehicle_type": "compact",
+            "user_type": "private",
+            "user_profile": "urgent",
+            "battery_capacity": 40,
+            "soc": 0,
+            "max_range": 350,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.042901072110727,
+                "lng": 116.03065216412476
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 49.092715229784325,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.032744058640166,
+                    "lng": 116.02294472767181
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.7931425995006144,
+            "price_sensitivity": 0.13760340648982614,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 2
+        },
+        {
+            "user_id": "user_33",
+            "vehicle_type": "suv",
+            "user_type": "taxi",
+            "user_profile": "urgent",
+            "battery_capacity": 85,
+            "soc": 0,
+            "max_range": 480,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.05,
+                "lng": 116.00880998957423
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 68.0186063498785,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.8677475107800255,
+            "price_sensitivity": 0.14070458822293727,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_34",
+            "vehicle_type": "suv",
+            "user_type": "private",
+            "user_profile": "anxious",
+            "battery_capacity": 85,
+            "soc": 0,
+            "max_range": 480,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.029630402374618,
+                "lng": 116.01533034665184
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 33.26356107289729,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.676066723736161,
+            "price_sensitivity": 0.39433815869962235,
+            "range_anxiety": 0.8363733176282577,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_35",
+            "vehicle_type": "truck",
+            "user_type": "ride_hailing",
+            "user_profile": "flexible",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.041028343336865,
+                "lng": 116.00732121551503
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 62.1893711851646,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.024160950047797,
+                    "lng": 116.01111763297241
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.47892007221811694,
+            "price_sensitivity": 0.548030315906305,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 1
+        },
+        {
+            "user_id": "user_36",
+            "vehicle_type": "truck",
+            "user_type": "logistics",
+            "user_profile": "urgent",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.034229853726952,
+                "lng": 116.01856309205516
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 51.35761483110661,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.8654945025075563,
+            "price_sensitivity": 0.19193856629956807,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_37",
+            "vehicle_type": "compact",
+            "user_type": "taxi",
+            "user_profile": "flexible",
+            "battery_capacity": 40,
+            "soc": 0,
+            "max_range": 350,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.005825782766426,
+                "lng": 116.00727649549489
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 54.146071243741844,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.031887279533507,
+                    "lng": 116.0331218064823
+                },
+                {
+                    "lat": 30.02008685506069,
+                    "lng": 116.01889444245927
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.4304464270363705,
+            "price_sensitivity": 0.5867692016646393,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 1
+        },
+        {
+            "user_id": "user_38",
+            "vehicle_type": "sedan",
+            "user_type": "taxi",
+            "user_profile": "flexible",
+            "battery_capacity": 60,
+            "soc": 0,
+            "max_range": 400,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.011615254586054,
+                "lng": 116.04776817587495
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 69.07741277959795,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.011137701508275,
+                    "lng": 116.01608151447871
+                },
+                {
+                    "lat": 30.00968731100091,
+                    "lng": 116.0266442469124
+                },
+                {
+                    "lat": 30.01026931054275,
+                    "lng": 116.03720633289016
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.4428083564265116,
+            "price_sensitivity": 0.47843027182315606,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 3
+        },
+        {
+            "user_id": "user_39",
+            "vehicle_type": "sedan",
+            "user_type": "private",
+            "user_profile": "economic",
+            "battery_capacity": 60,
+            "soc": 0,
+            "max_range": 400,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.030830567767186,
+                "lng": 116.03186248909434
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 49.58352431309616,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.38875646720024454,
+            "price_sensitivity": 0.7938010387147584,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_40",
+            "vehicle_type": "truck",
+            "user_type": "taxi",
+            "user_profile": "flexible",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.00094678090794,
+                "lng": 116.04243761244042
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 44.476163716061194,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "eco",
+            "time_sensitivity": 0.4702528232150681,
+            "price_sensitivity": 0.5909452668457871,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_41",
+            "vehicle_type": "luxury",
+            "user_type": "private",
+            "user_profile": "urgent",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.005874853304654,
+                "lng": 116.0149062877455
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 73.76858791265204,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.007997779640238,
+                    "lng": 116.00520411762773
+                },
+                {
+                    "lat": 30.00541979993021,
+                    "lng": 116.00826035026252
+                },
+                {
+                    "lat": 30.005673733373953,
+                    "lng": 116.01158582965073
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "eco",
+            "time_sensitivity": 0.8139040485554041,
+            "price_sensitivity": 0.21859087229918978,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 2
+        },
+        {
+            "user_id": "user_42",
+            "vehicle_type": "sedan",
+            "user_type": "ride_hailing",
+            "user_profile": "economic",
+            "battery_capacity": 60,
+            "soc": 0,
+            "max_range": 400,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.00826221607062,
+                "lng": 116.04310165958378
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 57.77939629016592,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.003445316112266,
+                    "lng": 116.03175433801353
+                },
+                {
+                    "lat": 30.003938828523385,
+                    "lng": 116.03617412786801
+                },
+                {
+                    "lat": 30.007064345792344,
+                    "lng": 116.03908553268727
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.34812193173317907,
+            "price_sensitivity": 0.8925787681533981,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 3
+        },
+        {
+            "user_id": "user_43",
+            "vehicle_type": "sedan",
+            "user_type": "logistics",
+            "user_profile": "economic",
+            "battery_capacity": 60,
+            "soc": 0,
+            "max_range": 400,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.028992335126496,
+                "lng": 116.03891668700403
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 39.22346613712222,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.01737290223881,
+                    "lng": 116.03228891338085
+                },
+                {
+                    "lat": 30.023080889905934,
+                    "lng": 116.03580747492694
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.39177969841697546,
+            "price_sensitivity": 0.8026147038521003,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 2
+        },
+        {
+            "user_id": "user_44",
+            "vehicle_type": "compact",
+            "user_type": "taxi",
+            "user_profile": "urgent",
+            "battery_capacity": 40,
+            "soc": 0,
+            "max_range": 350,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.011250672482415,
+                "lng": 116.00424241442653
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 55.44142771039202,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.017097914156576,
+                    "lng": 116.02228578371233
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.8103045396682472,
+            "price_sensitivity": 0.12949361957996738,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 3
+        },
+        {
+            "user_id": "user_45",
+            "vehicle_type": "truck",
+            "user_type": "ride_hailing",
+            "user_profile": "economic",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30,
+                "lng": 116.03559098010805
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 55.51500914463804,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.20405080752580748,
+            "price_sensitivity": 0.8139828282129035,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_46",
+            "vehicle_type": "sedan",
+            "user_type": "logistics",
+            "user_profile": "economic",
+            "battery_capacity": 60,
+            "soc": 0,
+            "max_range": 400,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.015090272459865,
+                "lng": 116.05
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 30.203656017637737,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.3444130300919994,
+            "price_sensitivity": 0.7705105612835699,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_47",
+            "vehicle_type": "luxury",
+            "user_type": "taxi",
+            "user_profile": "economic",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.001515155719144,
+                "lng": 116.01863420058582
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 59.32603931996896,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.35371941938407475,
+            "price_sensitivity": 0.7233713209026074,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_48",
+            "vehicle_type": "truck",
+            "user_type": "ride_hailing",
+            "user_profile": "flexible",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.042990244075813,
+                "lng": 116.00579392307414
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 51.764678566883674,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.41797992951829066,
+            "price_sensitivity": 0.5898081956008736,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_49",
+            "vehicle_type": "luxury",
+            "user_type": "ride_hailing",
+            "user_profile": "flexible",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.04245615395244,
+                "lng": 116.0378587348282
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 64.62616617427985,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.032734577855766,
+                    "lng": 116.01979418724969
+                },
+                {
+                    "lat": 30.036112117205935,
+                    "lng": 116.02575588095661
+                },
+                {
+                    "lat": 30.038765929044906,
+                    "lng": 116.0320335638505
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.5290114349360442,
+            "price_sensitivity": 0.4944969864492281,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 3
+        },
+        {
+            "user_id": "user_50",
+            "vehicle_type": "truck",
+            "user_type": "private",
+            "user_profile": "urgent",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.04157118181593,
+                "lng": 116.02899031054245
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 36.275007149752966,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.013057051199734,
+                    "lng": 116.04141381787107
+                },
+                {
+                    "lat": 30.02961479529557,
+                    "lng": 116.03975434168704
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.7319580332069029,
+            "price_sensitivity": 0.28657864782456766,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 3
+        },
+        {
+            "user_id": "user_51",
+            "vehicle_type": "truck",
+            "user_type": "taxi",
+            "user_profile": "flexible",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.05,
+                "lng": 116
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 48.200635957350514,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.5558511115068306,
+            "price_sensitivity": 0.45309352220392585,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_52",
+            "vehicle_type": "truck",
+            "user_type": "logistics",
+            "user_profile": "economic",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.02435231197805,
+                "lng": 116.01527936327798
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 47.426826615409496,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.21749751920521615,
+            "price_sensitivity": 0.8032135674319201,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_53",
+            "vehicle_type": "suv",
+            "user_type": "ride_hailing",
+            "user_profile": "economic",
+            "battery_capacity": 85,
+            "soc": 0,
+            "max_range": 480,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.027747375157908,
+                "lng": 116.0209806501613
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 63.14694091022315,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 30.02176779196592,
+                    "lng": 116.02329555601403
+                },
+                {
+                    "lat": 30.024598301336155,
+                    "lng": 116.02178306039143
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.21389637880520493,
+            "price_sensitivity": 0.7455356064731661,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 1
+        },
+        {
+            "user_id": "user_54",
+            "vehicle_type": "truck",
+            "user_type": "logistics",
+            "user_profile": "economic",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.023937837956378,
+                "lng": 116.05
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 52.54584673114252,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.2589267585357942,
+            "price_sensitivity": 0.8679848293823533,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_55",
+            "vehicle_type": "suv",
+            "user_type": "private",
+            "user_profile": "flexible",
+            "battery_capacity": 85,
+            "soc": 0,
+            "max_range": 480,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.018254348217656,
+                "lng": 116
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 50.024974364348864,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.4265913036830052,
+            "price_sensitivity": 0.4285516686313877,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_56",
+            "vehicle_type": "luxury",
+            "user_type": "taxi",
+            "user_profile": "flexible",
+            "battery_capacity": 100,
+            "soc": 0,
+            "max_range": 550,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.02500313793394,
+                "lng": 116.01079350307592
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 53.11104907147792,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.5741751176370979,
+            "price_sensitivity": 0.5078015300574755,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_57",
+            "vehicle_type": "truck",
+            "user_type": "logistics",
+            "user_profile": "anxious",
+            "battery_capacity": 120,
+            "soc": 0,
+            "max_range": 500,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30,
+                "lng": 116.05
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 35.97246522591864,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.6696750681662782,
+            "price_sensitivity": 0.36571147334303183,
+            "range_anxiety": 0.8660682669058539,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_58",
+            "vehicle_type": "suv",
+            "user_type": "private",
+            "user_profile": "flexible",
+            "battery_capacity": 85,
+            "soc": 0,
+            "max_range": 480,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.033368712673838,
+                "lng": 116.05
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 48.4180504552066,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "normal",
+            "time_sensitivity": 0.5473223924801582,
+            "price_sensitivity": 0.4228914767315478,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_59",
+            "vehicle_type": "suv",
+            "user_type": "logistics",
+            "user_profile": "urgent",
+            "battery_capacity": 85,
+            "soc": 0,
+            "max_range": 480,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.00648092661691,
+                "lng": 116.01263045413064
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 46.48646695637228,
+            "route": [],
+            "waypoints": [],
+            "destination": null,
+            "time_to_destination": null,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.8885718701863803,
+            "price_sensitivity": 0.10061675896873881,
+            "needs_charge_decision": true
+        },
+        {
+            "user_id": "user_60",
+            "vehicle_type": "compact",
+            "user_type": "private",
+            "user_profile": "urgent",
+            "battery_capacity": 40,
+            "soc": 0,
+            "max_range": 350,
+            "current_range": 0.0,
+            "current_position": {
+                "lat": 30.001596342370092,
+                "lng": 116.03510867793247
+            },
+            "status": "idle",
+            "target_charger": null,
+            "charging_history": [],
+            "travel_speed": 51.174592669716674,
+            "route": null,
+            "waypoints": [
+                {
+                    "lat": 29.99990220240676,
+                    "lng": 116.04030487571814
+                }
+            ],
+            "destination": null,
+            "time_to_destination": 0,
+            "traveled_distance": 0,
+            "driving_style": "aggressive",
+            "time_sensitivity": 0.8704125126966041,
+            "price_sensitivity": 0.24446649365335374,
+            "needs_charge_decision": true,
+            "last_destination_type": "random",
+            "post_travel_timer": 2
+        }
+    ],
+    "metrics_history": [
+        {
+            "timestamp": "2025-04-11T00:15:00",
+            "rewards": {
+                "user_satisfaction": -0.15157501622887026,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.0006300064915480963,
+                "uncoordinated_user_satisfaction": 0.4224404427882397,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.011023822884704104
+            },
+            "grid_load": 6.666666666666667,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T00:30:00",
+            "rewards": {
+                "user_satisfaction": -0.16956958537830835,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.00782783415132332,
+                "uncoordinated_user_satisfaction": 0.4153289628657814,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.013868414853687422
+            },
+            "grid_load": 6.666666666666667,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T00:45:00",
+            "rewards": {
+                "user_satisfaction": -0.18751361107571984,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.01500544443028795,
+                "uncoordinated_user_satisfaction": 0.4081928166024886,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.016722873359004548
+            },
+            "grid_load": 6.666666666666667,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T01:00:00",
+            "rewards": {
+                "user_satisfaction": -0.20473967361910117,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.021895869447640492,
+                "uncoordinated_user_satisfaction": 0.4012952658186102,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.0194818936725559
+            },
+            "grid_load": 6.666666666666667,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T01:15:00",
+            "rewards": {
+                "user_satisfaction": -0.2217702640354351,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.02870810561417403,
+                "uncoordinated_user_satisfaction": 0.3944258874219715,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.022229645031211387
+            },
+            "grid_load": 5.833333333333333,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T01:30:00",
+            "rewards": {
+                "user_satisfaction": -0.2387873800403394,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.03551495201613575,
+                "uncoordinated_user_satisfaction": 0.38750720730173643,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.02499711707930541
+            },
+            "grid_load": 5.833333333333333,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T01:45:00",
+            "rewards": {
+                "user_satisfaction": -0.25553291491140884,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.04221316596456354,
+                "uncoordinated_user_satisfaction": 0.3806404997694847,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.02774380009220609
+            },
+            "grid_load": 5.833333333333333,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T02:00:00",
+            "rewards": {
+                "user_satisfaction": -0.27213610839946123,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.048854443359784505,
+                "uncoordinated_user_satisfaction": 0.37376980544665733,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.03049207782133706
+            },
+            "grid_load": 5.833333333333333,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T02:15:00",
+            "rewards": {
+                "user_satisfaction": -0.2888271297719528,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.0555308519087811,
+                "uncoordinated_user_satisfaction": 0.36679482357684356,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.03328207056926255
+            },
+            "grid_load": 5.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T02:30:00",
+            "rewards": {
+                "user_satisfaction": -0.305152788556018,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.06206111542240722,
+                "uncoordinated_user_satisfaction": 0.3599011934769705,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.03603952260921178
+            },
+            "grid_load": 5.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T02:45:00",
+            "rewards": {
+                "user_satisfaction": -0.3214648024510067,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.06858592098040267,
+                "uncoordinated_user_satisfaction": 0.3529372489558101,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.03882510041767595
+            },
+            "grid_load": 5.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T03:00:00",
+            "rewards": {
+                "user_satisfaction": -0.3375437483122744,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.07501749932490981,
+                "uncoordinated_user_satisfaction": 0.3459926341482887,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.04160294634068451
+            },
+            "grid_load": 5.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T03:15:00",
+            "rewards": {
+                "user_satisfaction": -0.3534385724296468,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.08137542897185873,
+                "uncoordinated_user_satisfaction": 0.33904341345713335,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.044382634617146643
+            },
+            "grid_load": 4.666666666666667,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T03:30:00",
+            "rewards": {
+                "user_satisfaction": -0.3693841384446138,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.08775365537784557,
+                "uncoordinated_user_satisfaction": 0.33198174935731056,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.04720730025707576
+            },
+            "grid_load": 4.666666666666667,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T03:45:00",
+            "rewards": {
+                "user_satisfaction": -0.3848147503162601,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.09392590012650409,
+                "uncoordinated_user_satisfaction": 0.3250558438157581,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.049977662473696755
+            },
+            "grid_load": 4.666666666666667,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T04:00:00",
+            "rewards": {
+                "user_satisfaction": -0.3999229444190875,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.09996917776763498,
+                "uncoordinated_user_satisfaction": 0.3181804777209649,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.05272780891161402
+            },
+            "grid_load": 4.666666666666667,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T04:15:00",
+            "rewards": {
+                "user_satisfaction": -0.4148019429135671,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.10592077716542686,
+                "uncoordinated_user_satisfaction": 0.31131206230113956,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.055475175079544164
+            },
+            "grid_load": 4.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T04:30:00",
+            "rewards": {
+                "user_satisfaction": -0.4290015568182103,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.11160062272728416,
+                "uncoordinated_user_satisfaction": 0.3046611290415733,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.05813554838337068
+            },
+            "grid_load": 4.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T04:45:00",
+            "rewards": {
+                "user_satisfaction": -0.4436708214531817,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.11746832858127271,
+                "uncoordinated_user_satisfaction": 0.2976850484921459,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.06092598060314164
+            },
+            "grid_load": 4.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T05:00:00",
+            "rewards": {
+                "user_satisfaction": -0.4576699293135468,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.12306797172541872,
+                "uncoordinated_user_satisfaction": 0.29092145805413,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.063631416778348
+            },
+            "grid_load": 4.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T05:15:00",
+            "rewards": {
+                "user_satisfaction": -0.4744228205060059,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.12976912820240238,
+                "uncoordinated_user_satisfaction": 0.28268146910012887,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.06692741235994842
+            },
+            "grid_load": 5.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T05:30:00",
+            "rewards": {
+                "user_satisfaction": -0.4908961431949823,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.13635845727799295,
+                "uncoordinated_user_satisfaction": 0.2744124806649174,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.07023500773403302
+            },
+            "grid_load": 5.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T05:45:00",
+            "rewards": {
+                "user_satisfaction": -0.5072788580723326,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.14291154322893307,
+                "uncoordinated_user_satisfaction": 0.2660123149557749,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.07359507401769005
+            },
+            "grid_load": 5.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T06:00:00",
+            "rewards": {
+                "user_satisfaction": -0.5226886424569768,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.14907545698279073,
+                "uncoordinated_user_satisfaction": 0.2579377038941607,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.19682491844233568
+            },
+            "grid_load": 5.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T06:15:00",
+            "rewards": {
+                "user_satisfaction": -0.5468611023774517,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.15874444095098067,
+                "uncoordinated_user_satisfaction": 0.24490150961407597,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2020393961543696
+            },
+            "grid_load": 7.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T06:30:00",
+            "rewards": {
+                "user_satisfaction": -0.5697284791235162,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.16789139164940653,
+                "uncoordinated_user_satisfaction": 0.23210851378273673,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2071565944869053
+            },
+            "grid_load": 7.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T06:45:00",
+            "rewards": {
+                "user_satisfaction": -0.591670330344636,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.17666813213785443,
+                "uncoordinated_user_satisfaction": 0.21936060222357256,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.21225575911057096
+            },
+            "grid_load": 7.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T07:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6114365069803367,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.18457460279213472,
+                "uncoordinated_user_satisfaction": 0.20743324277082664,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.4,
+                "uncoordinated_total_reward": -0.2770267028916693
+            },
+            "grid_load": 7.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T07:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6291147940722821,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.19164591762891287,
+                "uncoordinated_user_satisfaction": 0.1963693504041979,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.4,
+                "uncoordinated_total_reward": -0.28145225983832084
+            },
+            "grid_load": 10.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T07:30:00",
+            "rewards": {
+                "user_satisfaction": -0.6463209489520406,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.19852837958081626,
+                "uncoordinated_user_satisfaction": 0.18520261702084104,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.4,
+                "uncoordinated_total_reward": -0.28591895319166355
+            },
+            "grid_load": 10.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T07:45:00",
+            "rewards": {
+                "user_satisfaction": -0.663092429906685,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.20523697196267404,
+                "uncoordinated_user_satisfaction": 0.17389960321265957,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.4,
+                "uncoordinated_total_reward": -0.29044015871493617
+            },
+            "grid_load": 10.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T08:00:00",
+            "rewards": {
+                "user_satisfaction": -0.6790918887800571,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.21163675551202293,
+                "uncoordinated_user_satisfaction": 0.16269068977889328,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.4,
+                "uncoordinated_total_reward": -0.2949237240884427
+            },
+            "grid_load": 10.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T08:15:00",
+            "rewards": {
+                "user_satisfaction": -0.6942407225588428,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.21769628902353716,
+                "uncoordinated_user_satisfaction": 0.15165306871534556,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.4,
+                "uncoordinated_total_reward": -0.29933877251386176
+            },
+            "grid_load": 12.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T08:30:00",
+            "rewards": {
+                "user_satisfaction": -0.7083533491455365,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.22334133965821462,
+                "uncoordinated_user_satisfaction": 0.14095961453611747,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.4,
+                "uncoordinated_total_reward": -0.303616154185553
+            },
+            "grid_load": 12.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T08:45:00",
+            "rewards": {
+                "user_satisfaction": -0.7221455351916132,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.22885821407664536,
+                "uncoordinated_user_satisfaction": 0.13008596987974627,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.4,
+                "uncoordinated_total_reward": -0.30796561204810147
+            },
+            "grid_load": 12.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T09:00:00",
+            "rewards": {
+                "user_satisfaction": -0.7344516046203393,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.36878064184813564,
+                "uncoordinated_user_satisfaction": 0.11999497891750961,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.4,
+                "uncoordinated_total_reward": -0.31200200843299614
+            },
+            "grid_load": 12.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T09:15:00",
+            "rewards": {
+                "user_satisfaction": -0.7420216531650922,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.37180866126603684,
+                "uncoordinated_user_satisfaction": 0.1135892578989524,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.4,
+                "uncoordinated_total_reward": -0.31456429684041903
+            },
+            "grid_load": 13.333333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T09:30:00",
+            "rewards": {
+                "user_satisfaction": -0.7490490336129934,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.37461961344519734,
+                "uncoordinated_user_satisfaction": 0.10749778600231855,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.4,
+                "uncoordinated_total_reward": -0.3170008855990726
+            },
+            "grid_load": 13.333333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T09:45:00",
+            "rewards": {
+                "user_satisfaction": -0.7556592658010456,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.3772637063204183,
+                "uncoordinated_user_satisfaction": 0.10163306757569569,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.4,
+                "uncoordinated_total_reward": -0.3193467729697217
+            },
+            "grid_load": 13.333333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T10:00:00",
+            "rewards": {
+                "user_satisfaction": -0.7617033943095806,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.37968135772383227,
+                "uncoordinated_user_satisfaction": 0.09614983888077601,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.26154006444768957
+            },
+            "grid_load": 13.333333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T10:15:00",
+            "rewards": {
+                "user_satisfaction": -0.7673555690475273,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.381942227619011,
+                "uncoordinated_user_satisfaction": 0.09091227548244826,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.26363508980702066
+            },
+            "grid_load": 13.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T10:30:00",
+            "rewards": {
+                "user_satisfaction": -0.7729258663956666,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.38417034655826665,
+                "uncoordinated_user_satisfaction": 0.08564133486450257,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.26574346605419896
+            },
+            "grid_load": 13.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T10:45:00",
+            "rewards": {
+                "user_satisfaction": -0.7778710143553722,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.3861484057421489,
+                "uncoordinated_user_satisfaction": 0.08086662458479597,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2676533501660816
+            },
+            "grid_load": 13.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T11:00:00",
+            "rewards": {
+                "user_satisfaction": -0.7825080553041686,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.3880032221216674,
+                "uncoordinated_user_satisfaction": 0.07630413994639904,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2694783440214404
+            },
+            "grid_load": 13.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T11:15:00",
+            "rewards": {
+                "user_satisfaction": -0.7872155750140767,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.3898862300056307,
+                "uncoordinated_user_satisfaction": 0.07158409352307991,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.271366362590768
+            },
+            "grid_load": 14.000000000000002,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T11:30:00",
+            "rewards": {
+                "user_satisfaction": -0.7914230788862492,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.39156923155449963,
+                "uncoordinated_user_satisfaction": 0.06728689280638703,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2730852428774452
+            },
+            "grid_load": 14.000000000000002,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T11:45:00",
+            "rewards": {
+                "user_satisfaction": -0.795421848917069,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.3931687395668275,
+                "uncoordinated_user_satisfaction": 0.06313129375031601,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2747474824998736
+            },
+            "grid_load": 14.000000000000002,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T12:00:00",
+            "rewards": {
+                "user_satisfaction": -0.7994742305955769,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.3947896922382308,
+                "uncoordinated_user_satisfaction": 0.058845894240374605,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2764616423038502
+            },
+            "grid_load": 14.000000000000002,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T12:15:00",
+            "rewards": {
+                "user_satisfaction": -0.8029408446571263,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.39617633786285045,
+                "uncoordinated_user_satisfaction": 0.05511843862966887,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2779526245481324
+            },
+            "grid_load": 13.333333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T12:30:00",
+            "rewards": {
+                "user_satisfaction": -0.806096817028614,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.39743872681144565,
+                "uncoordinated_user_satisfaction": 0.051673860038082255,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2793304559847671
+            },
+            "grid_load": 13.333333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T12:45:00",
+            "rewards": {
+                "user_satisfaction": -0.8089287593693206,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.3985715037477282,
+                "uncoordinated_user_satisfaction": 0.04854007672002704,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.28058396931198915
+            },
+            "grid_load": 13.333333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T13:00:00",
+            "rewards": {
+                "user_satisfaction": -0.8117489801785494,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.3996995920714197,
+                "uncoordinated_user_satisfaction": 0.045377705247365445,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2818489179010538
+            },
+            "grid_load": 13.333333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T13:15:00",
+            "rewards": {
+                "user_satisfaction": -0.8144236873743831,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.40076947494975323,
+                "uncoordinated_user_satisfaction": 0.04233903088967264,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.28306438764413094
+            },
+            "grid_load": 12.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T13:30:00",
+            "rewards": {
+                "user_satisfaction": -0.8169482987255152,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.40177931949020607,
+                "uncoordinated_user_satisfaction": 0.03943459130580878,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2842261634776765
+            },
+            "grid_load": 12.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T13:45:00",
+            "rewards": {
+                "user_satisfaction": -0.8194417163503385,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.40277668654013543,
+                "uncoordinated_user_satisfaction": 0.03653046377791257,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.285387814488835
+            },
+            "grid_load": 12.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T14:00:00",
+            "rewards": {
+                "user_satisfaction": -0.8218567791075848,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.4037427116430339,
+                "uncoordinated_user_satisfaction": 0.033682951265004035,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2865268194939984
+            },
+            "grid_load": 12.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T14:15:00",
+            "rewards": {
+                "user_satisfaction": -0.824233071933258,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.40469322877330316,
+                "uncoordinated_user_satisfaction": 0.030846951121599762,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2876612195513601
+            },
+            "grid_load": 11.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T14:30:00",
+            "rewards": {
+                "user_satisfaction": -0.8263121807743252,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.40552487230973,
+                "uncoordinated_user_satisfaction": 0.028337065412534123,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.28866517383498635
+            },
+            "grid_load": 11.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T14:45:00",
+            "rewards": {
+                "user_satisfaction": -0.8282006932091582,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.40628027728366334,
+                "uncoordinated_user_satisfaction": 0.02603359223252321,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2895865631069907
+            },
+            "grid_load": 11.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T15:00:00",
+            "rewards": {
+                "user_satisfaction": -0.8298040293784799,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.40692161175139185,
+                "uncoordinated_user_satisfaction": 0.02405987991234616,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.29037604803506156
+            },
+            "grid_load": 11.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T15:15:00",
+            "rewards": {
+                "user_satisfaction": -0.8312835356915775,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.407513414276631,
+                "uncoordinated_user_satisfaction": 0.022223584917324592,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2911105660330702
+            },
+            "grid_load": 10.833333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T15:30:00",
+            "rewards": {
+                "user_satisfaction": -0.8325277634781522,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.40801110539126084,
+                "uncoordinated_user_satisfaction": 0.02066795522528683,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.29173281790988526
+            },
+            "grid_load": 10.833333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T15:45:00",
+            "rewards": {
+                "user_satisfaction": -0.8335495201649596,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.40841980806598377,
+                "uncoordinated_user_satisfaction": 0.019382603833728244,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2922469584665087
+            },
+            "grid_load": 10.833333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T16:00:00",
+            "rewards": {
+                "user_satisfaction": -0.834392507753278,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.40875700310131124,
+                "uncoordinated_user_satisfaction": 0.018316728570879005,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2926733085716484
+            },
+            "grid_load": 10.833333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T16:15:00",
+            "rewards": {
+                "user_satisfaction": -0.8352951398403192,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.4091180559361276,
+                "uncoordinated_user_satisfaction": 0.01716995264772782,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.2931320189409089
+            },
+            "grid_load": 11.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T16:30:00",
+            "rewards": {
+                "user_satisfaction": -0.8361567658057317,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.40946270632229265,
+                "uncoordinated_user_satisfaction": 0.01606992495770012,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.29357203001691995
+            },
+            "grid_load": 11.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T16:45:00",
+            "rewards": {
+                "user_satisfaction": -0.8369759669914569,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.40979038679658275,
+                "uncoordinated_user_satisfaction": 0.015019163645486895,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.29399233454180523
+            },
+            "grid_load": 11.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T17:00:00",
+            "rewards": {
+                "user_satisfaction": -0.8377150940758514,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2750860376303406,
+                "uncoordinated_user_satisfaction": 0.014066973473529596,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.44437321061058815
+            },
+            "grid_load": 11.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T17:15:00",
+            "rewards": {
+                "user_satisfaction": -0.8388672703807514,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2755469081523006,
+                "uncoordinated_user_satisfaction": 0.012574751768173886,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.44497009929273046
+            },
+            "grid_load": 12.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T17:30:00",
+            "rewards": {
+                "user_satisfaction": -0.8399088366235058,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2759635346494023,
+                "uncoordinated_user_satisfaction": 0.011217383103211137,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.4455130467587155
+            },
+            "grid_load": 12.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T17:45:00",
+            "rewards": {
+                "user_satisfaction": -0.8408680229771373,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2763472091908549,
+                "uncoordinated_user_satisfaction": 0.009960221639020751,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.44601591134439167
+            },
+            "grid_load": 12.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T18:00:00",
+            "rewards": {
+                "user_satisfaction": -0.8417073838702486,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2766829535480995,
+                "uncoordinated_user_satisfaction": 0.008854417619518457,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.4464582329521926
+            },
+            "grid_load": 12.5,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T18:15:00",
+            "rewards": {
+                "user_satisfaction": -0.8424269684305604,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2769707873722242,
+                "uncoordinated_user_satisfaction": 0.007902136017821684,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.4468391455928713
+            },
+            "grid_load": 14.166666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T18:30:00",
+            "rewards": {
+                "user_satisfaction": -0.8432629106954215,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2773051642781686,
+                "uncoordinated_user_satisfaction": 0.0067908629407859395,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.4472836548236856
+            },
+            "grid_load": 14.166666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T18:45:00",
+            "rewards": {
+                "user_satisfaction": -0.8440063356472203,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2776025342588882,
+                "uncoordinated_user_satisfaction": 0.005798014024416831,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.4476807943902332
+            },
+            "grid_load": 14.166666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T19:00:00",
+            "rewards": {
+                "user_satisfaction": -0.8447854693040111,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.4129141877216045,
+                "uncoordinated_user_satisfaction": 0.004752816543674447,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.4480988733825302
+            },
+            "grid_load": 14.166666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T19:15:00",
+            "rewards": {
+                "user_satisfaction": -0.8454480424565898,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.4131792169826358,
+                "uncoordinated_user_satisfaction": 0.0038601959837663053,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.4484559216064935
+            },
+            "grid_load": 15.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T19:30:00",
+            "rewards": {
+                "user_satisfaction": -0.8459714865739446,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.4133885946295779,
+                "uncoordinated_user_satisfaction": 0.003152527937875962,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.44873898882484964
+            },
+            "grid_load": 15.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T19:45:00",
+            "rewards": {
+                "user_satisfaction": -0.8465457909942791,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.4136183163977116,
+                "uncoordinated_user_satisfaction": 0.0023735590852576923,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.4490505763658969
+            },
+            "grid_load": 15.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T20:00:00",
+            "rewards": {
+                "user_satisfaction": -0.8470546430567123,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.41382185722268483,
+                "uncoordinated_user_satisfaction": 0.0016811311662202554,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.4493275475335119
+            },
+            "grid_load": 15.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T20:15:00",
+            "rewards": {
+                "user_satisfaction": -0.8473287991509946,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.4139315196603979,
+                "uncoordinated_user_satisfaction": 0.0013071929225873765,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.449477122830965
+            },
+            "grid_load": 13.333333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T20:30:00",
+            "rewards": {
+                "user_satisfaction": -0.8475122098338033,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.4140048839335213,
+                "uncoordinated_user_satisfaction": 0.001056683842951257,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.44957732646281945
+            },
+            "grid_load": 13.333333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T20:45:00",
+            "rewards": {
+                "user_satisfaction": -0.8476810006584682,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.4140724002633873,
+                "uncoordinated_user_satisfaction": 0.0008258987202805046,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.4496696405118878
+            },
+            "grid_load": 13.333333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T21:00:00",
+            "rewards": {
+                "user_satisfaction": -0.8478536242437895,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.41414144969751576,
+                "uncoordinated_user_satisfaction": 0.0005896302821373778,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.449764147887145
+            },
+            "grid_load": 13.333333333333334,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T21:15:00",
+            "rewards": {
+                "user_satisfaction": -0.8479974006271972,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.4141989602508789,
+                "uncoordinated_user_satisfaction": 0.0003926569229830554,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.44984293723080676
+            },
+            "grid_load": 11.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T21:30:00",
+            "rewards": {
+                "user_satisfaction": -0.8480785431436264,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.4142314172574506,
+                "uncoordinated_user_satisfaction": 0.0002814163442617807,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.44988743346229526
+            },
+            "grid_load": 11.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T21:45:00",
+            "rewards": {
+                "user_satisfaction": -0.8481577357523359,
+                "operator_profit": -0.8,
+                "grid_friendliness": 0.55,
+                "total_reward": -0.41426309430093433,
+                "uncoordinated_user_satisfaction": 0.00017279635644516344,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.4499308814574219
+            },
+            "grid_load": 11.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T22:00:00",
+            "rewards": {
+                "user_satisfaction": -0.8482474559973817,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.27929898239895273,
+                "uncoordinated_user_satisfaction": 4.9673900010565264e-05,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.44998013043999574
+            },
+            "grid_load": 11.666666666666666,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T22:15:00",
+            "rewards": {
+                "user_satisfaction": -0.8482836399575129,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2793134559830051,
+                "uncoordinated_user_satisfaction": 0.0,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.44999999999999996
+            },
+            "grid_load": 10.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T22:30:00",
+            "rewards": {
+                "user_satisfaction": -0.8482836399575129,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2793134559830051,
+                "uncoordinated_user_satisfaction": 0.0,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.44999999999999996
+            },
+            "grid_load": 10.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T22:45:00",
+            "rewards": {
+                "user_satisfaction": -0.8482836399575129,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2793134559830051,
+                "uncoordinated_user_satisfaction": 0.0,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.7,
+                "uncoordinated_total_reward": -0.44999999999999996
+            },
+            "grid_load": 10.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T23:00:00",
+            "rewards": {
+                "user_satisfaction": -0.8482836399575129,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2793134559830051,
+                "uncoordinated_user_satisfaction": 0.0,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.3
+            },
+            "grid_load": 10.0,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T23:15:00",
+            "rewards": {
+                "user_satisfaction": -0.8482836399575129,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2793134559830051,
+                "uncoordinated_user_satisfaction": 0.0,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.3
+            },
+            "grid_load": 8.333333333333332,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T23:30:00",
+            "rewards": {
+                "user_satisfaction": -0.8482836399575129,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2793134559830051,
+                "uncoordinated_user_satisfaction": 0.0,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.3
+            },
+            "grid_load": 8.333333333333332,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-11T23:45:00",
+            "rewards": {
+                "user_satisfaction": -0.8482836399575129,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2793134559830051,
+                "uncoordinated_user_satisfaction": 0.0,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": -0.2,
+                "uncoordinated_total_reward": -0.3
+            },
+            "grid_load": 8.333333333333332,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        },
+        {
+            "timestamp": "2025-04-12T00:00:00",
+            "rewards": {
+                "user_satisfaction": -0.8482836399575129,
+                "operator_profit": -0.8,
+                "grid_friendliness": 1.0,
+                "total_reward": -0.2793134559830051,
+                "uncoordinated_user_satisfaction": 0.0,
+                "uncoordinated_operator_profit": -0.8,
+                "uncoordinated_grid_friendliness": 0.2,
+                "uncoordinated_total_reward": -0.18
+            },
+            "grid_load": 8.333333333333332,
+            "ev_load": 0,
+            "renewable_ratio": 0.0
+        }
+    ]
+}

@@ -1218,49 +1218,118 @@ def test_marl_endpoint():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 def get_system_state():
-    global system
-    if system is None:
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "progress": 0,
-            "metrics": {
+    """获取系统当前状态"""
+    global current_state
+    try:
+        # 获取状态前，对指标历史数据进行额外的数据验证和处理
+        metrics = {
                 "user_satisfaction": 0,
                 "operator_profit": 0,
                 "grid_friendliness": 0,
                 "total_reward": 0
-            },
-            "charging_stations": []
         }
     
-    try:
-        # 获取充电站状态
         charging_stations = []
-        for station in system.env.charging_stations:
-            total_slots = station["total_slots"]
-            occupied_slots = len(station["occupied_slots"])
-            utilization_rate = (occupied_slots / total_slots) * 100 if total_slots > 0 else 0
-            
-            station_info = {
-                "id": station["id"],
-                "location": station["location"],
-                "total_slots": total_slots,
-                "occupied_slots": occupied_slots,
-                "utilization_rate": round(utilization_rate, 2),
-                "power_levels": station["power_levels"],
-                "power_slots": station["power_slots"]
+
+        if not system:
+            logger.error("System is not initialized, returning default state")
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "progress": 0,
+                "metrics": metrics,
+                "charging_stations": charging_stations,
+                "debug_info": {"error": "System not initialized"}
             }
-            charging_stations.append(station_info)
+
+        # 计算充电站数据
+        if hasattr(system, 'env') and hasattr(system.env, 'chargers'):
+            try:
+                chargers = system.env.chargers
+                
+                for charger_id, charger in chargers.items():
+                    charging_station = {
+                        "id": charger_id,
+                        "name": charger.get("name", f"Charger {charger_id}"),
+                        "location": charger.get("location", {"x": 0, "y": 0}),
+                        "status": charger.get("status", "idle"),
+                        "queue_length": len(charger.get("queue", [])),
+                        "current_user": charger.get("current_user", None)
+                    }
+                    charging_stations.append(charging_station)
+            except Exception as e:
+                logger.error(f"Error processing chargers: {str(e)}")
+                
+        # 如果指标中有数据，则获取最新的指标值
+        if hasattr(system.env, 'metrics'):
+            try:
+                # 获取用户满意度指标
+                if "user_satisfaction" in system.env.metrics and system.env.metrics["user_satisfaction"]:
+                    metrics["user_satisfaction"] = float(system.env.metrics["user_satisfaction"][-1])
+                    
+                # 获取运营商利润指标
+                if "operator_profit" in system.env.metrics and system.env.metrics["operator_profit"]:
+                    metrics["operator_profit"] = float(system.env.metrics["operator_profit"][-1])
+                    
+                # 获取电网友好度指标
+                if "grid_friendliness" in system.env.metrics and system.env.metrics["grid_friendliness"]:
+                    raw_value = system.env.metrics["grid_friendliness"][-1]
+                    # 确保值是有效的浮点数
+                    try:
+                        metrics["grid_friendliness"] = float(raw_value)
+                        logger.debug(f"获取到电网友好度指标: {metrics['grid_friendliness']}")
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"电网友好度指标转换失败: {raw_value}, 错误: {str(e)}")
+                        metrics["grid_friendliness"] = 0.0
+                else:
+                    logger.warning("未找到电网友好度指标")
+                    # 明确设置默认值
+                    metrics["grid_friendliness"] = 0.0
+                    
+                # 获取总奖励指标
+                if "total_reward" in system.env.metrics and system.env.metrics["total_reward"]:
+                    metrics["total_reward"] = float(system.env.metrics["total_reward"][-1])
+                    
+                # 添加电网负载信息
+                if hasattr(system.env, 'grid_status'):
+                    # metrics["grid_load"] = float(system.env.grid_status.get("grid_load", 0)) # 这个是百分比，注释掉或移除
+                    metrics["renewable_ratio"] = float(system.env.grid_status.get("renewable_ratio", 0))
+                    # 添加正确的总负载(kW)和EV负载(kW)
+                    metrics["total_load_kw"] = float(system.env.grid_status.get("current_load", 0))
+                    metrics["ev_load_kw"] = float(system.env.grid_status.get("ev_load", 0))
+                    
+                # 添加电网友好度的调试信息
+                metrics["debug"] = {
+                    "grid_friendliness_values": system.env.metrics.get("grid_friendliness", []),
+                    "grid_status": system.env.grid_status if hasattr(system.env, 'grid_status') else None
+                }
+                
+            except Exception as e:
+                logger.error(f"处理指标数据时出错: {str(e)}")
+                # 确保所有指标都有默认值
+                metrics = {
+                    "user_satisfaction": 0.0,
+                    "operator_profit": 0.0,
+                    "grid_friendliness": 0.0,
+                    "total_reward": 0.0,
+                    "error": str(e)
+                }
+        
+        # 记录当前指标值，用于调试
+        logger.debug(f"当前指标值: 用户满意度={metrics['user_satisfaction']:.2f}, "
+                    f"运营商利润={metrics['operator_profit']:.2f}, "
+                    f"电网友好度={metrics['grid_friendliness']:.2f}, "
+                    f"总分={metrics['total_reward']:.2f}")
         
         return {
             "timestamp": datetime.now().isoformat(),
             "progress": system.env.current_step / system.env.total_steps,
-            "metrics": {
-                "user_satisfaction": system.env.metrics["user_satisfaction"],
-                "operator_profit": system.env.metrics["operator_profit"],
-                "grid_friendliness": system.env.metrics["grid_friendliness"],
-                "total_reward": system.env.metrics["total_reward"]
-            },
-            "charging_stations": charging_stations
+            "metrics": metrics,
+            "charging_stations": charging_stations,
+            # 移除旧的 grid_load (百分比)
+            # "grid_load": float(system.env.grid_status.get("grid_load", 0)) if hasattr(system.env, 'grid_status') else 0
+            # 可以在顶层也加上，方便前端访问
+            "total_load_kw": float(system.env.grid_status.get("current_load", 0)) if hasattr(system.env, 'grid_status') else 0,
+            "ev_load_kw": float(system.env.grid_status.get("ev_load", 0)) if hasattr(system.env, 'grid_status') else 0,
         }
     except Exception as e:
         logger.error(f"Error getting system state: {str(e)}")
@@ -1268,10 +1337,11 @@ def get_system_state():
             "timestamp": datetime.now().isoformat(),
             "progress": 0,
             "metrics": {
-                "user_satisfaction": 0,
-                "operator_profit": 0,
-                "grid_friendliness": 0,
-                "total_reward": 0
+                "user_satisfaction": 0.0,
+                "operator_profit": 0.0,
+                "grid_friendliness": 0.0,
+                "total_reward": 0.0,
+                "error": str(e)
             },
             "charging_stations": []
         }

@@ -103,10 +103,10 @@ class ChargingEnvironment:
         
         # 定义SOC分布
         soc_ranges = [
-            (0.2, (10, 25)),  # 20%的用户SOC在10-25%之间
-            (0.3, (25, 50)),  # 30%的用户SOC在25-50%之间
-            (0.3, (50, 75)),  # 30%的用户SOC在50-75%之间
-            (0.2, (75, 95))   # 20%的用户SOC在75-95%之间
+            (0.15, (10, 30)),   # 15%的用户SOC在10-30%之间
+            (0.35, (30, 60)),   # 35%的用户SOC在30-60%之间
+            (0.35, (60, 80)),   # 35%的用户SOC在60-80%之间
+            (0.15, (80, 95))    # 15%的用户SOC在80-95%之间
         ]
         
         # 预定义一些热点区域（商业区、居民区等）
@@ -464,23 +464,24 @@ class ChargingEnvironment:
         """Initialize grid status"""
         # 从配置文件中读取基础负载
         grid_config = self.config.get("grid", {})
+        # 大幅提高基础负载值 (kW)
         base_load = grid_config.get("base_load", [
-            4000, 3500, 3000, 2800, 2700, 3000, 4500, 6000, 7500, 8000, 8200, 8400,
-            8000, 7500, 7000, 6500, 7000, 7500, 8500, 9000, 8000, 7000, 6000, 5000
-        ])
-        
-        # 从配置文件中读取峰谷时段
+            16000, 14000, 12000, 11000, 10000, 11000, 18000, 24000, 30000, 32000, 32800, 33600,
+            32000, 30000, 28000, 26000, 28000, 30000, 34000, 36000, 32000, 28000, 24000, 20000
+        ])  # 峰值约36000kW
+
+        # 从配置文件中读取峰谷时段 (保持不变)
         peak_hours = grid_config.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21])
         valley_hours = grid_config.get("valley_hours", [0, 1, 2, 3, 4, 5])
         
-        # 可再生能源生成
+        # 可再生能源生成 - 保持现有调整值 (kW)
         solar_generation = grid_config.get("solar_generation", [
-            0, 0, 0, 0, 0, 0, 2000, 1000, 1800, 2500, 3000, 3200,
-            3000, 2800, 2500, 2000, 1000, 300, 0, 0, 0, 0, 0, 0
+            0, 0, 0, 0, 0, 0, 1000, 2000, 3600, 5000, 6000, 6400,
+            6000, 5600, 5000, 4000, 2000, 600, 0, 0, 0, 0, 0, 0
         ])
         wind_generation = grid_config.get("wind_generation", [
-            1200, 1400, 1500, 1300, 1000, 1200, 1500, 1700, 1300, 1000, 1200, 1300,
-            1500, 1700, 1600, 1400, 1600, 1800, 2000, 1800, 1600, 1500, 1300, 1400
+            2400, 2800, 3000, 2600, 2000, 2400, 3000, 3400, 2600, 2000, 2400, 2600,
+            3000, 3400, 3200, 2800, 3200, 3600, 4000, 3600, 3200, 3000, 2600, 2800
         ])
         
         # 电价设置
@@ -500,13 +501,16 @@ class ChargingEnvironment:
         # 确保base_load是一个包含24个值的列表
         if not isinstance(base_load, list) or len(base_load) != 24:
             logger.warning(f"Invalid base_load in config: {base_load}. Using default values.")
-            base_load = [4000, 3500, 3000, 2800, 2700, 3000, 4500, 6000, 7500, 8000, 8200, 8400,
-                        8000, 7500, 7000, 6500, 7000, 7500, 8500, 9000, 8000, 7000, 6000, 5000]
+            # 更新默认值以匹配提高后的负载
+            base_load = [
+                16000, 14000, 12000, 11000, 10000, 11000, 18000, 24000, 30000, 32000, 32800, 33600,
+                32000, 30000, 28000, 26000, 28000, 30000, 34000, 36000, 32000, 28000, 24000, 20000
+            ]
         
         # 初始化电网状态
         grid_status = {
-            "base_load": base_load,
-            "current_load": base_load[self.current_time.hour],
+            "base_load": base_load,  # 当前基础负载（kW）
+            "current_load": base_load[self.current_time.hour],  # 总负载（kW）
             "peak_hours": peak_hours,
             "valley_hours": valley_hours,
             "solar_generation": solar_generation,
@@ -955,8 +959,13 @@ class ChargingEnvironment:
             # Check if user is active and NOT already heading to a charger
             # Also include 'post_charge' users who might decide to charge again if needed
             if user_status in ["idle", "traveling", "post_charge"] and not user.get("target_charger"):
+                # 首先检查是否充电量太小
+                estimated_charge_amount = 100 - current_soc  # 假设充满电的情况
+                if estimated_charge_amount < 25:  # 如果充电量小于25%，不充电
+                    user["needs_charge_decision"] = False
+                    logger.debug(f"User {user_id} needs only {estimated_charge_amount:.1f}% charge, skipping charging.")
                 # 当SOC较低时强制充电
-                if current_soc <= 20:  # 降低强制充电阈值到20%
+                elif current_soc <= 20:  # 保持强制充电阈值在20%
                     user["needs_charge_decision"] = True
                     logger.debug(f"User {user_id} SOC critical ({current_soc:.1f}%), forcing charge need.")
                 else:
@@ -967,28 +976,48 @@ class ChargingEnvironment:
                     # 1. 如果用户刚完成充电不久，大幅降低充电概率
                     timer_value = user.get("post_charge_timer") # Get value which might be None
                     if user_status == "post_charge" and isinstance(timer_value, int) and timer_value > 0:
-                        charging_prob *= 0.3  # 降低post-charge状态的充电概率
+                        charging_prob *= 0.1  # 进一步降低post-charge状态的充电概率
                     
-                    # 2. 如果用户正在随机旅行，适度增加充电概率
+                    # 2. 如果用户正在随机旅行，基于SOC调整充电概率
                     if user_status == "traveling" and user.get("last_destination_type") == "random":
-                        charging_prob *= 1.2  # 适度增加随机旅行时的充电概率
+                        if current_soc > 60:
+                            charging_prob *= 0.1  # SOC高时大幅降低充电概率
+                        else:
+                            charging_prob *= 1.2  # SOC低时适度增加充电概率
                     
-                    # 3. 如果用户是出租车或网约车，适度增加充电概率
+                    # 3. 对于SOC高的用户，大幅降低充电概率
+                    if current_soc > 75:
+                        charging_prob *= 0.01  # 非常低的概率
+                    elif current_soc > 60:
+                        charging_prob *= 0.1  # 显著降低概率
+                    
+                    # 4. 如果用户是出租车或网约车，适度调整充电概率
                     if user.get("user_type") in ["taxi", "ride_hailing"]:
-                        charging_prob *= 1.3  # 适度增加商业用户的充电概率
+                        if current_soc > 50:  # 即使是商业用户，如果电量高也要降低概率
+                            charging_prob *= 0.5
+                        else:
+                            charging_prob *= 1.2  # 电量低时增加商业用户的充电概率
                     
-                    # 4. 如果当前是高峰时段，适度增加充电概率
+                    # 5. 如果当前是高峰时段，根据SOC调整充电概率
                     hour = self.current_time.hour
                     if hour in [7, 8, 9, 17, 18, 19]:
-                        charging_prob *= 1.2  # 适度增加高峰期的充电概率
+                        if current_soc > 60:
+                            charging_prob *= 0.5  # 高峰期+高SOC，降低概率
+                        else:
+                            charging_prob *= 1.2  # 高峰期+低SOC，增加概率
                     
-                    # 5. 如果SOC在20-35%之间，增加充电概率
+                    # 6. 如果SOC在20-35%之间，增加充电概率
                     if 20 < current_soc <= 35:
-                        charging_prob *= 1.2  # 适度增加低电量时的充电概率
+                        charging_prob *= 1.5  # 增加低电量时的充电概率
+                        
+                    # 7. 如果随机值小于充电概率，设置充电需求
+                    if random.random() < charging_prob:
+                        user["needs_charge_decision"] = True
+                        logger.debug(f"User {user_id} decided to charge based on probability {charging_prob:.2f}")
 
             # --- State transition based on charging need ---
             if user["needs_charge_decision"]:
-                # If user is idle or traveling randomly and decides to charge, directly find a charger and go to it
+                # If user is idle or traveling randomly and decides to charge
                 if user_status in ["idle", "traveling"] and (user.get("last_destination_type") == "random" or user_status == "idle"):
                     logger.info(f"User {user_id} (SOC: {current_soc:.1f}%) needs charging - finding nearest available charger directly")
                     
@@ -1473,7 +1502,7 @@ class ChargingEnvironment:
                                         charger["status"] = "occupied"
                                         charger["charging_start_time"] = self.current_time
                                         next_user["status"] = "charging"
-                                        next_user["target_soc"] = min(85, next_user.get("soc", 0) + 50)
+                                        next_user["target_soc"] = min(95, next_user.get("soc", 0) + 50)
                                         next_user["initial_soc"] = next_user.get("soc", 0)  # 记录初始SOC
                                         logger.info(f"Next user {next_user_id} started charging at {charger_id}")
                                         break
@@ -1540,40 +1569,61 @@ class ChargingEnvironment:
             logger.error("Critical error: self.grid_status is not a dictionary! Reinitializing.")
             self.grid_status = self._initialize_grid()
 
-        # 从配置文件获取基础负载配置
-        base_load_profile = self.config.get("grid", {}).get("base_load", [5000]*24)  # 默认值改为5000
+        # 从配置文件获取基础负载配置 - 使用更新后的更高默认值
+        base_load_profile = self.config.get("grid", {}).get("base_load", [
+            16000, 14000, 12000, 11000, 10000, 11000, 18000, 24000, 30000, 32000, 32800, 33600,
+            32000, 30000, 28000, 26000, 28000, 30000, 34000, 36000, 32000, 28000, 24000, 20000
+        ])
+
         if not isinstance(base_load_profile, list) or len(base_load_profile) != 24:
             logger.warning(f"Invalid base_load_profile in config: {base_load_profile}. Using default.")
-            base_load_profile = [5000]*24  # 默认值改为5000
+            # 更新默认配置文件
+            base_load_profile = [
+                16000, 14000, 12000, 11000, 10000, 11000, 18000, 24000, 30000, 32000, 32800, 33600,
+                32000, 30000, 28000, 26000, 28000, 30000, 34000, 36000, 32000, 28000, 24000, 20000
+            ]
 
         # 获取当前小时的基础负载
         try:
             base_load = base_load_profile[hour]
         except IndexError:
             logger.warning(f"Hour {hour} out of range for base_load_profile. Using default value.")
-            base_load = 5000  # 默认值改为5000
+            base_load = 20000 # 更高的默认值
 
         # 更新电网状态
         ev_load = self.grid_status.get("ev_load", 0)
-        grid_load = base_load + ev_load
+
+        # 计算总负载百分比 - 提高系统最大容量
+        system_capacity = 60000  # 系统最大容量提高到 60000kW
+        total_load = base_load + ev_load
+        grid_load_percentage = (total_load / system_capacity) * 100
 
         # 添加调试日志
-        logger.debug(f"_update_grid_state: Hour={hour}, BaseLoad={base_load:.2f}, EVLoad={ev_load:.2f}, TotalGridLoad={grid_load:.2f}")
+        logger.debug(f"_update_grid_state: Hour={hour}, BaseLoad={base_load:.1f}kW, EVLoad={ev_load:.1f}kW, TotalLoad={total_load:.1f}kW ({grid_load_percentage:.1f}% of {system_capacity}kW)")
 
-        # 更新可再生能源比例
-        renewable_ratio = self.grid_status.get("renewable_ratio", 10)
+        # 更新可再生能源比例 - 基于实际发电量
+        # (保持之前的逻辑，但注意这里的分母是 total_load)
+        solar_gen_profile = self.config.get("grid", {}).get("solar_generation", [0]*24)
+        wind_gen_profile = self.config.get("grid", {}).get("wind_generation", [0]*24)
+        solar_gen = solar_gen_profile[hour] if 0 <= hour < 24 else 0
+        wind_gen = wind_gen_profile[hour] if 0 <= hour < 24 else 0
+
+        total_renewable = solar_gen + wind_gen
+        renewable_ratio = (total_renewable / total_load * 100) if total_load > 0 else 0
 
         # 更新电价
         current_price = self._get_current_price(hour)
 
         # 创建新的电网状态
         new_grid_status = {
-            "base_load": base_load_profile,
-            "current_load": base_load,
-            "grid_load": grid_load,
-            "ev_load": ev_load,
-            "renewable_ratio": renewable_ratio,
+            "base_load": base_load,  # 当前基础负载（kW）
+            "current_load": total_load,  # 总负载（kW）
+            "grid_load": grid_load_percentage,  # 负载百分比 (0-100+)
+            "ev_load": ev_load,  # 电动车负载（kW）
+            "renewable_ratio": renewable_ratio,  # 可再生能源比例（%）
             "current_price": current_price,
+            "solar_generation": solar_gen_profile, # Pass full profile
+            "wind_generation": wind_gen_profile, # Pass full profile
             "peak_hours": self.grid_status.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21]),
             "valley_hours": self.grid_status.get("valley_hours", [0, 1, 2, 3, 4, 5]),
             "normal_price": self.grid_status.get("normal_price", 0.85),
@@ -1838,59 +1888,71 @@ class ChargingEnvironment:
         
         # 考虑峰谷状态和再生能源情况
         hour = self.current_time.hour
-        peak_hours = self.grid_status.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21])
-        valley_hours = self.grid_status.get("valley_hours", [0, 1, 2, 3, 4, 5])
         
-        # 时间因子 - 考虑峰谷并添加平滑过渡
+        # 使用与单次决策相同的峰谷时段定义
+        peak_hours = [9, 10, 11, 12, 13, 14, 15, 16, 19, 20, 21]  # 工作和晚间高峰
+        valley_hours = [0, 1, 2, 3, 4, 5, 23]  # 深夜/凌晨低谷
+        shoulder_hours = [6, 7, 8, 17, 18, 22]  # 过渡时段
+        
+        # 时间因子 - 考虑峰谷
         time_factor = 0
+        if hour in peak_hours:
+            time_factor = -0.3  # 高峰期，不友好（降低惩罚力度）
+        elif hour in valley_hours:
+            time_factor = 0.6   # 低谷期，很友好（增加奖励力度）
+        else:  # shoulder_hours
+            time_factor = 0.2   # 过渡期，适中友好
         
-        # 峰谷时段的平滑定义 - 不再是简单的二元判断
-        # 核心峰时：8-10, 19-21
-        # 核心谷时：1-4
-        # 其他时段根据接近程度平滑过渡
-        core_peak_hours = [8, 9, 10, 19, 20, 21]
-        core_valley_hours = [1, 2, 3, 4]
-        transition_peak_hours = [7, 11, 18, 22]  # 峰时过渡
-        transition_valley_hours = [0, 5, 23]     # 谷时过渡
+        # 增加降低EV影响的因子，与单次决策计算保持一致
+        base_load_factor = 20  # 与单次决策保持一致
+        adjusted_grid_load = (current_load * base_load_factor + ev_load) / (base_load_factor + 1)
         
-        if hour in core_peak_hours:
-            time_factor = -0.5  # 核心峰时强烈负向激励
-        elif hour in core_valley_hours:
-            time_factor = 0.5   # 核心谷时强烈正向激励
-        elif hour in transition_peak_hours:
-            time_factor = -0.3  # 过渡峰时中等负向激励
-        elif hour in transition_valley_hours:
-            time_factor = 0.3   # 过渡谷时中等正向激励
-        else:
-            # 其他时间平滑变化
-            min_distance_to_peak = min([abs(hour - ph) for ph in core_peak_hours], default=12)
-            min_distance_to_valley = min([abs(hour - vh) for vh in core_valley_hours], default=12)
-            
-            if min_distance_to_peak <= min_distance_to_valley:
-                # 更接近峰时
-                time_factor = -0.2 * (1 - min_distance_to_peak/12)
-            else:
-                # 更接近谷时
-                time_factor = 0.2 * (1 - min_distance_to_valley/12)
-        
-        # 负载响应因子 - 基础负载高时避免充电，低时鼓励充电
-        load_factor = -0.4 * base_load_ratio
+        # 基于调整后负载的评分，与单次决策保持一致
+        if adjusted_grid_load < 30:  # 低负载，非常友好
+            load_factor = 0.8
+        elif adjusted_grid_load < 50:  # 中等负载，适度友好
+            load_factor = 0.5 - (adjusted_grid_load - 30) * 0.015  # 0.5到0.2线性下降
+        elif adjusted_grid_load < 70:  # 较高负载，不太友好
+            load_factor = 0.2 - (adjusted_grid_load - 50) * 0.015  # 0.2到-0.1线性下降
+        elif adjusted_grid_load < 85:  # 高负载，不友好
+            load_factor = -0.1 - (adjusted_grid_load - 70) * 0.025  # -0.1到-0.475线性下降
+        else:  # 极高负载，非常不友好
+            load_factor = -0.475 - (adjusted_grid_load - 85) * 0.01  # -0.475到-0.625线性下降
+            load_factor = max(-0.7, load_factor)  # 限制最低值
         
         # 可再生能源因子 - 再生能源比例高时鼓励充电
-        renewable_factor = 0.3 * renewable_ratio
+        renewable_factor = 0.8 * renewable_ratio  # 与单次决策保持一致
         
         # EV负载占比因子 - EV负载占比过高时轻微惩罚
         ev_concentration_factor = 0
         if ev_load_ratio > 0.2:  # EV负载超过总负载20%时开始惩罚
-            ev_concentration_factor = -0.2 * (ev_load_ratio - 0.2) / 0.7  # 线性增加惩罚
+            ev_concentration_factor = -0.1 * (ev_load_ratio - 0.2) / 0.7  # 降低惩罚
         
         # 计算总电网友好度
         grid_friendliness = load_factor + renewable_factor + time_factor + ev_concentration_factor
         
-        # 使用更平滑的sigmoid函数，避免极值过快达到
-        # 将grid_friendliness限制在[-1,1]范围内
-        grid_friendliness = min(1, max(-1, grid_friendliness * 1.2))  # 乘以1.2增强信号但不超过[-1,1]
+        # 确保评分在[-1,1]范围内，并提高总体评分水平
+        grid_friendliness = max(-0.9, min(1.0, grid_friendliness))
+        
+        # 对所有评分进行小幅度提升，避免过度负面
+        if grid_friendliness < 0:
+            grid_friendliness *= 0.8  # 负面评分减弱20%
+        else:
+            grid_friendliness *= 1.1  # 正面评分增强10%
+            grid_friendliness = min(1.0, grid_friendliness)  # 确保不超过1.0
             
+        # 增加详细日志，帮助诊断
+        logger.info(f"Grid friendliness calculation - overall metrics:")
+        logger.info(f"  - Current load: {current_load:.1f}%, EV load: {ev_load:.1f}%")
+        logger.info(f"  - Adjusted grid load: {adjusted_grid_load:.1f}%")
+        logger.info(f"  - Hour: {hour} ({'peak' if hour in peak_hours else 'valley' if hour in valley_hours else 'shoulder'})")
+        logger.info(f"  - Load factor: {load_factor:.2f}")
+        logger.info(f"  - Time factor: {time_factor:.2f}")
+        logger.info(f"  - Renewable factor (ratio={renewable_ratio:.2f}): {renewable_factor:.2f}")
+        logger.info(f"  - EV concentration factor: {ev_concentration_factor:.2f}")
+        logger.info(f"  - Final grid friendliness (before adjustment): {load_factor + renewable_factor + time_factor + ev_concentration_factor:.2f}")
+        logger.info(f"  - Final grid friendliness (after adjustment): {grid_friendliness:.2f}")
+        
         # 计算总奖励（加权和）
         weights = {
             "user_satisfaction": 0.4,
@@ -1994,12 +2056,24 @@ class ChargingEnvironment:
         charging_preference = user.get("charging_preference", "flexible")
         profile = user.get("profile", "balanced")
 
+        # 检查充电量是否太小，如果太小直接返回非常低的概率
+        estimated_charge_amount = 100 - current_soc
+        if estimated_charge_amount < 25:
+            logger.debug(f"User {user.get('id')} charge amount too small ({estimated_charge_amount:.1f}%), returning minimal probability.")
+            return 0.01  # 极低概率
+
         # 1. Base probability using sigmoid curve
         soc_midpoint = 40  # 降低中点SOC到40%
         soc_steepness = 0.1  # 增加曲线斜率使变化更明显
         
         base_prob = 1 / (1 + math.exp(soc_steepness * (current_soc - soc_midpoint)))
         base_prob = min(0.95, max(0.05, base_prob))  # 限制基础概率范围
+
+        # 对SOC过高的用户，进一步降低概率
+        if current_soc > 75: 
+            base_prob *= 0.1  # 大幅降低高SOC用户的基础概率
+        elif current_soc > 60:
+            base_prob *= 0.3  # 降低较高SOC用户的基础概率
 
         # 2. 根据用户类型调整概率
         type_factor = 0
@@ -2045,6 +2119,7 @@ class ChargingEnvironment:
 
         # 记录调试信息
         logger.debug(f"User {user.get('id')} charging probability calculation:")
+        logger.debug(f"  - SOC: {current_soc:.1f}%, Charge amount: {estimated_charge_amount:.1f}%")
         logger.debug(f"  - Base prob: {base_prob:.2f}")
         logger.debug(f"  - Type factor: {type_factor:.2f}")
         logger.debug(f"  - Preference factor: {preference_factor:.2f}")
@@ -2853,33 +2928,47 @@ class ChargingScheduler:
         charger_dict = {c["charger_id"]: c for c in chargers if "charger_id" in c}
         
         # 确定充电桩可接受的最大队列长度 - 动态调整
-        # 高峰时段允许更多排队，低谷时段更少排队（促进分散）
-        peak_hours = [7, 8, 9, 10, 17, 18, 19, 20]
-        valley_hours = [0, 1, 2, 3, 4, 23]
+        # 高峰时段允许更少排队，低谷时段更多排队（促进填谷削峰）
+        peak_hours = [9, 10, 11, 12, 13, 14, 15, 16, 19, 20, 21]  # 与电网友好度保持一致
+        valley_hours = [0, 1, 2, 3, 4, 5, 23]  # 与电网友好度保持一致
         
         if current_hour in peak_hours:
-            max_queue_len = 2  # 高峰期限制队列长度，避免过度集中
+            max_queue_len = 3  # 高峰期减少队列长度，抑制用电高峰
         elif current_hour in valley_hours:
-            max_queue_len = 5  # 低谷期允许更长队列，提高利用率
+            max_queue_len = 12  # 低谷期大幅增加队列长度，鼓励低谷充电
         else:
-            max_queue_len = 3  # 平常时段适中队列
+            max_queue_len = 6  # 平常时段适中队列
         
-        # 获取权重配置
-        weights = {
-            "user_satisfaction": self.config.get("user_satisfaction_weight", 0.33),
-            "operator_profit": self.config.get("operator_profit_weight", 0.33),
-            "grid_friendliness": self.config.get("grid_friendliness_weight", 0.34)
+        # 获取基础权重配置
+        base_weights = {
+            "user_satisfaction": self.config.get("user_satisfaction_weight", 0.25),
+            "operator_profit": self.config.get("operator_profit_weight", 0.25),
+            "grid_friendliness": self.config.get("grid_friendliness_weight", 0.5)  # 增加电网友好度权重
         }
         
-        # 调整网格友好度权重，更智能地响应负载状况
-        if grid_load > 80:  # 高负载时增加网格友好度权重
-            load_factor = min(1.5, (grid_load - 60) / 20)  # 60以上开始增加权重
-            weights["grid_friendliness"] *= load_factor
-            # 相应减少其他权重
-            total = sum(weights.values())
-            weights["user_satisfaction"] = weights["user_satisfaction"] / total
-            weights["operator_profit"] = weights["operator_profit"] / total
-            weights["grid_friendliness"] = weights["grid_friendliness"] / total
+        # 根据时间段动态调整权重
+        weights = base_weights.copy()
+        
+        # 高峰期增加电网友好度权重，降低用户满意度权重
+        if current_hour in peak_hours:
+            grid_boost = min(0.3, grid_load / 200)  # 根据负载调整增量，最大0.3
+            weights["grid_friendliness"] += grid_boost
+            weights["user_satisfaction"] = max(0.15, weights["user_satisfaction"] - grid_boost/2)
+            weights["operator_profit"] = max(0.15, weights["operator_profit"] - grid_boost/2)
+        
+        # 低谷期适当降低电网友好度权重，增加运营商利润权重（鼓励多充电）
+        elif current_hour in valley_hours:
+            weights["grid_friendliness"] = max(0.3, weights["grid_friendliness"] - 0.15)
+            weights["operator_profit"] += 0.1
+            weights["user_satisfaction"] += 0.05
+        
+        # 归一化权重
+        total = sum(weights.values())
+        for key in weights:
+            weights[key] /= total
+        
+        logger.info(f"Adjusted weights: User={weights['user_satisfaction']:.2f}, "
+                   f"Profit={weights['operator_profit']:.2f}, Grid={weights['grid_friendliness']:.2f}")
         
         # 创建候选用户列表 - 需要充电且未在充电或等待的用户
         candidate_users = []
@@ -2891,11 +2980,21 @@ class ChargingScheduler:
             if not user_id:
                 continue
                 
+            # 首先排除充电量太小的用户
+            estimated_charge_amount = 100 - soc  # 假设充满电的情况
+            if estimated_charge_amount < 25:  # 如果充电量小于25%，直接跳过
+                logger.debug(f"Scheduler skipping user {user_id} with only {estimated_charge_amount:.1f}% potential charge.")
+                continue
+                
             # 优先考虑已经明确表示需要充电的用户
             needs_charge = user.get("needs_charge_decision", False)
             
             # 针对不同用户设置不同的SOC阈值 - 更智能地判断充电需求
             if status not in ["charging", "waiting"]:
+                # SOC过高的用户不参与调度
+                if soc > 75 and not needs_charge:  # 除非明确需要充电，SOC>75的用户不参与调度
+                    continue
+                
                 # 根据用户类型和时间判断SOC阈值
                 user_type = user.get("user_type", "private")
                 user_profile = user.get("user_profile", "normal")
@@ -2915,17 +3014,25 @@ class ChargingScheduler:
                 elif user_profile == "economic":
                     threshold -= 5   # 经济型用户更晚充电
                 
-                # 时间因素 - 晚上人们更倾向于充电
-                if 19 <= current_hour <= 23:
-                    threshold += 5
+                # 时间因素 - 峰谷充电调整
+                if current_hour in peak_hours:
+                    threshold -= 5   # 高峰期提高充电门槛
+                elif current_hour in valley_hours:
+                    threshold += 10  # 低谷期降低充电门槛，鼓励低谷充电
                 
-                # 最终阈值限制在10-45之间
-                threshold = max(10, min(45, threshold))
+                # 最终阈值限制在10-50之间
+                threshold = max(10, min(50, threshold))
                 
                 # 两种情况下将用户加入候选列表:
                 # 1. 用户明确表示需要充电 (needs_charge_decision=True)
-                # 2. 用户SOC低于阈值
-                if needs_charge or soc <= threshold:
+                # 2. 用户SOC低于阈值，但不要太高的SOC
+                if needs_charge or (soc <= threshold and soc <= 75):
+                    # 排除充电量过少的用户
+                    estimated_charge_amount = 95 - soc  # 充电至95%的充电量
+                    if estimated_charge_amount < 25:  # 充电量小于25%不参与调度
+                        logger.debug(f"Scheduler skipping user {user_id} with small charge amount {estimated_charge_amount:.1f}%")
+                        continue
+                    
                     # 计算充电紧迫性评分 - 明确需要充电的用户紧迫性更高
                     base_urgency = (threshold - soc) / threshold if threshold > 0 else 0
                     # 明确需要充电的用户额外加分
@@ -2964,9 +3071,11 @@ class ChargingScheduler:
             best_charger_id = None
             best_score = float('-inf')
 
-            # *** FIX: Define user_pos here ***
+            # 获取用户位置
             user_pos = user.get("current_position", {"lat": 0, "lng": 0})
             
+            # 创建可用充电桩列表
+            available_chargers = []
             for charger_id, charger in charger_dict.items():
                 # 跳过故障充电桩
                 if charger.get("status") == "failure":
@@ -2977,10 +3086,17 @@ class ChargingScheduler:
                     continue
                 
                 # 计算用户到充电桩的距离
-                # *** FIX: Define charger_pos here ***
                 charger_pos = charger.get("position", {"lat": 0, "lng": 0})
                 distance = self._calculate_distance(user_pos, charger_pos)
                 
+                # 将可用充电桩添加到列表
+                available_chargers.append((charger_id, charger, distance))
+            
+            # 对可用充电桩进行排序（按距离）
+            available_chargers.sort(key=lambda x: x[2])
+            
+            # 为了提高效率，只考虑最近的10个充电桩
+            for charger_id, charger, distance in available_chargers[:10]:
                 # 计算用户满意度分数（距离+等待时间）
                 user_score = self._calculate_user_satisfaction(user, charger, distance)
                 
@@ -2991,25 +3107,41 @@ class ChargingScheduler:
                 grid_score = self._calculate_grid_friendliness(charger, state)
                 
                 # 加权组合分数
-                # 额外：加入紧急程度作为调整因子 - 紧急用户更注重用户满意度
-                user_weight = weights["user_satisfaction"]
-                if urgency > 0.7:  # 非常紧急
-                    user_weight = min(0.7, user_weight * 1.5)  # 提升但不超过0.7
+                # 额外：根据紧急程度和峰谷时段调整权重
+                adjusted_weights = weights.copy()
+                
+                # 电网友好度必须影响所有决策
+                if grid_score < -0.5:  # 如果电网友好度非常差
+                    adjusted_weights["grid_friendliness"] = min(0.8, adjusted_weights["grid_friendliness"] * 1.5)  # 进一步增强电网影响
+                
+                # 只有在真正紧急的情况下才提高用户满意度权重
+                if urgency > 0.9 and user.get("soc", 100) < 15:  # 非常紧急且SOC很低
+                    adjusted_weights["user_satisfaction"] = min(0.6, adjusted_weights["user_satisfaction"] * 1.5)
+                
+                # 归一化调整后的权重
+                total = sum(adjusted_weights.values())
+                for key in adjusted_weights:
+                    adjusted_weights[key] /= total
 
                 # 智能调整权重
                 combined_score = (
-                    user_score * user_weight + 
-                    profit_score * weights["operator_profit"] + 
-                    grid_score * weights["grid_friendliness"]
+                    user_score * adjusted_weights["user_satisfaction"] +
+                    profit_score * adjusted_weights["operator_profit"] +
+                    grid_score * adjusted_weights["grid_friendliness"]
                 )
-                
-                # 附加因素：队列长度惩罚（防止过度集中）
-                queue_penalty = charger_loads.get(charger_id, 0) * 0.1
-                combined_score -= queue_penalty
-                
-                # 更新最佳选择
-                if combined_score > best_score:
-                    best_score = combined_score
+
+                # 应用队列长度惩罚
+                current_queue_len = charger_loads.get(charger_id, 0)
+                # 惩罚系数可以根据需要调整，队列越长惩罚越大
+                # 例如，每辆排队的车减少0.05分，可以加入非线性惩罚
+                queue_penalty_factor = 0.05
+                queue_penalty = current_queue_len * queue_penalty_factor
+                penalized_score = combined_score - queue_penalty
+                logger.debug(f"Charger {charger_id} for user {user_id}: User={user_score:.2f}, Profit={profit_score:.2f}, Grid={grid_score:.2f} -> Combined={combined_score:.2f}, Queue={current_queue_len}, Penalty={queue_penalty:.2f} -> Final={penalized_score:.2f}")
+
+                # 比较分数并更新最佳充电桩
+                if penalized_score > best_score:
+                    best_score = penalized_score
                     best_charger_id = charger_id
             
             # 分配最佳充电桩
@@ -3017,7 +3149,11 @@ class ChargingScheduler:
                 decisions[user_id] = best_charger_id
                 # 更新充电桩负载计数
                 charger_loads[best_charger_id] = charger_loads.get(best_charger_id, 0) + 1
+                logger.debug(f"Assigned user {user_id} to charger {best_charger_id} with score {best_score:.2f}")
+            else:
+                logger.warning(f"Could not find suitable charger for user {user_id}")
         
+        logger.info(f"Made {len(decisions)} charging assignments out of {len(candidate_users)} candidates")
         return decisions
     
     def _calculate_distance(self, pos1, pos2):
@@ -3028,147 +3164,144 @@ class ChargingScheduler:
     
     def _calculate_user_satisfaction(self, user, charger, distance):
         """
-        计算用户满意度分数，综合考虑多个影响因素。
-        返回值范围： -1 到 1，值越高满意度越高
+        计算用户满意度指标
+        考虑因素：等待时间，距离，充电速度匹配等
         
-        影响因素包括:
-        1. 行驶距离
-        2. 预计等待时间
-        3. 充电速度匹配度（如电量紧急用户更喜欢快充）
-        4. 用户本身的时间/价格敏感度
-        5. 用户当前电量（SOC）状态
+        Args:
+            user: 用户数据
+            charger: 充电桩数据
+            distance: 用户到充电桩的距离(km)
+            
+        Returns:
+            用户满意度评分 [-1,1]
         """
-        # 获取必要数据，使用安全的.get方法避免异常
-        user_soc = user.get("soc", 50)  # 当前电量百分比
-        user_type = user.get("user_profile", "normal")  # 用户类型
-        time_sensitivity = user.get("time_sensitivity", 0.5)  # 时间敏感度
-        price_sensitivity = user.get("price_sensitivity", 0.5)  # 价格敏感度
-        is_fast_charger = charger.get("type", "normal") == "fast"
-        is_superfast_charger = charger.get("type", "normal") == "superfast"
+        # 1. 距离因素 - 距离越远，满意度越低
+        # 使用非线性函数将距离映射到[-0.5, 0.5]范围
+        if distance < 2:  # 2km以内，高满意度
+            distance_score = 0.5 - distance * 0.1  # 0.5到0.3线性降低
+        elif distance < 5:  # 2-5km，中等满意度
+            distance_score = 0.3 - (distance - 2) * 0.1  # 0.3到0线性降低
+        elif distance < 10:  # 5-10km，较低满意度
+            distance_score = 0 - (distance - 5) * 0.05  # 0到-0.25线性降低
+        else:  # 10km以上，低满意度
+            distance_score = -0.25 - (distance - 10) * 0.025  # -0.25到-0.5线性降低
+            distance_score = max(-0.5, distance_score)  # 最低限制在-0.5
+        
+        # 2. 等待时间因素 - 队列越长，满意度越低
         queue_length = len(charger.get("queue", []))
         
-        # 1. 距离因素 - 距离越近越好
-        # 根据车辆续航里程标准化距离
-        max_range = user.get("max_range", 400)  # 最大续航里程（公里）
-        current_range = user.get("current_range", max_range / 2)  # 当前剩余里程
-        
-        # 计算距离在当前续航里程中的占比
-        distance_ratio = min(1.0, distance / max(current_range, 1))
-        
-        # 电量越低，距离因素越重要
-        soc_weight = max(0.3, (100 - user_soc) / 100 * 0.7)
-        distance_factor = 1.0 - (distance_ratio * soc_weight)  # 0到1之间，越近越好
-        
-        # 2. 等待时间因素
-        # 基于充电器类型和队列估计等待时间（分钟）
-        base_charge_time = 0
-        if is_superfast_charger:
-            # 超级快充 15-20分钟充至80%
-            base_charge_time = 15
-        elif is_fast_charger:
-            # 标准快充 30分钟-1.5小时充至80%
-            base_charge_time = 45
-        else:
-            # 慢充 6-12小时
-            base_charge_time = 360
-            
-        # 根据电池容量调整充电时间
-        battery_capacity = user.get("battery_capacity", 60)  # kWh
-        capacity_factor = battery_capacity / 60.0  # 相对于标准60kWh的比例
-        base_charge_time = base_charge_time * capacity_factor
-        
-        # 考虑SOC影响
-        # 如果SOC已经很高，充电会更快；SOC很低，需要更长时间
-        soc_remaining = (100 - user_soc) / 100.0
-        if soc_remaining < 0.2:  # 80%以上电量
-            base_charge_time *= 0.7  # 充电较快
-        elif soc_remaining > 0.8:  # 20%以下电量
-            base_charge_time *= 1.2  # 充电较慢
-            
-        # 考虑环境温度影响（如果系统模拟了温度）
-        ambient_temp = 25  # 默认温度
-        if hasattr(self, 'grid_status') and isinstance(self.grid_status, dict):
-            ambient_temp = self.grid_status.get("ambient_temperature", 25)
-            
-        if ambient_temp < 0:
-            base_charge_time *= 1.3  # 低温下充电慢30%
-        elif ambient_temp < 10:
-            base_charge_time *= 1.15  # 低温下充电慢15%
-        
-        # 考虑充电桩当前状态
-        current_queue_time = 0
+        # 已经在充电的话，算作队列+1
         if charger.get("status") == "occupied":
-            # 如果已有用户在充电，加上其剩余时间的一半（简化估计）
-            current_queue_time = base_charge_time / 2
+            queue_length += 1
             
-        estimated_wait_time = queue_length * base_charge_time + current_queue_time
-        
-        # 将等待时间归一化（假设最大可接受等待时间为2小时）
-        max_acceptable_wait = 120  # 分钟
-        wait_ratio = min(1.0, estimated_wait_time / max_acceptable_wait)
-        
-        # 用户特性影响等待时间容忍度
-        # 焦虑用户等待耐心更低，经济型用户更愿意等待
-        wait_tolerance_factor = 1.0
-        if user_type == "anxious":
-            wait_tolerance_factor = 0.7  # 焦虑用户耐心更低
-        elif user_type == "economic":
-            wait_tolerance_factor = 1.3  # 经济型用户更能等待
+        # 根据队列长度计算等待时间评分
+        if queue_length == 0:  # 无需等待
+            wait_score = 0.5
+        elif queue_length <= 2:  # 短队列
+            wait_score = 0.3
+        elif queue_length <= 5:  # 中等队列
+            wait_score = 0.1
+        elif queue_length <= 8:  # 较长队列
+            wait_score = -0.1
+        else:  # 非常长的队列
+            wait_score = -0.3
             
-        wait_factor = 1.0 - (wait_ratio * wait_tolerance_factor)  # 0到1，等待越短越好
+        # 3. 充电速度匹配因素 - 充电速度满足用户需求
+        charger_power = charger.get("max_power", 50)  # kW
         
-        # 3. 电量紧急度因素
-        # SOC低的用户更喜欢快速充电
-        urgency_factor = max(0, (30 - user_soc) / 30)  # 0到1，电量低于30%时开始计算紧急度
+        # 基于用户类型和SOC计算需要的充电速度
+        user_type = user.get("user_type", "private")
+        user_soc = user.get("soc", 50)
+        urgency = max(0, (40 - user_soc) / 40) if user_soc < 40 else 0  # 低SOC意味着高紧急度
         
-        # 充电速度匹配度 - 紧急用户更喜欢快充
-        charger_speed_match = 0.5
-        if urgency_factor > 0.5:  # 较为紧急
-            if is_superfast_charger:
-                charger_speed_match = 0.95  # 紧急用户极度偏好超级快充
-            elif is_fast_charger:
-                charger_speed_match = 0.8  # 紧急用户强烈偏好快充
-            else:
-                charger_speed_match = 0.3  # 紧急用户不喜欢慢充
-        else:  # 不太紧急
-            if is_superfast_charger:
-                charger_speed_match = 0.7  # 非紧急用户也喜欢超级快充
-            elif is_fast_charger:
-                charger_speed_match = 0.6  # 非紧急用户也喜欢快充
-            else:
-                charger_speed_match = 0.5  # 不紧急的用户对慢充接受度更高
+        # 计算用户期望的最小充电功率
+        expected_power = 0
+        if user_type in ["taxi", "ride_hailing"]:  # 商业用户希望快速充电
+            expected_power = 50 + urgency * 50  # 50-100kW
+        elif user_type == "logistics":  # 物流车辆
+            expected_power = 30 + urgency * 50  # 30-80kW
+        else:  # 普通用户
+            expected_power = 20 + urgency * 30  # 20-50kW
             
-        # 4. 组合用户偏好和充电器特性
-        # 距离满意度
-        distance_satisfaction = distance_factor * time_sensitivity  # 距离因素受时间敏感度影响
+        # 计算充电功率满意度
+        power_ratio = charger_power / expected_power if expected_power > 0 else 1
         
-        # 充电器匹配度满意度（包含等待时间和充电速度）
-        charger_match_satisfaction = (wait_factor * 0.6 + charger_speed_match * 0.4) * (1 - price_sensitivity * 0.5)
+        if power_ratio >= 1.5:  # 远超预期
+            power_score = 0.4
+        elif power_ratio >= 1:  # 满足或超过预期
+            power_score = 0.3
+        elif power_ratio >= 0.7:  # 略低于预期
+            power_score = 0.1
+        elif power_ratio >= 0.5:  # 明显低于预期
+            power_score = -0.1
+        else:  # 远低于预期
+            power_score = -0.2
+            
+        # 4. 充电费率因素 - 费率越高，满意度越低
+        charging_rate = charger.get("charging_rate", 1.0)  # 默认1.0元/kWh
         
-        # 5. 最终满意度分数计算
-        # 时间敏感和电量紧急的用户更在意距离和等待时间
-        time_weight = max(time_sensitivity, urgency_factor)
+        # 获取用户价格敏感度
+        user_profile = user.get("user_profile", "normal")
+        price_sensitivity = 1.0  # 默认敏感度
         
-        # 最终综合评分，每个因素有不同权重
+        if user_profile == "economic":
+            price_sensitivity = 1.5  # 经济型用户更敏感
+        elif user_profile == "premium":
+            price_sensitivity = 0.6  # 高端用户不太敏感
+        elif user_profile == "anxious":
+            price_sensitivity = 0.8  # 焦虑型用户更关注充电本身
+            
+        # 根据充电费率计算价格评分
+        reference_rate = 1.0  # 参考费率
+        price_factor = (reference_rate - charging_rate) / reference_rate * price_sensitivity
+        price_score = max(-0.3, min(0.3, price_factor * 0.5))  # 限制在[-0.3, 0.3]
+        
+        # 5. 综合服务设施 - 充电站配套设施越好，满意度越高
+        amenities_score = 0
+        if charger.get("has_restroom", False):
+            amenities_score += 0.05
+        if charger.get("has_shop", False):
+            amenities_score += 0.05
+        if charger.get("has_wifi", False):
+            amenities_score += 0.03
+        if charger.get("has_restaurant", False):
+            amenities_score += 0.07
+            
+        # 6. 紧急情况的特殊处理 - SOC非常低时，距离和等待时间权重增加
+        # 计算紧急系数
+        emergency_factor = 1.0
+        if user_soc < 15:  # SOC非常低
+            emergency_factor = 1.5
+        elif user_soc < 25:  # SOC较低
+            emergency_factor = 1.2
+            
+        # 计算最终满意度评分
+        # 距离和等待时间是最重要的因素，特别是在紧急情况下
         satisfaction = (
-            distance_satisfaction * 0.4 +
-            wait_factor * 0.3 +
-            charger_speed_match * 0.2 +
-            (1.0 - price_sensitivity * 0.3) * 0.1  # 价格不敏感的用户更满意
+            distance_score * 0.35 * emergency_factor +  # 距离因素
+            wait_score * 0.25 * emergency_factor +      # 等待时间因素
+            power_score * 0.15 +                        # 充电功率因素
+            price_score * 0.15 +                        # 价格因素
+            amenities_score * 0.1                       # 设施因素
         )
         
-        # 小电量用户的额外满意度修正
-        if user_soc < 15:
-            # 电量极低的用户，能充上电就很满意，但距离必须很近
-            if distance < 5:  # 5公里以内
-                satisfaction = max(satisfaction, 0.8)  # 确保满意度至少达到0.8
-            else:
-                satisfaction *= (1.0 - urgency_factor * 0.3)  # 电量低但充电站远，满意度降低
+        # 确保满意度在[-1,1]范围内，且紧急情况下不会太低
+        if emergency_factor > 1.2 and satisfaction < -0.5:
+            satisfaction = max(-0.5, satisfaction * 0.8)  # 紧急情况下降低负面影响
+            
+        satisfaction = max(-1.0, min(1.0, satisfaction))
         
-        # 归一化到[-1,1]区间
-        normalized_satisfaction = (satisfaction * 2) - 1
+        # 记录调试信息
+        logger.debug(f"User satisfaction calculation for user {user.get('user_id')} and charger {charger.get('charger_id')}:")
+        logger.debug(f"  - Distance: {distance:.1f}km, Score: {distance_score:.2f}")
+        logger.debug(f"  - Queue length: {queue_length}, Wait score: {wait_score:.2f}")
+        logger.debug(f"  - Power ratio: {power_ratio:.1f}, Power score: {power_score:.2f}")
+        logger.debug(f"  - Price sensitivity: {price_sensitivity:.1f}, Price score: {price_score:.2f}")
+        logger.debug(f"  - Amenities score: {amenities_score:.2f}")
+        logger.debug(f"  - Emergency factor: {emergency_factor:.1f}")
+        logger.debug(f"  - Final satisfaction: {satisfaction:.2f}")
         
-        return max(-1.0, min(1.0, normalized_satisfaction))
+        return satisfaction
     
     def _calculate_operator_profit(self, user, charger, state):
         """
@@ -3279,98 +3412,116 @@ class ChargingScheduler:
     
     def _calculate_grid_friendliness(self, charger, state):
         """
-        计算电网友好度评分，综合考虑多方面对电网的影响
-        返回值范围：-1到1，值越高对电网越友好
+        计算充电决策对电网的友好度
+        考虑因素：当前电网负载，可再生能源比例，峰谷时段等
         
-        考虑因素:
-        1. 峰谷平电价时段
-        2. 可再生能源利用率
-        3. 当前电网负载状况
-        4. 区域用电平衡
-        5. 充电功率与电网容量的匹配度
+        Args:
+            charger: 充电桩数据
+            state: 当前环境状态
+            
+        Returns:
+            网格友好度评分 [-1,1]
         """
-        # 安全获取数据
-        timestamp_str = state.get("timestamp", datetime.now().isoformat())
+        # 获取电网状态数据
+        grid_load = state.get("grid_load", 50)  # 默认50%负载
+        renewable_ratio = state.get("renewable_ratio", 0.2)  # 默认20%可再生能源
+        timestamp = state.get("timestamp")
+        
+        # 获取当前小时
         try:
-            timestamp = datetime.fromisoformat(timestamp_str)
-            hour = timestamp.hour
-        except (ValueError, TypeError):
-            hour = datetime.now().hour
-            
-        grid_status = state.get("grid_status", {})
+            current_dt = datetime.fromisoformat(timestamp)
+            hour = current_dt.hour
+        except:
+            hour = 12  # 默认中午
         
-        # 1. 电网时段状态
-        peak_hours = grid_status.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21])
-        valley_hours = grid_status.get("valley_hours", [0, 1, 2, 3, 4, 5])
-        normal_hours = [h for h in range(24) if h not in peak_hours and h not in valley_hours]
-
-        # 时段因子：谷时最佳，平时次之，峰时最差
-        time_factor = 0
+        # 新增：获取充电桩功率和当前使用情况
+        charger_max_power = charger.get("max_power", 50)  # 单位：kW
+        current_power = 0
+        
+        # 如果充电桩正在使用，考虑实际功率
+        if charger.get("status") == "occupied":
+            current_power = charger.get("current_power", charger_max_power * 0.8)  # 默认使用80%额定功率
+        
+        # 降低EV充电对总负载的影响因子
+        # 通过增加基础负载来减小单个充电桩的相对影响
+        base_load_factor = 20  # 增加这个值，进一步降低EV充电的相对影响
+        adjusted_grid_load = (grid_load * base_load_factor + current_power) / (base_load_factor + 1)
+        
+        # 1. 基于负载的基础评分 - 负载越高，越不友好
+        # 使用非线性函数，使高负载时惩罚更严重，但避免始终为负值
+        if adjusted_grid_load < 30:  # 低负载，非常友好
+            load_score = 0.8
+        elif adjusted_grid_load < 50:  # 中等负载，适度友好
+            load_score = 0.5 - (adjusted_grid_load - 30) * 0.015  # 0.5到0.2线性下降
+        elif adjusted_grid_load < 70:  # 较高负载，不太友好
+            load_score = 0.2 - (adjusted_grid_load - 50) * 0.015  # 0.2到-0.1线性下降
+        elif adjusted_grid_load < 85:  # 高负载，不友好
+            load_score = -0.1 - (adjusted_grid_load - 70) * 0.025  # -0.1到-0.475线性下降
+        else:  # 极高负载，非常不友好
+            load_score = -0.475 - (adjusted_grid_load - 85) * 0.01  # -0.475到-0.625线性下降
+            load_score = max(-0.7, load_score)  # 限制最低值为-0.7，避免过度惩罚
+        
+        # 2. 可再生能源奖励 - 可再生能源比例越高，越友好
+        renewable_score = renewable_ratio * 0.8  # 增加可再生能源影响，最高可增加0.8的评分
+        
+        # 3. 时间影响 - 基于峰谷时段
+        # 定义峰谷时段
+        peak_hours = [9, 10, 11, 12, 13, 14, 15, 16, 19, 20, 21]  # 工作和晚间高峰
+        valley_hours = [0, 1, 2, 3, 4, 5, 23]  # 深夜/凌晨低谷
+        shoulder_hours = [6, 7, 8, 17, 18, 22]  # 过渡时段
+        
+        time_score = 0
         if hour in peak_hours:
-            time_factor = -0.7  # 峰时充电对电网不友好
+            time_score = -0.3  # 高峰期，不友好（降低惩罚力度）
         elif hour in valley_hours:
-            time_factor = 0.8   # 谷时充电对电网友好
-        else:  # 平时
-            time_factor = 0.2   # 平时充电一般
-            
-        # 2. 可再生能源利用
-        renewable_ratio = grid_status.get("renewable_ratio", 0) / 100.0  # 转为0-1范围
-        # 可再生能源比例越高越好
-        # 当可再生能源丰富时，用电越多越好（避免浪费）
-        renewable_factor = renewable_ratio * 2 - 0.5  # 范围约为-0.5到1.5
+            time_score = 0.6   # 低谷期，很友好（增加奖励力度）
+        else:  # shoulder_hours
+            time_score = 0.2   # 过渡期，适中友好（增加奖励力度）
         
-        # 3. 电网负载状况
-        current_load = grid_status.get("grid_load", 50) / 100.0  # 转为0-1范围
-        ev_load = grid_status.get("ev_load", 5) / 100.0  # 电动车负载比例
-        
-        # 电网负载评分：负载越低越好，但如果可再生能源丰富，则负载可以高一些
-        if renewable_ratio > 0.7:  # 可再生能源非常丰富
-            # 此时希望多用电，充分利用可再生能源
-            load_factor = 0.5 - (0.5 - current_load) * 2  # 负载中等为最佳
-        else:
-            # 正常情况下，负载越低越好
-            load_factor = 1.0 - current_load * 2  # 负载越低越好
-            
-        # 4. 充电功率与电网容量匹配
-        charger_power = 60 if charger.get("type") == "fast" else 30  # kW
-        
-        # 快充桩在低负载时更友好，慢充桩在任何时候都相对友好
-        power_match_factor = 0
-        if charger.get("type") == "fast":
-            if current_load > 0.7:  # 高负载时
-                power_match_factor = -0.3  # 快充不友好
-            elif current_load < 0.3:  # 低负载时
-                power_match_factor = 0.3  # 快充友好
+        # 4. 充电功率影响 - 功率越大，对电网冲击越大
+        # 根据充电桩功率，计算功率惩罚
+        power_penalty = 0
+        if charger_max_power > 150:  # 超快充
+            power_penalty = 0.1  # 降低惩罚
+        elif charger_max_power > 50:  # 快充
+            power_penalty = 0.05  # 降低惩罚
         else:  # 慢充
-            power_match_factor = 0.2  # 慢充总体上更友好
-            
-        # 5. 区域负载平衡
-        # 如果有区域信息，可以考虑区域间负载平衡
-        region_balance_factor = 0
-        charger_region = charger.get("region", "")
-        region_loads = grid_status.get("region_loads", {})
+            power_penalty = 0
         
-        if charger_region and region_loads and charger_region in region_loads:
-            region_load = region_loads.get(charger_region, 50) / 100.0
-            # 鼓励在低负载区域充电
-            region_balance_factor = 0.3 * (1 - region_load * 2)
-            
-        # 6. 电网波动性
-        grid_volatility = grid_status.get("grid_volatility", 0.2)  # 电网波动性，越高越不稳定
-        volatility_factor = -0.3 * grid_volatility  # 电网波动大时，充电更不友好
+        # 5. 季节性因素 - 根据月份调整
+        month = current_dt.month if hasattr(current_dt, 'month') else 6  # 默认6月
+        season_factor = 0
         
-        # 7. 综合评分计算
-        # 基础评分：时段因子和可再生能源是主要考虑因素
-        base_score = time_factor * 0.35 + renewable_factor * 0.3
+        # 夏季和冬季用电高峰期调整
+        if month in [6, 7, 8]:  # 夏季
+            if 13 <= hour <= 16:  # 夏季午后高峰
+                season_factor = -0.1  # 降低惩罚
+        elif month in [12, 1, 2]:  # 冬季
+            if 18 <= hour <= 21:  # 冬季晚间高峰
+                season_factor = -0.1  # 降低惩罚
+                
+        # 计算最终电网友好度评分
+        grid_friendliness = load_score + renewable_score + time_score - power_penalty + season_factor
         
-        # 负载相关评分
-        load_score = load_factor * 0.2 + power_match_factor * 0.1
+        # 确保评分在[-1,1]范围内，并提高总体评分水平
+        grid_friendliness = max(-0.9, min(1.0, grid_friendliness))
         
-        # 其他因素
-        other_score = (region_balance_factor + volatility_factor) * 0.05
+        # 对所有评分进行小幅度提升，避免过度负面
+        if grid_friendliness < 0:
+            grid_friendliness *= 0.8  # 负面评分减弱20%
+        else:
+            grid_friendliness *= 1.1  # 正面评分增强10%
+            grid_friendliness = min(1.0, grid_friendliness)  # 确保不超过1.0
         
-        # 最终评分
-        grid_score = base_score + load_score + other_score
+        # 记录调试信息
+        logger.debug(f"Grid friendliness calculation for charger {charger.get('charger_id')}:")
+        logger.debug(f"  - Grid load: {grid_load:.1f}%")
+        logger.debug(f"  - Adjusted grid load: {adjusted_grid_load:.1f}%")
+        logger.debug(f"  - Load score: {load_score:.2f}")
+        logger.debug(f"  - Renewable score: {renewable_score:.2f}")
+        logger.debug(f"  - Time score: {time_score:.2f}")
+        logger.debug(f"  - Power penalty: {power_penalty:.2f}")
+        logger.debug(f"  - Season factor: {season_factor:.2f}")
+        logger.debug(f"  - Final score: {grid_friendliness:.2f}")
         
-        # 确保在[-1, 1]范围内
-        return max(-1, min(1, grid_score))
+        return grid_friendliness
