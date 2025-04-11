@@ -1,0 +1,2 @@
+*.log filter=lfs diff=lfs merge=lfs -text
+charging_system.log filter=lfs diff=lfs merge=lfs -text

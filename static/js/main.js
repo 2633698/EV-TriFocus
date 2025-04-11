@@ -13,6 +13,12 @@ let simulation = {
         gridFriendliness: [],
         totalReward: []
     },
+    gridLoadHistory: {
+        timestamps: [],
+        baseLoad: [],
+        evLoad: [],
+        totalLoad: []
+    },
     agentMetrics: {
         userDecisions: 0,
         profitDecisions: 0,
@@ -21,7 +27,8 @@ let simulation = {
         profitAdoption: 0,
         gridAdoption: 0,
         conflicts: []
-    }
+    },
+    notifiedCompletion: false // 添加标志位，记录是否已通知完成
 };
 
 // Charts
@@ -322,25 +329,25 @@ function initializeCharts() {
     gridLoadChart = new Chart(gridLoadCtx, {
         type: 'line',
         data: {
-            labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+            labels: [], // 空标签，随模拟进行添加时间点
             datasets: [
                 {
                     label: '电网基础负载',
-                    data: Array(24).fill(0),
+                    data: [], // 空数据，随模拟进行添加数据点
                     borderColor: 'rgba(75, 192, 192, 1)',
                     backgroundColor: 'rgba(75, 192, 192, 0.2)',
                     fill: true
                 },
                 {
                     label: '充电负载',
-                    data: Array(24).fill(0),
+                    data: [], // 空数据，随模拟进行添加数据点
                     borderColor: 'rgba(255, 99, 132, 1)',
                     backgroundColor: 'rgba(255, 99, 132, 0.2)',
                     fill: true
                 },
                 {
                     label: '总负载',
-                    data: Array(24).fill(0),
+                    data: [], // 空数据，随模拟进行添加数据点
                     borderColor: 'rgba(54, 162, 235, 1)',
                     backgroundColor: 'rgba(54, 162, 235, 0.2)',
                     fill: false,
@@ -369,42 +376,11 @@ function initializeCharts() {
             plugins: {
                 title: {
                     display: true,
-                    text: '电网负载分布'
+                    text: '电网负载变化'
                 },
                 legend: {
                     display: true,
                     position: 'top'
-                },
-                annotation: {
-                    annotations: {
-                        peakArea: {
-                            type: 'box',
-                            xMin: 7,
-                            xMax: 10,
-                            yMin: 0,
-                            yMax: 'max',
-                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                            borderColor: 'transparent',
-                        },
-                        peakArea2: {
-                            type: 'box',
-                            xMin: 18,
-                            xMax: 21,
-                            yMin: 0,
-                            yMax: 'max',
-                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                            borderColor: 'transparent',
-                        },
-                        valleyArea: {
-                            type: 'box',
-                            xMin: 0,
-                            xMax: 5,
-                            yMin: 0,
-                            yMax: 'max',
-                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                            borderColor: 'transparent',
-                        }
-                    }
                 }
             }
         }
@@ -967,6 +943,9 @@ async function startSimulation() {
     }
     
     try {
+        // 重置完成通知标志位
+        simulation.notifiedCompletion = false;
+        
         // 模拟按钮状态先更新
         $('#btn-start-simulation').prop('disabled', true);
         $('#btn-pause-simulation').prop('disabled', false);
@@ -1120,6 +1099,13 @@ function completeResetWithResults() {
                 totalReward: []
             };
             
+            simulation.gridLoadHistory = {
+                timestamps: [],
+                baseLoad: [],
+                evLoad: [],
+                totalLoad: []
+            };
+            
             simulation.agentMetrics = {
                 userDecisions: 0,
                 profitDecisions: 0,
@@ -1256,6 +1242,14 @@ function resetSimulationData() {
         totalReward: []
     };
     
+    // 添加电网负载历史数据结构
+    simulation.gridLoadHistory = {
+        timestamps: [],
+        baseLoad: [],
+        evLoad: [],
+        totalLoad: []
+    };
+    
     simulation.agentMetrics = {
         userDecisions: 0,
         profitDecisions: 0,
@@ -1265,6 +1259,9 @@ function resetSimulationData() {
         gridAdoption: 0,
         conflicts: []
     };
+    
+    // 重置完成通知标志位
+    simulation.notifiedCompletion = false;
     
     // 重置地图视图
     const mapContainer = document.getElementById('map-container');
@@ -1291,6 +1288,13 @@ function resetCharts() {
         dataset.data = [];
     });
     metricsChart.update();
+    
+    // Grid load chart
+    gridLoadChart.data.labels = [];
+    gridLoadChart.data.datasets.forEach(dataset => {
+        dataset.data = [];
+    });
+    gridLoadChart.update();
     
     // User wait time chart
     userWaitTimeChart.data.datasets[0].data = [0, 0, 0, 0, 0, 0];
@@ -1341,10 +1345,15 @@ async function updateSimulationStatus() {
         startBtn.disabled = simulation.running;
         pauseBtn.disabled = !simulation.running;
         
+        // 检查模拟是否停止
         if (!simulation.running && wasRunning) {
             console.log("Simulation stopped");
-            showNotification('模拟已完成或已停止', 'info');
-            return;
+            // 只有在未通知过的情况下才显示提示
+            if (!simulation.notifiedCompletion) {
+                showNotification('模拟已完成或已停止', 'info');
+                simulation.notifiedCompletion = true; // 标记已通知
+            }
+            return; // 模拟已停止，不再更新图表
         }
         
         if (!data.state) {
@@ -1365,20 +1374,34 @@ async function updateSimulationStatus() {
             simulationProgress.style.width = `${progress}%`;
             simulationProgress.setAttribute('aria-valuenow', progress);
             simulationProgress.textContent = `${Math.round(progress)}%`;
-        }
-        
-        // Update metrics
-        if (data.state.metrics) {
-            updateMetrics(data.state.metrics);
             
-            // Add data point to chart
-            if (data.state.timestamp) {
-                addMetricsDataPoint(data.state.timestamp, data.state.metrics);
+            // 如果进度达到100%，也视为模拟结束
+            if (progress >= 100) {
+                simulation.running = false;
+                // 只有在未通知过的情况下才显示提示
+                if (!simulation.notifiedCompletion) {
+                    showNotification('模拟已完成', 'success');
+                    simulation.notifiedCompletion = true; // 标记已通知
+                }
+                return; // 模拟已完成，不再更新图表
             }
         }
         
-        // Update other UI elements with state data
-        updateUIWithStateData(data.state);
+        // 只有在模拟运行中才更新图表数据
+        if (simulation.running) {
+            // Update metrics
+            if (data.state.metrics) {
+                updateMetrics(data.state.metrics);
+                
+                // Add data point to chart
+                if (data.state.timestamp) {
+                    addMetricsDataPoint(data.state.timestamp, data.state.metrics);
+                }
+            }
+            
+            // Update other UI elements with state data
+            updateUIWithStateData(data.state);
+        }
         
     } catch (error) {
         console.error('Error updating simulation status:', error);
@@ -1420,10 +1443,8 @@ function updateUIWithStateData(state) {
     if (state.grid_status) {
         console.log("updateUIWithStateData: Received grid_status:", JSON.stringify(state.grid_status));
         
-        // 创建符合charts.js中updateGridLoadChart函数期望的数据结构
-        const gridData = {
-            history: state.history || []  // 直接使用后端提供的历史数据
-        };
+        // 直接传递grid_status对象给updateGridLoadChart函数
+        updateGridLoadChart(state.grid_status);
         
         // 更新实时负载指标显示
         const totalLoadElement = document.getElementById('totalLoad');
@@ -1431,7 +1452,8 @@ function updateUIWithStateData(state) {
         const renewableRatioElement = document.getElementById('renewableRatio');
 
         if (totalLoadElement) {
-            totalLoadElement.textContent = `${(state.grid_status.grid_load || 0).toFixed(1)} kW`;
+            // 使用current_load代替grid_load，current_load是实际的kW负载值
+            totalLoadElement.textContent = `${(state.grid_status.current_load || 0).toFixed(1)} kW`;
         }
         if (evLoadElement) {
             evLoadElement.textContent = `${(state.grid_status.ev_load || 0).toFixed(1)} kW`;
@@ -1439,9 +1461,6 @@ function updateUIWithStateData(state) {
         if (renewableRatioElement) {
             renewableRatioElement.textContent = `${(state.grid_status.renewable_ratio || 0).toFixed(1)}%`;
         }
-        
-        // 使用charts.js中的updateGridLoadChart函数更新图表
-        updateGridLoadChart(gridData);
     }
 
     // Update agent decision panel if multi-agent is active and data available
@@ -2422,8 +2441,8 @@ function addMetricsDataPoint(timestamp, metrics) {
     
     try {
         const dateStr = typeof timestamp === 'string' ? timestamp : timestamp.toISOString();
-        const date = new Date(dateStr);
-        const timeLabel = formatDateTime(date);
+        // 使用简化的时间格式
+        const timeLabel = formatSimulationTime(dateStr);
         
         // Add to history arrays
         simulation.metricsHistory.timestamps.push(timeLabel);
@@ -2708,134 +2727,55 @@ function updateGridLoadChart(gridStatus) {
         return;
     }
 
-    const ctx = document.getElementById('gridLoadChart');
-    if (!ctx) {
-        console.error('找不到图表canvas元素');
-        return;
+    console.log("updateGridLoadChart: Received grid_status:", JSON.stringify(gridStatus));
+
+    try {
+        // 提取时间戳并使用简化格式
+        const timestamp = gridStatus.timestamp || new Date().toISOString();
+        // 使用简化的时间格式
+        const timeLabel = formatSimulationTime(timestamp);
+        
+        // 提取电网负载数据
+        const baseLoad = gridStatus.current_load ? (gridStatus.current_load - (gridStatus.ev_load || 0)) : 0;
+        const evLoad = gridStatus.ev_load || 0;
+        const totalLoad = gridStatus.current_load || 0;
+        
+        // 添加到历史数据数组
+        simulation.gridLoadHistory.timestamps.push(timeLabel);
+        simulation.gridLoadHistory.baseLoad.push(baseLoad);
+        simulation.gridLoadHistory.evLoad.push(evLoad);
+        simulation.gridLoadHistory.totalLoad.push(totalLoad);
+        
+        // 保留最多48个数据点（相当于模拟12小时，每15分钟一个点）
+        const maxPoints = 48;
+        if (simulation.gridLoadHistory.timestamps.length > maxPoints) {
+            simulation.gridLoadHistory.timestamps.shift();
+            simulation.gridLoadHistory.baseLoad.shift();
+            simulation.gridLoadHistory.evLoad.shift();
+            simulation.gridLoadHistory.totalLoad.shift();
+        }
+        
+        // 更新图表
+        if (gridLoadChart) {
+            // 使用简化的时间格式
+            gridLoadChart.data.labels = simulation.gridLoadHistory.timestamps;
+            gridLoadChart.data.datasets[0].data = simulation.gridLoadHistory.baseLoad;
+            gridLoadChart.data.datasets[1].data = simulation.gridLoadHistory.evLoad;
+            gridLoadChart.data.datasets[2].data = simulation.gridLoadHistory.totalLoad;
+            gridLoadChart.update();
+            
+            console.log("Updated grid-load-chart with new data point", {
+                timestamp: timeLabel,
+                baseLoad: baseLoad,
+                evLoad: evLoad,
+                totalLoad: totalLoad
+            });
+        } else {
+            console.warn("gridLoadChart not initialized. Grid load chart will not be updated.");
+        }
+    } catch (e) {
+        console.error("Error updating grid-load-chart:", e);
     }
-
-    // 如果图表不存在，则初始化
-    if (!window.gridLoadChart) {
-        window.gridLoadChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: Array.from({length: 24}, (_, i) => `${i}:00`),
-                datasets: [
-                    {
-                        label: '电网基础负载',
-                        data: Array(24).fill(0),
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        fill: true
-                    },
-                    {
-                        label: '充电负载',
-                        data: Array(24).fill(0),
-                        borderColor: 'rgba(255, 99, 132, 1)',
-                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                        fill: true
-                    },
-                    {
-                        label: '总负载',
-                        data: Array(24).fill(0),
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        fill: false,
-                        borderWidth: 2
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: '负载 (kW)'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: '时间'
-                        }
-                    }
-                },
-                plugins: {
-                    title: {
-                        display: true,
-                        text: '电网负载分布'
-                    },
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    },
-                    annotation: {
-                        annotations: {
-                            peakArea: {
-                                type: 'box',
-                                xMin: 7,
-                                xMax: 10,
-                                yMin: 0,
-                                yMax: 'max',
-                                backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                                borderColor: 'transparent',
-                            },
-                            peakArea2: {
-                                type: 'box',
-                                xMin: 18,
-                                xMax: 21,
-                                yMin: 0,
-                                yMax: 'max',
-                                backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                                borderColor: 'transparent',
-                            },
-                            valleyArea: {
-                                type: 'box',
-                                xMin: 0,
-                                xMax: 5,
-                                yMin: 0,
-                                yMax: 'max',
-                                backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                                borderColor: 'transparent',
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    // 获取当前小时
-    const currentHour = new Date().getHours();
-    
-    // 更新基础负载数据
-    if (Array.isArray(gridStatus.base_load)) {
-        window.gridLoadChart.data.datasets[0].data = gridStatus.base_load;
-    } else if (typeof gridStatus.grid_load === 'number') {
-        // 如果只有当前时刻的数据，保持历史数据不变，只更新当前时刻
-        let baseLoadData = [...window.gridLoadChart.data.datasets[0].data];
-        baseLoadData[currentHour] = gridStatus.grid_load - (gridStatus.ev_load || 0);
-        window.gridLoadChart.data.datasets[0].data = baseLoadData;
-    }
-
-    // 更新EV充电负载数据
-    if (typeof gridStatus.ev_load === 'number') {
-        let evLoadData = [...window.gridLoadChart.data.datasets[1].data];
-        evLoadData[currentHour] = gridStatus.ev_load;
-        window.gridLoadChart.data.datasets[1].data = evLoadData;
-    }
-
-    // 计算并更新总负载
-    const baseLoadData = window.gridLoadChart.data.datasets[0].data;
-    const evLoadData = window.gridLoadChart.data.datasets[1].data;
-    const totalLoadData = baseLoadData.map((base, i) => base + (evLoadData[i] || 0));
-    window.gridLoadChart.data.datasets[2].data = totalLoadData;
-
-    // 更新图表
-    window.gridLoadChart.update();
 
     // 更新负载指标显示
     const totalLoadElement = document.getElementById('totalLoad');
@@ -2843,7 +2783,8 @@ function updateGridLoadChart(gridStatus) {
     const renewableRatioElement = document.getElementById('renewableRatio');
 
     if (totalLoadElement) {
-        totalLoadElement.textContent = `${(gridStatus.grid_load || 0).toFixed(1)} kW`;
+        // 使用current_load代替grid_load，current_load是实际的kW负载值
+        totalLoadElement.textContent = `${(gridStatus.current_load || 0).toFixed(1)} kW`;
     }
     if (evLoadElement) {
         evLoadElement.textContent = `${(gridStatus.ev_load || 0).toFixed(1)} kW`;
@@ -4371,3 +4312,101 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ... existing code ...
+
+// 添加一个简化的时间格式化函数，只显示时:分，不显示日期
+function formatSimulationTime(dateStr) {
+    try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) {
+            return "无效时间";
+        }
+        // 只返回小时和分钟，格式为"HH:MM"
+        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    } catch (e) {
+        console.error('模拟时间格式化错误:', e);
+        return "时间错误";
+    }
+}
+
+// Add metrics data to charts
+function addMetricsDataPoint(timestamp, metrics) {
+    if (!timestamp || !metrics) {
+        console.warn('Missing data for metrics chart update');
+        return;
+    }
+    
+    try {
+        const dateStr = typeof timestamp === 'string' ? timestamp : timestamp.toISOString();
+        // 使用简化的时间格式
+        const timeLabel = formatSimulationTime(dateStr);
+        
+        // Add to history arrays
+        simulation.metricsHistory.timestamps.push(timeLabel);
+        simulation.metricsHistory.userSatisfaction.push(parseFloat(metrics.user_satisfaction) || 0);
+        simulation.metricsHistory.operatorProfit.push(parseFloat(metrics.operator_profit) || 0);
+        simulation.metricsHistory.gridFriendliness.push(parseFloat(metrics.grid_friendliness) || 0);
+        simulation.metricsHistory.totalReward.push(parseFloat(metrics.total_reward) || 0);
+        
+        // Keep last 24 hours of data (96 points at 15-min intervals)
+        const maxPoints = 96;
+        if (simulation.metricsHistory.timestamps.length > maxPoints) {
+            simulation.metricsHistory.timestamps.shift();
+            simulation.metricsHistory.userSatisfaction.shift();
+            simulation.metricsHistory.operatorProfit.shift();
+            simulation.metricsHistory.gridFriendliness.shift();
+            simulation.metricsHistory.totalReward.shift();
+        }
+        
+        // Update metrics chart
+        if (metricsChart) {
+            metricsChart.data.labels = simulation.metricsHistory.timestamps;
+            metricsChart.data.datasets[0].data = simulation.metricsHistory.userSatisfaction;
+            metricsChart.data.datasets[1].data = simulation.metricsHistory.operatorProfit;
+            metricsChart.data.datasets[2].data = simulation.metricsHistory.gridFriendliness;
+            metricsChart.data.datasets[3].data = simulation.metricsHistory.totalReward;
+            metricsChart.update();
+        }
+    } catch (error) {
+        console.error('Error adding metrics data point:', error);
+    }
+}
+
+// 每5秒更新一次系统状态
+setInterval(() => {
+    if (document.getElementById('system-status-container')) {
+        fetch('/api/system_state')
+            .then(response => response.json())
+            .then(data => {
+                // 检查数据
+                if (!data) return;
+                
+                // 更新系统状态指标
+                const metrics = document.getElementById('metrics-overview');
+                if (metrics) {
+                    // 获取各项指标值并更新
+                    const userSatisfaction = data.metrics?.user_satisfaction || 0;
+                    const operatorProfit = data.metrics?.operator_profit || 0;
+                    const gridFriendliness = data.metrics?.grid_friendliness || 0;
+                    const totalScore = data.metrics?.total_reward || 0;
+                    
+                    document.getElementById('user-satisfaction-value').textContent = userSatisfaction.toFixed(2);
+                    document.getElementById('operator-profit-value').textContent = operatorProfit.toFixed(2);
+                    document.getElementById('grid-friendliness-value').textContent = gridFriendliness.toFixed(2);
+                    document.getElementById('total-score-value').textContent = totalScore.toFixed(2);
+                }
+                
+                // 更新充电站状态
+                updateChargingStationsUI(data.charging_stations || []);
+            })
+            .catch(error => {
+                console.error('Error fetching system state:', error);
+            });
+    }
+}, 5000);
+
+// 页面加载时初始化图表
+document.addEventListener('DOMContentLoaded', () => {
+    initializeGridLoadChart();
+});
+
+// End of file

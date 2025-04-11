@@ -892,11 +892,16 @@ class ChargingEnvironment:
                     user["destination"] = new_destination
                     user["status"] = "traveling" # Start traveling to the new destination
                     user["target_charger"] = None # Not heading to a charger yet
-                    user["route"] = None # Will be planned if needed
-                    user["time_to_destination"] = None # Will be calculated
                     user["post_charge_timer"] = None # Reset timer
                     user["needs_charge_decision"] = False # Reset flag
                     user["last_destination_type"] = "random"
+                    # *** Explicitly plan route to the new random destination ***
+                    if self._plan_route_to_destination(user_id, new_destination):
+                        logger.debug(f"User {user_id} planned route to new random destination after charging.")
+                    else:
+                        logger.warning(f"User {user_id} failed to plan route to new random destination after charging. Setting status to idle.")
+                        user["status"] = "idle" # Fallback if route planning fails
+                        user["destination"] = None
 
             # --- Battery Drain (Idle & Traveling & PostCharge) ---
             # Apply base consumption unless charging/waiting
