@@ -1695,363 +1695,304 @@ class ChargingEnvironment:
         return self.get_current_state()
 
     def _calculate_rewards(self):
-        """计算当前状态下的奖励值"""
+        """计算当前状态下的奖励值 (修正后，统一电网友好度计算逻辑)"""
         # 用户满意度指标
         user_satisfaction = 0
         total_users = len(self.users) if self.users else 1  # 避免除以零
-        
+
         # 统计不同状态的用户数量
         charging_count = 0
         waiting_count = 0
         traveling_count = 0
         low_soc_count = 0  # SOC低于30%的用户
-        
+
         for user in self.users.values():
             # SOC因子 - 电量越高满意度越高
-            soc_factor = min(1.0, user.get("soc", 0) / 100)  # 使用.get()，限制最大值为1
-            
+            soc_factor = min(1.0, user.get("soc", 0) / 100) if user.get("soc", 0) is not None else 0.0 # Handle None case
+
             # 状态因子 - 不同状态有不同的满意度
             status_factor = 1.0
-            user_status = user.get("status", "idle")  # 使用.get()
-            
+            user_status = user.get("status", "idle")
+
             if user_status == "charging":
-                status_factor = 1.2  # 正在充电的用户满意度更高
+                status_factor = 1.2
                 charging_count += 1
             elif user_status == "waiting":
-                status_factor = 0.6  # 等待充电的用户满意度较低
+                status_factor = 0.6
                 waiting_count += 1
             elif user_status == "traveling":
-                status_factor = 0.8  # 正在前往充电站的用户满意度处于中间
+                status_factor = 0.8
                 traveling_count += 1
-                
-            if user.get("soc", 0) < 30:
+
+            if user.get("soc", 100) < 30: # Default to 100 if None
                 low_soc_count += 1
-                
+
             # 单个用户的满意度贡献，考虑电量和状态
             user_satisfaction += soc_factor * status_factor
-        
-        # 归一化用户满意度，考虑正在充电和等待用户的比例
-        active_users_ratio = (charging_count + waiting_count) / total_users if total_users > 0 else 0
-        user_satisfaction = user_satisfaction / total_users  # 基本归一化
-        
-        # 对用户满意度进行调整，考虑到低电量用户和服务中用户比例
-        # 如果低SOC用户很多但充电/等待用户比例低，降低满意度
-        if low_soc_count > 0 and active_users_ratio < 0.2:
-            user_satisfaction *= 0.8
-        
-        # 缩放到[-1, 1]范围 - 使用更平滑的曲线
-        user_satisfaction = 2 * (1 / (1 + math.exp(-5 * (user_satisfaction - 0.5)))) - 1
-        
-        # 运营商利润 - 改进计算方法
+
+        # 归一化用户满意度
+        user_satisfaction = user_satisfaction / total_users if total_users > 0 else 0
+
+        # 对用户满意度进行调整
+        if low_soc_count > 0 and (charging_count + waiting_count) / total_users < 0.2 if total_users > 0 else False:
+             user_satisfaction *= 0.8
+
+        # 缩放到[-1, 1]范围
+        try:
+            # Avoid potential math domain error with exp if satisfaction is extremely large negative
+            if user_satisfaction - 0.5 < -700: # Prevent overflow in exp
+                 sigmoid_val = 0.0
+            else:
+                 sigmoid_val = 1 / (1 + math.exp(-5 * (user_satisfaction - 0.5)))
+            user_satisfaction = 2 * sigmoid_val - 1
+        except (OverflowError, ValueError):
+             user_satisfaction = -1.0 # Fallback in case of math errors
+             logger.warning("Math error during user satisfaction sigmoid calculation, defaulting to -1.")
+
+
+        # 运营商利润
         total_revenue = 0
         total_energy = 0
-        total_chargers = len(self.chargers) if self.chargers else 1  # 避免除以零
+        total_chargers = len(self.chargers) if self.chargers else 1
         occupied_chargers = 0
-        
+
         for charger in self.chargers.values():
-            daily_revenue = charger.get("daily_revenue", 0)  # 使用.get()
-            daily_energy = charger.get("daily_energy", 0)  # 使用.get()获取充电量
-            total_revenue += daily_revenue
-            total_energy += daily_energy
-            
+            total_revenue += charger.get("daily_revenue", 0)
+            total_energy += charger.get("daily_energy", 0)
             if charger.get("status") == "occupied":
                 occupied_chargers += 1
-        
-        # 充电桩利用率 - 重要的运营指标
-        charger_utilization = occupied_chargers / total_chargers
-        
-        # 收入系数 - 随时间缓慢增长，避免过快饱和
-        # 考虑当前小时，白天时段按小时比例计算，晚上则保持低值
+
+        charger_utilization = occupied_chargers / total_chargers if total_chargers > 0 else 0
+
+        # 收入系数
         hour = self.current_time.hour
+        minute = self.current_time.minute
         day_progress = 0
-        
-        if 6 <= hour <= 23:  # 工作时段 6:00-23:00
-            day_progress = (hour - 6) / 17  # 归一化到0-1
-        else:  # 夜间时段
-            day_progress = 0.1  # 夜间较低固定值
-        
-        # 跟踪历史累计收入，用于平滑和正确评估运营商利润
+        if 6 <= hour <= 23:
+            day_progress = (hour - 6 + minute / 60.0) / 18.0 # More precise progress within working hours (6 to midnight)
+        else: # Night hours
+            day_progress = max(0, (hour + minute / 60.0)) / 6.0 * 0.1 # Scale night progress for low base
+
+        day_progress = min(1.0, max(0.0, day_progress)) # Ensure bounds 0-1
+
+        # 跟踪历史累计收入
         if not hasattr(self, '_cumulative_revenue'):
             self._cumulative_revenue = 0
             self._revenue_history = []
             self._revenue_day_counter = 0
-            self._days_revenue = []  # 每日收入列表
+            self._days_revenue = []
             self._last_day = self.current_time.day
-        
-        # 检测新的一天，重置日收入
+
         if self.current_time.day != getattr(self, '_last_day', -1):
             self._last_day = self.current_time.day
             if hasattr(self, '_daily_revenue'):
                 self._days_revenue.append(self._daily_revenue)
-                # 保留最近7天的数据
-                if len(self._days_revenue) > 7:
-                    self._days_revenue.pop(0)
+                if len(self._days_revenue) > 7: self._days_revenue.pop(0)
             self._daily_revenue = 0
             self._revenue_day_counter += 1
-        
-        # 更新当前步骤的收入
-        step_revenue = sum(c.get("daily_revenue", 0) - c.get("previous_revenue", 0) for c in self.chargers.values())
-        
-        # 更新每个充电桩的历史收入
+
+        step_revenue = 0
         for charger_id, charger in self.chargers.items():
-            charger["previous_revenue"] = charger.get("daily_revenue", 0)
-        
-        # 累计当天收入
-        if not hasattr(self, '_daily_revenue'):
-            self._daily_revenue = 0
+             current_daily_revenue = charger.get("daily_revenue", 0)
+             previous_revenue = charger.get("previous_revenue", 0)
+             step_revenue += (current_daily_revenue - previous_revenue)
+             charger["previous_revenue"] = current_daily_revenue # Update previous revenue
+
+        if not hasattr(self, '_daily_revenue'): self._daily_revenue = 0
         self._daily_revenue += step_revenue
-        
-        # 累计总收入（需要给予一个逐渐减弱的权重）
-        decay_factor = 0.98  # 较慢的衰减率
+
+        decay_factor = 0.98
         self._cumulative_revenue = self._cumulative_revenue * decay_factor + step_revenue
-        
-        # 收入因子 - 根据充电桩数量和利用率动态计算期望值
-        # 每个充电桩每天的基准收入（元）
-        base_daily_revenue_per_charger = 200  
-        
-        # 理论最大日收入（考虑充电桩数量的平方根缩放）
-        theoretical_max_daily_revenue = base_daily_revenue_per_charger * math.sqrt(total_chargers) * 1.2
-        
-        # 基于历史数据的预期收入，考虑时间进度
+
+        # 收入因子
+        base_daily_revenue_per_charger = 200
+        theoretical_max_daily_revenue = base_daily_revenue_per_charger * math.sqrt(total_chargers) * 1.2 if total_chargers > 0 else 0
         expected_daily_revenue = theoretical_max_daily_revenue * (0.3 + 0.7 * day_progress)
-        
-        # 计算收入比率 - 使用更平滑的比较方式
+
         revenue_ratio = 0
-        
-        # 如果有足够的历史数据，使用移动平均
         if hasattr(self, '_days_revenue') and len(self._days_revenue) > 0:
-            avg_daily_revenue = sum(self._days_revenue) / len(self._days_revenue)
-            # 当天进度比例
-            day_fraction = min(1.0, (hour + 1) / 24)
-            # 当天预期收入
-            today_expected = expected_daily_revenue * day_fraction
-            # 实际累计与预期的比例
-            revenue_ratio = min(0.9, self._daily_revenue / (today_expected + 1))  # 防止除以0，限制最大值
+             avg_daily_revenue = sum(self._days_revenue) / len(self._days_revenue)
+             day_fraction = min(1.0, (hour + minute / 60.0) / 24.0)
+             today_expected = avg_daily_revenue * day_fraction
+             revenue_ratio = min(1.0, self._daily_revenue / (today_expected + 1e-6)) # Avoid zero division
         else:
-            # 没有足够历史数据时，使用理论值和当前利用率
-            revenue_ratio = min(0.85, total_revenue / (expected_daily_revenue + 1) * charger_utilization)
-        
-        # 充电能量因子 - 充电量与充电用户数量的关系
+             day_fraction = min(1.0, (hour + minute / 60.0) / 24.0)
+             today_expected_theoretical = expected_daily_revenue * day_fraction
+             revenue_ratio = min(0.95, self._daily_revenue / (today_expected_theoretical + 1e-6) * (0.5 + 0.5 * charger_utilization))
+
+        # 能量因子
         energy_factor = 0
-        active_users = charging_count + waiting_count
-        
-        if total_energy > 0 and active_users > 0:
-            # 每个活跃用户的预期充电量范围
-            expected_energy_per_user = 10  # kWh
-            
-            # 实际每用户充电量
-            actual_energy_per_user = total_energy / active_users
-            
-            # 能量因子，使用对数函数使增长更平滑
-            energy_ratio = actual_energy_per_user / expected_energy_per_user
-            energy_factor = min(0.85, math.log(1 + energy_ratio) / math.log(2))
-        
-        # 组合利润得分 - 平衡各因素的影响
+        active_users_for_energy = charging_count # Base on charging users only for avg energy calc
+        if total_energy > 0 and active_users_for_energy > 0:
+             expected_energy_per_user = 15 # Slightly higher expectation
+             actual_energy_per_user = total_energy / active_users_for_energy
+             energy_ratio = actual_energy_per_user / expected_energy_per_user
+             energy_factor = min(1.0, math.log(1 + max(0, energy_ratio)) / math.log(2.5)) # Use log base 2.5 for slower rise
+
+        # 组合利润得分
         operator_profit_combined = (
-            revenue_ratio * 0.5 +                 # 收入贡献
-            energy_factor * 0.3 +                 # 能量输出贡献
-            (charger_utilization * 0.8) * 0.2     # 资源利用率贡献（缩小范围）
+            revenue_ratio * 0.5 +
+            energy_factor * 0.3 +
+            charger_utilization * 0.2
         )
-        
-        # 应用超级平滑的S型函数，确保饱和度非常缓慢
-        # 使用自定义映射函数，控制增长率
+        operator_profit_combined = max(0.0, min(1.0, operator_profit_combined)) # Ensure bounds before curve
+
         def smooth_profit_curve(x):
-            # 将[0,1]范围的输入映射到[-1,1]范围的输出
-            # 使用更扁平的S曲线，中点在0.5
-            if x < 0.2:
-                # 起始段缓慢增长
-                return -0.8 + x * 2
-            elif x < 0.8:
-                # 中间段线性增长但较缓
-                return -0.4 + (x - 0.2) * 1.0
-            else:
-                # 高端缓慢接近1
-                remaining = x - 0.8
-                return 0.4 + remaining * 1.5
-        
+             # Simple sigmoid-like curve centered around 0.5, scaling to [-1, 1]
+             # Adjust steepness (k) and midpoint (x0)
+             k = 5 # Controls steepness
+             x0 = 0.4 # Midpoint where output is 0
+             try:
+                  # Prevent overflow
+                  exponent = -k * (x - x0)
+                  if exponent > 700: return -1.0
+                  if exponent < -700: return 1.0
+                  return 2 / (1 + math.exp(exponent)) - 1
+             except (OverflowError, ValueError):
+                  logger.warning("Math error during profit curve calculation.")
+                  return 0.0 # Fallback
+
+
         operator_profit = smooth_profit_curve(operator_profit_combined)
-        
-        # 确保在[-1,1]范围内
         operator_profit = max(-1.0, min(1.0, operator_profit))
-        
-        # 电网友好度指标 - 改进计算
-        current_load = self.grid_status.get("grid_load", 50)  # 使用.get()并设置默认值50
-        ev_load = self.grid_status.get("ev_load", 0)  # 电动车充电负载
-        max_load = 100  # 最大负载基准
-        
-        # 计算负载比例，但考虑电动车负载的贡献
-        base_load = current_load - (ev_load)  # 去除EV负载影响后的基础负载
-        base_load_ratio = base_load / max_load
-        
-        # EV负载占总负载的比例
-        ev_load_ratio = 0
-        if current_load > 0:
-            ev_load_ratio = (ev_load) / current_load
-        
-        # 可再生能源比例
-        renewable_ratio = self.grid_status.get("renewable_ratio", 0) / 100  # 使用.get()，转换为0-1
-        
+
+        # --- 电网友好度指标 - 修正后逻辑 ---
+        # 直接使用 grid_status 中的总负载百分比
+        grid_status_dict = self.grid_status if isinstance(self.grid_status, dict) else {}
+        current_load_percentage = grid_status_dict.get("grid_load", 50) # Default 50%
+        renewable_ratio = grid_status_dict.get("renewable_ratio", 0) / 100.0 if grid_status_dict.get("renewable_ratio") is not None else 0.0 # Handle None and convert
+
         # 考虑峰谷状态和再生能源情况
         hour = self.current_time.hour
-        
-        # 使用与单次决策相同的峰谷时段定义
-        peak_hours = [9, 10, 11, 12, 13, 14, 15, 16, 19, 20, 21]  # 工作和晚间高峰
-        valley_hours = [0, 1, 2, 3, 4, 5, 23]  # 深夜/凌晨低谷
-        shoulder_hours = [6, 7, 8, 17, 18, 22]  # 过渡时段
-        
-        # 时间因子 - 考虑峰谷
-        time_factor = 0
-        if hour in peak_hours:
-            time_factor = -0.3  # 高峰期，不友好（降低惩罚力度）
-        elif hour in valley_hours:
-            time_factor = 0.6   # 低谷期，很友好（增加奖励力度）
-        else:  # shoulder_hours
-            time_factor = 0.2   # 过渡期，适中友好
-        
-        # 增加降低EV影响的因子，与单次决策计算保持一致
-        base_load_factor = 20  # 与单次决策保持一致
-        adjusted_grid_load = (current_load * base_load_factor + ev_load) / (base_load_factor + 1)
-        
-        # 基于调整后负载的评分，与单次决策保持一致
-        if adjusted_grid_load < 30:  # 低负载，非常友好
+        peak_hours = grid_status_dict.get("peak_hours", [9, 10, 11, 12, 13, 14, 15, 16, 19, 20, 21])
+        valley_hours = grid_status_dict.get("valley_hours", [0, 1, 2, 3, 4, 5, 23])
+        shoulder_hours = [h for h in range(24) if h not in peak_hours and h not in valley_hours]
+
+        # 1. 基于总负载百分比的评分 (使用统一的平缓逻辑)
+        if current_load_percentage < 30:
             load_factor = 0.8
-        elif adjusted_grid_load < 50:  # 中等负载，适度友好
-            load_factor = 0.5 - (adjusted_grid_load - 30) * 0.015  # 0.5到0.2线性下降
-        elif adjusted_grid_load < 70:  # 较高负载，不太友好
-            load_factor = 0.2 - (adjusted_grid_load - 50) * 0.015  # 0.2到-0.1线性下降
-        elif adjusted_grid_load < 85:  # 高负载，不友好
-            load_factor = -0.1 - (adjusted_grid_load - 70) * 0.025  # -0.1到-0.475线性下降
-        else:  # 极高负载，非常不友好
-            load_factor = -0.475 - (adjusted_grid_load - 85) * 0.01  # -0.475到-0.625线性下降
-            load_factor = max(-0.7, load_factor)  # 限制最低值
-        
-        # 可再生能源因子 - 再生能源比例高时鼓励充电
-        renewable_factor = 0.8 * renewable_ratio  # 与单次决策保持一致
-        
-        # EV负载占比因子 - EV负载占比过高时轻微惩罚
-        ev_concentration_factor = 0
-        if ev_load_ratio > 0.2:  # EV负载超过总负载20%时开始惩罚
-            ev_concentration_factor = -0.1 * (ev_load_ratio - 0.2) / 0.7  # 降低惩罚
-        
-        # 计算总电网友好度
-        grid_friendliness = load_factor + renewable_factor + time_factor + ev_concentration_factor
-        
-        # 确保评分在[-1,1]范围内，并提高总体评分水平
-        grid_friendliness = max(-0.9, min(1.0, grid_friendliness))
-        
-        # 对所有评分进行小幅度提升，避免过度负面
-        if grid_friendliness < 0:
-            grid_friendliness *= 0.8  # 负面评分减弱20%
+        elif current_load_percentage < 50:
+            load_factor = 0.5 - (current_load_percentage - 30) * 0.015
+        elif current_load_percentage < 70:
+            load_factor = 0.2 - (current_load_percentage - 50) * 0.01
+        elif current_load_percentage < 85:
+            load_factor = 0.0 - (current_load_percentage - 70) * 0.015
         else:
-            grid_friendliness *= 1.1  # 正面评分增强10%
-            grid_friendliness = min(1.0, grid_friendliness)  # 确保不超过1.0
-            
-        # 增加详细日志，帮助诊断
-        logger.info(f"Grid friendliness calculation - overall metrics:")
-        logger.info(f"  - Current load: {current_load:.1f}%, EV load: {ev_load:.1f}%")
-        logger.info(f"  - Adjusted grid load: {adjusted_grid_load:.1f}%")
+            load_factor = -0.225 - (current_load_percentage - 85) * 0.01
+            load_factor = max(-0.5, load_factor)
+
+        # 2. 可再生能源因子
+        renewable_factor = 0.8 * renewable_ratio
+
+        # 3. 时间因子
+        time_factor = 0
+        if hour in peak_hours: time_factor = -0.3
+        elif hour in valley_hours: time_factor = 0.6
+        else: time_factor = 0.2
+
+        # 4. EV负载占比因子
+        ev_concentration_factor = 0
+        total_load_abs = grid_status_dict.get("current_load", 0) # 总负载绝对值 (kW)
+        ev_load_abs = grid_status_dict.get("ev_load", 0)        # EV负载绝对值 (kW)
+        ev_load_ratio = 0
+        if total_load_abs > 1e-6: # Avoid division by zero
+            ev_load_ratio = ev_load_abs / total_load_abs
+
+        if ev_load_ratio > 0.3:
+            ev_concentration_factor = -0.15 * (ev_load_ratio - 0.3) / 0.7
+
+        # 计算总电网友好度
+        grid_friendliness_raw = load_factor + renewable_factor + time_factor + ev_concentration_factor
+
+        # 确保评分在[-1,1]范围内，并应用最终调整
+        grid_friendliness = max(-0.9, min(1.0, grid_friendliness_raw))
+
+        if grid_friendliness < 0:
+            grid_friendliness *= 0.8
+        else:
+            grid_friendliness *= 1.1
+            grid_friendliness = min(1.0, grid_friendliness)
+
+        # INFO 级别的日志
+        logger.info(f"Grid friendliness calculation - overall metrics @ {self.current_time}:")
+        logger.info(f"  - Grid Load Percentage: {current_load_percentage:.1f}%")
+        logger.info(f"  - EV Load Absolute: {ev_load_abs:.1f}kW, Total Load Absolute: {total_load_abs:.1f}kW")
         logger.info(f"  - Hour: {hour} ({'peak' if hour in peak_hours else 'valley' if hour in valley_hours else 'shoulder'})")
-        logger.info(f"  - Load factor: {load_factor:.2f}")
-        logger.info(f"  - Time factor: {time_factor:.2f}")
-        logger.info(f"  - Renewable factor (ratio={renewable_ratio:.2f}): {renewable_factor:.2f}")
-        logger.info(f"  - EV concentration factor: {ev_concentration_factor:.2f}")
-        logger.info(f"  - Final grid friendliness (before adjustment): {load_factor + renewable_factor + time_factor + ev_concentration_factor:.2f}")
-        logger.info(f"  - Final grid friendliness (after adjustment): {grid_friendliness:.2f}")
-        
-        # 计算总奖励（加权和）
-        weights = {
-            "user_satisfaction": 0.4,
-            "operator_profit": 0.3,
-            "grid_friendliness": 0.3
-        }
-        
+        logger.info(f"  - Load factor: {load_factor:.3f}")
+        logger.info(f"  - Time factor: {time_factor:.3f}")
+        logger.info(f"  - Renewable factor (ratio={renewable_ratio:.3f}): {renewable_factor:.3f}")
+        logger.info(f"  - EV concentration factor (ratio={ev_load_ratio:.3f}): {ev_concentration_factor:.3f}")
+        logger.info(f"  - Raw sum before final adjustments: {grid_friendliness_raw:.3f}")
+        logger.info(f"  - Final grid friendliness (after adjustments): {grid_friendliness:.3f}")
+        # --- 结束电网友好度计算 ---
+
+        # 计算总奖励
+        weights = self.config.get("scheduler", {}).get("optimization_weights", {
+            "user_satisfaction": 0.4, "operator_profit": 0.3, "grid_friendliness": 0.3
+        })
         total_reward = (user_satisfaction * weights["user_satisfaction"] +
                         operator_profit * weights["operator_profit"] +
                         grid_friendliness * weights["grid_friendliness"])
-        
-        # 存储本次计算的指标，用于历史记录
+
+        # 存储指标
         self.metrics["user_satisfaction"].append(user_satisfaction)
         self.metrics["operator_profit"].append(operator_profit)
         self.metrics["grid_friendliness"].append(grid_friendliness)
         self.metrics["total_reward"].append(total_reward)
-                        
-        # 计算无序充电的基准指标（用于对比）
+
+        # 计算无序充电基准 (保持不变)
+        uncoordinated_user_satisfaction = None
+        uncoordinated_operator_profit = None
+        uncoordinated_grid_friendliness = None
+        uncoordinated_total_reward = None
+        improvement_percentage = None
+
         if hasattr(self, 'uncoordinated_baseline') and self.uncoordinated_baseline:
-            # 现在我们有了更精确的用户行为模式，可以做更精确的对比
-            uncoordinated_user_satisfaction = 0
-            uncoordinated_operator_profit = 0
-            uncoordinated_grid_friendliness = 0
-            
-            # 无序充电的特点：
-            # 1. 用户满意度往往较高，因为用户更可能找最近的充电站
-            # 2. 运营商利润不均衡，热门站点过载而偏远站点闲置
-            # 3. 电网友好度差，因为充电高度集中在工作日下班后
-            
-            # 无序充电下的用户满意度 - 实际可能更高
-            # 用户可自由选择，但总体等待时间更长
-            uncoordinated_wait_factor = 0.7  # 等待时间估计
-            uncoordinated_soc_factor = 1.1 * (sum([min(1.0, u.get("soc", 0) / 100) for u in self.users.values()]) / total_users)
-            uncoordinated_user_satisfaction = min(0.8, uncoordinated_wait_factor * uncoordinated_soc_factor)
-            
-            # 无序充电下的运营商利润 - 更真实建模
-            # 收入可能相似，但利用率不均衡
-            unc_utilization_factor = 0.7 if charger_utilization > 0.3 else 0.9  # 高利用率时效率更低
-            
-            # 收入分布不均
-            revenue_distribution_penalty = -0.2 if charger_utilization > 0.4 else -0.1
-            
-            # 计算无序充电利润 - 与当前利润相关但更不平衡
-            uncoordinated_operator_profit = max(-0.8, min(0.8, 
-                 operator_profit * unc_utilization_factor + revenue_distribution_penalty))
-            
-            # 无序充电下的电网友好度 - 更精确建模不同时段的行为
-            # 晚间充电高度集中，早晨相对较少
-            if 17 <= hour <= 22:  # 晚高峰充电集中
-                uncoordinated_grid_friendliness = -0.7 - 0.1 * renewable_ratio  # 几乎不考虑可再生能源
-            elif 7 <= hour <= 9:  # 早高峰适度集中
-                uncoordinated_grid_friendliness = -0.4 - 0.1 * renewable_ratio
-            elif 0 <= hour <= 5:  # 深夜较少充电
-                uncoordinated_grid_friendliness = 0.2 + 0.2 * renewable_ratio  # 深夜利用率低但友好
-            else:
-                uncoordinated_grid_friendliness = -0.2  # 其他时段一般水平
-            
-            # 计算总体奖励
-            uncoordinated_total_reward = (
-                uncoordinated_user_satisfaction * weights["user_satisfaction"] +
-                uncoordinated_operator_profit * weights["operator_profit"] +
-                uncoordinated_grid_friendliness * weights["grid_friendliness"]
-            )
-            
-            # 存储无序充电基准指标
-            self.metrics["uncoordinated_user_satisfaction"] = uncoordinated_user_satisfaction
-            self.metrics["uncoordinated_operator_profit"] = uncoordinated_operator_profit
-            self.metrics["uncoordinated_grid_friendliness"] = uncoordinated_grid_friendliness
-            self.metrics["uncoordinated_total_reward"] = uncoordinated_total_reward
-            
-            # 计算改进百分比（针对总奖励）
-            if uncoordinated_total_reward != 0:
-                improvement_percentage = ((total_reward - uncoordinated_total_reward) / 
-                                         abs(uncoordinated_total_reward)) * 100
-                self.metrics["improvement_percentage"] = improvement_percentage
-            
-            # 返回包含对比的结果
-        return {
-                "user_satisfaction": user_satisfaction,
-                "operator_profit": operator_profit,
-                "grid_friendliness": grid_friendliness,
-                "total_reward": total_reward,
-                "uncoordinated_user_satisfaction": uncoordinated_user_satisfaction,
-                "uncoordinated_operator_profit": uncoordinated_operator_profit,
-                "uncoordinated_grid_friendliness": uncoordinated_grid_friendliness,
-                "uncoordinated_total_reward": uncoordinated_total_reward
-            }
-                        
-        return {
+             uncoordinated_wait_factor = 0.7
+             uncoordinated_soc_factor = 1.1 * (sum([min(1.0, u.get("soc", 0) / 100) for u in self.users.values() if u.get("soc") is not None]) / total_users if total_users > 0 else 0)
+             uncoordinated_user_satisfaction = min(0.8, uncoordinated_wait_factor * uncoordinated_soc_factor)
+
+             unc_utilization_factor = 0.7 if charger_utilization > 0.3 else 0.9
+             revenue_distribution_penalty = -0.2 if charger_utilization > 0.4 else -0.1
+             uncoordinated_operator_profit = max(-0.8, min(0.8,
+                  operator_profit * unc_utilization_factor + revenue_distribution_penalty))
+
+             if 17 <= hour <= 22: uncoordinated_grid_friendliness = -0.7 - 0.1 * renewable_ratio
+             elif 7 <= hour <= 9: uncoordinated_grid_friendliness = -0.4 - 0.1 * renewable_ratio
+             elif 0 <= hour <= 5: uncoordinated_grid_friendliness = 0.2 + 0.2 * renewable_ratio
+             else: uncoordinated_grid_friendliness = -0.2
+
+             uncoordinated_total_reward = (
+                 uncoordinated_user_satisfaction * weights["user_satisfaction"] +
+                 uncoordinated_operator_profit * weights["operator_profit"] +
+                 uncoordinated_grid_friendliness * weights["grid_friendliness"]
+             )
+
+             self.metrics["uncoordinated_user_satisfaction"] = uncoordinated_user_satisfaction
+             self.metrics["uncoordinated_operator_profit"] = uncoordinated_operator_profit
+             self.metrics["uncoordinated_grid_friendliness"] = uncoordinated_grid_friendliness
+             self.metrics["uncoordinated_total_reward"] = uncoordinated_total_reward
+
+             if uncoordinated_total_reward is not None and abs(uncoordinated_total_reward) > 1e-6:
+                 improvement_percentage = ((total_reward - uncoordinated_total_reward) /
+                                          abs(uncoordinated_total_reward)) * 100
+                 self.metrics["improvement_percentage"] = improvement_percentage
+
+        results = {
             "user_satisfaction": user_satisfaction,
             "operator_profit": operator_profit,
             "grid_friendliness": grid_friendliness,
             "total_reward": total_reward
         }
+        if uncoordinated_total_reward is not None:
+            results.update({
+                "uncoordinated_user_satisfaction": uncoordinated_user_satisfaction,
+                "uncoordinated_operator_profit": uncoordinated_operator_profit,
+                "uncoordinated_grid_friendliness": uncoordinated_grid_friendliness,
+                "uncoordinated_total_reward": uncoordinated_total_reward,
+                "improvement_percentage": improvement_percentage
+            })
+        return results
 
     # <<< ADD NEW HELPER FUNCTION HERE >>>
     def _calculate_charging_probability(self, user, current_hour):
@@ -3417,116 +3358,97 @@ class ChargingScheduler:
     
     def _calculate_grid_friendliness(self, charger, state):
         """
-        计算充电决策对电网的友好度
-        考虑因素：当前电网负载，可再生能源比例，峰谷时段等
-        
+        计算充电决策对电网的友好度 (修正后)
+        考虑因素：当前电网负载百分比，可再生能源比例，峰谷时段等
+        直接使用总负载百分比，统一评分逻辑。
+
         Args:
             charger: 充电桩数据
             state: 当前环境状态
-            
+
         Returns:
             网格友好度评分 [-1,1]
         """
         # 获取电网状态数据
-        grid_load = state.get("grid_load", 50)  # 默认50%负载
-        renewable_ratio = state.get("renewable_ratio", 0.2)  # 默认20%可再生能源
-        timestamp = state.get("timestamp")
-        
-        # 获取当前小时
+        grid_status = state.get("grid_status", {})
+        grid_load_percentage = grid_status.get("grid_load", 50)  # 使用总负载百分比
+        renewable_ratio = grid_status.get("renewable_ratio", 0) / 100.0 if grid_status.get("renewable_ratio") is not None else 0.0 # 转换为0-1, 处理None
+
+        timestamp_str = state.get("timestamp")
+
+        # 获取当前小时和月份
         try:
-            current_dt = datetime.fromisoformat(timestamp)
+            # Handle potential timezone info if present in ISO format
+            if timestamp_str:
+                 if '+' in timestamp_str: timestamp_str = timestamp_str.split('+')[0]
+                 if 'Z' in timestamp_str: timestamp_str = timestamp_str.replace('Z','')
+                 # Handle potential microseconds
+                 if '.' in timestamp_str: timestamp_str = timestamp_str.split('.')[0]
+                 current_dt = datetime.fromisoformat(timestamp_str)
+            else:
+                 current_dt = datetime.now() # Fallback to now if no timestamp
             hour = current_dt.hour
-        except:
-            hour = 12  # 默认中午
-        
-        # 新增：获取充电桩功率和当前使用情况
-        charger_max_power = charger.get("max_power", 50)  # 单位：kW
-        current_power = 0
-        
-        # 如果充电桩正在使用，考虑实际功率
-        if charger.get("status") == "occupied":
-            current_power = charger.get("current_power", charger_max_power * 0.8)  # 默认使用80%额定功率
-        
-        # 降低EV充电对总负载的影响因子
-        # 通过增加基础负载来减小单个充电桩的相对影响
-        base_load_factor = 20  # 增加这个值，进一步降低EV充电的相对影响
-        adjusted_grid_load = (grid_load * base_load_factor + current_power) / (base_load_factor + 1)
-        
-        # 1. 基于负载的基础评分 - 负载越高，越不友好
-        # 使用非线性函数，使高负载时惩罚更严重，但避免始终为负值
-        if adjusted_grid_load < 30:  # 低负载，非常友好
+            month = current_dt.month
+        except Exception as e: # Catch broader exceptions during datetime parsing
+            logger.warning(f"Error parsing timestamp '{timestamp_str}': {e}. Using current time.")
+            now = datetime.now()
+            hour = now.hour
+            month = now.month
+
+        # 获取充电桩功率
+        charger_max_power = charger.get("max_power", 50)
+
+        # --- 移除 adjusted_grid_load 计算 ---
+
+        # 1. 基于总负载百分比的评分 (使用统一的平缓逻辑)
+        if grid_load_percentage < 30:
             load_score = 0.8
-        elif adjusted_grid_load < 50:  # 中等负载，适度友好
-            load_score = 0.5 - (adjusted_grid_load - 30) * 0.015  # 0.5到0.2线性下降
-        elif adjusted_grid_load < 70:  # 较高负载，不太友好
-            load_score = 0.2 - (adjusted_grid_load - 50) * 0.015  # 0.2到-0.1线性下降
-        elif adjusted_grid_load < 85:  # 高负载，不友好
-            load_score = -0.1 - (adjusted_grid_load - 70) * 0.025  # -0.1到-0.475线性下降
-        else:  # 极高负载，非常不友好
-            load_score = -0.475 - (adjusted_grid_load - 85) * 0.01  # -0.475到-0.625线性下降
-            load_score = max(-0.7, load_score)  # 限制最低值为-0.7，避免过度惩罚
-        
-        # 2. 可再生能源奖励 - 可再生能源比例越高，越友好
-        renewable_score = renewable_ratio * 0.8  # 增加可再生能源影响，最高可增加0.8的评分
-        
-        # 3. 时间影响 - 基于峰谷时段
-        # 定义峰谷时段
-        peak_hours = [9, 10, 11, 12, 13, 14, 15, 16, 19, 20, 21]  # 工作和晚间高峰
-        valley_hours = [0, 1, 2, 3, 4, 5, 23]  # 深夜/凌晨低谷
-        shoulder_hours = [6, 7, 8, 17, 18, 22]  # 过渡时段
-        
-        time_score = 0
-        if hour in peak_hours:
-            time_score = -0.3  # 高峰期，不友好（降低惩罚力度）
-        elif hour in valley_hours:
-            time_score = 0.6   # 低谷期，很友好（增加奖励力度）
-        else:  # shoulder_hours
-            time_score = 0.2   # 过渡期，适中友好（增加奖励力度）
-        
-        # 4. 充电功率影响 - 功率越大，对电网冲击越大
-        # 根据充电桩功率，计算功率惩罚
-        power_penalty = 0
-        if charger_max_power > 150:  # 超快充
-            power_penalty = 0.1  # 降低惩罚
-        elif charger_max_power > 50:  # 快充
-            power_penalty = 0.05  # 降低惩罚
-        else:  # 慢充
-            power_penalty = 0
-        
-        # 5. 季节性因素 - 根据月份调整
-        month = current_dt.month if hasattr(current_dt, 'month') else 6  # 默认6月
-        season_factor = 0
-        
-        # 夏季和冬季用电高峰期调整
-        if month in [6, 7, 8]:  # 夏季
-            if 13 <= hour <= 16:  # 夏季午后高峰
-                season_factor = -0.1  # 降低惩罚
-        elif month in [12, 1, 2]:  # 冬季
-            if 18 <= hour <= 21:  # 冬季晚间高峰
-                season_factor = -0.1  # 降低惩罚
-                
-        # 计算最终电网友好度评分
-        grid_friendliness = load_score + renewable_score + time_score - power_penalty + season_factor
-        
-        # 确保评分在[-1,1]范围内，并提高总体评分水平
-        grid_friendliness = max(-0.9, min(1.0, grid_friendliness))
-        
-        # 对所有评分进行小幅度提升，避免过度负面
-        if grid_friendliness < 0:
-            grid_friendliness *= 0.8  # 负面评分减弱20%
+        elif grid_load_percentage < 50:
+            load_score = 0.5 - (grid_load_percentage - 30) * 0.015
+        elif grid_load_percentage < 70:
+            load_score = 0.2 - (grid_load_percentage - 50) * 0.01
+        elif grid_load_percentage < 85:
+            load_score = 0.0 - (grid_load_percentage - 70) * 0.015
         else:
-            grid_friendliness *= 1.1  # 正面评分增强10%
-            grid_friendliness = min(1.0, grid_friendliness)  # 确保不超过1.0
-        
-        # 记录调试信息
-        logger.debug(f"Grid friendliness calculation for charger {charger.get('charger_id')}:")
-        logger.debug(f"  - Grid load: {grid_load:.1f}%")
-        logger.debug(f"  - Adjusted grid load: {adjusted_grid_load:.1f}%")
-        logger.debug(f"  - Load score: {load_score:.2f}")
-        logger.debug(f"  - Renewable score: {renewable_score:.2f}")
-        logger.debug(f"  - Time score: {time_score:.2f}")
-        logger.debug(f"  - Power penalty: {power_penalty:.2f}")
-        logger.debug(f"  - Season factor: {season_factor:.2f}")
-        logger.debug(f"  - Final score: {grid_friendliness:.2f}")
-        
+            load_score = -0.225 - (grid_load_percentage - 85) * 0.01
+            load_score = max(-0.5, load_score)
+
+        # 2. 可再生能源奖励
+        renewable_score = 0.8 * renewable_ratio
+
+        # 3. 时间影响 - 基于峰谷时段
+        peak_hours = grid_status.get("peak_hours", [9, 10, 11, 12, 13, 14, 15, 16, 19, 20, 21])
+        valley_hours = grid_status.get("valley_hours", [0, 1, 2, 3, 4, 5, 23])
+        shoulder_hours = [h for h in range(24) if h not in peak_hours and h not in valley_hours]
+
+        time_score = 0
+        if hour in peak_hours: time_score = -0.3
+        elif hour in valley_hours: time_score = 0.6
+        else: time_score = 0.2
+
+        # 4. 充电功率影响
+        power_penalty = 0
+        if charger_max_power > 150: power_penalty = 0.1
+        elif charger_max_power > 50: power_penalty = 0.05
+        # else: power_penalty = 0 # Implicitly zero
+
+        # 5. 季节性因素
+        season_factor = 0
+        if month in [6, 7, 8]: # Summer
+            if 13 <= hour <= 16: season_factor = -0.1
+        elif month in [12, 1, 2]: # Winter
+            if 18 <= hour <= 21: season_factor = -0.1
+
+        # 计算最终电网友好度评分
+        grid_friendliness_raw = load_score + renewable_score + time_score - power_penalty + season_factor
+
+        # 确保评分在[-1,1]范围内，并应用最终调整
+        grid_friendliness = max(-0.9, min(1.0, grid_friendliness_raw))
+
+        if grid_friendliness < 0:
+            grid_friendliness *= 0.8
+        else:
+            grid_friendliness *= 1.1
+            grid_friendliness = min(1.0, grid_friendliness)
+
         return grid_friendliness
