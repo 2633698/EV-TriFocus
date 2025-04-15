@@ -193,11 +193,31 @@ class ChargingEnvironment:
         
         # 车型及其参数
         vehicle_types = {
-            "sedan": {"battery_capacity": 60, "max_range": 400},
-            "suv": {"battery_capacity": 85, "max_range": 480},
-            "compact": {"battery_capacity": 40, "max_range": 350},
-            "luxury": {"battery_capacity": 100, "max_range": 550},
-            "truck": {"battery_capacity": 120, "max_range": 500}
+            "sedan": {
+                "battery_capacity": 60,
+                "max_range": 400,
+                "max_charging_power": 60  # 普通轿车最大60kW充电功率
+            },
+            "suv": {
+                "battery_capacity": 85,
+                "max_range": 480,
+                "max_charging_power": 90  # SUV最大90kW充电功率
+            },
+            "compact": {
+                "battery_capacity": 40,
+                "max_range": 350,
+                "max_charging_power": 50  # 紧凑型车最大50kW充电功率
+            },
+            "luxury": {
+                "battery_capacity": 100,
+                "max_range": 550,
+                "max_charging_power": 120  # 豪华车最大120kW充电功率
+            },
+            "truck": {
+                "battery_capacity": 120,
+                "max_range": 500,
+                "max_charging_power": 150  # 卡车最大150kW充电功率
+            }
         }
         
         users = {}
@@ -337,6 +357,8 @@ class ChargingEnvironment:
                 "destination": None,  # 目的地
                 "time_to_destination": None,  # 到达目的地的预计时间（分钟）
                 "traveled_distance": 0,  # 已行驶距离
+                "charging_efficiency": 0.92,  # 添加充电效率，默认92%
+                "max_charging_power": vehicle_types[vehicle_type].get("max_charging_power", 60),  # 添加最大充电功率，根据车型设置
                 # 添加驾驶风格以支持更精确的能耗计算
                 "driving_style": random.choices(
                     ["normal", "aggressive", "eco"],

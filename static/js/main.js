@@ -79,6 +79,59 @@ const pauseResumeBtn = document.getElementById('pause-resume-btn'); // Get the p
 let socket = null;
 let isPaused = false; // Add a flag to track pause state
 
+// 全局变量来跟踪选中的用户
+let selectedUserId = null;
+
+// 全局变量来存储所有创建的提示框
+let allMapTooltips = [];
+
+// 清除所有地图提示框
+function clearAllMapTooltips() {
+    if (allMapTooltips.length > 0) {
+        allMapTooltips.forEach(tooltip => {
+            if (tooltip && tooltip.destroy) {
+                tooltip.destroy();
+            }
+        });
+        allMapTooltips = [];
+    }
+}
+
+// 在地图更新时检查鼠标位置并更新提示框
+function checkMousePositionForTooltips() {
+    const mapDiv = document.getElementById('actual-map');
+    if (!mapDiv) return;
+    
+    const icons = [...mapDiv.querySelectorAll('.map-user-icon'), ...mapDiv.querySelectorAll('.map-charger-icon')];
+    
+    // 获取鼠标位置
+    const mouseX = window.mouseX || 0;
+    const mouseY = window.mouseY || 0;
+    
+    // 检查每个图标是否在鼠标下方
+    icons.forEach(icon => {
+        const rect = icon.getBoundingClientRect();
+        if (
+            mouseX >= rect.left &&
+            mouseX <= rect.right &&
+            mouseY >= rect.top &&
+            mouseY <= rect.bottom
+        ) {
+            // 如果鼠标在图标上方，触发mouseenter事件
+            const enterEvent = new MouseEvent('mouseenter');
+            icon.dispatchEvent(enterEvent);
+        }
+    });
+}
+
+// 跟踪鼠标位置
+function trackMousePosition() {
+    document.addEventListener('mousemove', (e) => {
+        window.mouseX = e.clientX;
+        window.mouseY = e.clientY;
+    });
+}
+
 // 检查jQuery是否可用，如果不可用则创建一个"no-op"函数以避免错误
 if (typeof $ === 'undefined') {
     console.warn("jQuery未定义，使用基本兼容模式");
@@ -1532,33 +1585,49 @@ function showMapContent() {
         
         // 添加地图图例
         const legend = document.createElement('div');
-        legend.className = 'map-legend position-absolute bottom-0 start-0 m-2 p-2 bg-white rounded shadow d-flex flex-wrap';
+        legend.className = 'map-legend position-absolute bottom-0 start-0 m-2 p-2 bg-white rounded shadow';
         legend.style.zIndex = '20';
         legend.style.maxWidth = '90%';
+        legend.style.display = 'flex';
+        legend.style.flexWrap = 'wrap';
+        legend.style.gap = '8px';
+        legend.style.alignItems = 'center';
         legend.innerHTML = `
-            <div class="d-flex me-3 mb-1 align-items-center">
-                <div class="user-icon-sample rounded-circle bg-primary d-flex align-items-center justify-content-center me-1" style="width:20px;height:20px;">
-                    <i class="fas fa-user fa-xs text-white"></i>
+            <div class="d-flex align-items-center">
+                <div class="map-user-icon user-idle me-2" style="position:relative; width:24px; height:24px; transform:none; display:inline-flex;">
+                    <i class="fas fa-car fa-xs"></i>
                 </div>
-                <span class="small">用户</span>
+                <span class="small">用户-空闲</span>
             </div>
-            <div class="d-flex me-3 mb-1 align-items-center">
-                <div class="charger-icon-sample rounded-3 bg-success d-flex align-items-center justify-content-center me-1" style="width:20px;height:20px;">
-                    <i class="fas fa-plug fa-xs text-white"></i>
+            <div class="d-flex align-items-center">
+                <div class="map-user-icon user-waiting me-2" style="position:relative; width:24px; height:24px; transform:none; display:inline-flex;">
+                    <i class="fas fa-clock fa-xs"></i>
                 </div>
-                <span class="small">可用充电桩</span>
+                <span class="small">用户-等待</span>
             </div>
-            <div class="d-flex me-3 mb-1 align-items-center">
-                <div class="charger-icon-sample rounded-3 bg-warning d-flex align-items-center justify-content-center me-1" style="width:20px;height:20px;">
-                    <i class="fas fa-charging-station fa-xs text-white"></i>
+            <div class="d-flex align-items-center">
+                <div class="map-user-icon user-charging me-2" style="position:relative; width:24px; height:24px; transform:none; display:inline-flex;">
+                    <i class="fas fa-car fa-xs"></i>
                 </div>
-                <span class="small">占用充电桩</span>
+                <span class="small">用户-充电</span>
             </div>
-            <div class="d-flex me-3 mb-1 align-items-center">
-                <div class="charger-icon-sample rounded-3 bg-danger d-flex align-items-center justify-content-center me-1" style="width:20px;height:20px;">
-                    <i class="fas fa-exclamation-triangle fa-xs text-white"></i>
+            <div class="d-flex align-items-center">
+                <div class="map-charger-icon charger-available me-2" style="position:relative; width:24px; height:24px; transform:none; display:inline-flex;">
+                    <i class="fas fa-charging-station fa-xs"></i>
                 </div>
-                <span class="small">故障充电桩</span>
+                <span class="small">充电桩-可用</span>
+            </div>
+            <div class="d-flex align-items-center">
+                <div class="map-charger-icon charger-occupied me-2" style="position:relative; width:24px; height:24px; transform:none; display:inline-flex;">
+                    <i class="fas fa-bolt fa-xs"></i>
+                </div>
+                <span class="small">充电桩-占用</span>
+            </div>
+            <div class="d-flex align-items-center">
+                <div class="map-charger-icon charger-failure me-2" style="position:relative; width:24px; height:24px; transform:none; display:inline-flex;">
+                    <i class="fas fa-exclamation-triangle fa-xs"></i>
+                </div>
+                <span class="small">充电桩-故障</span>
             </div>
         `;
         mapDiv.appendChild(legend);
@@ -1591,6 +1660,9 @@ function updateMapWithUsers(users) {
     console.log("Updating map with users:", users.length);
     const mapContainer = document.getElementById('map-container');
     if (!mapContainer) return;
+    
+    // 清除所有地图提示框
+    clearAllMapTooltips();
     
     // 确保地图容器已创建并清除默认文本
     showMapContent();
@@ -1717,6 +1789,10 @@ function updateMapWithUsers(users) {
                 };
             });
             
+            // 确定线条样式类
+            const isSelected = user.user_id === selectedUserId;
+            const pathLineClass = isSelected ? 'path-line-selected' : 'path-line';
+            
             // 绘制路径线段
             for (let i = 0; i < routePoints.length - 1; i++) {
                 const p1 = routePoints[i];
@@ -1730,16 +1806,9 @@ function updateMapWithUsers(users) {
                 
                 // 创建路径线段
                 const pathSegment = document.createElement('div');
-                pathSegment.className = 'path-line position-absolute';
-                pathSegment.style.height = '2px';
-                pathSegment.style.backgroundColor = '#007bff';
-                pathSegment.style.opacity = '0.7';
-                pathSegment.style.zIndex = '3';
-                
-                // 添加动画效果
-                pathSegment.style.background = 'linear-gradient(90deg, #007bff 50%, rgba(0,123,255,0.5) 50%)';
-                pathSegment.style.backgroundSize = '10px 2px';
-                pathSegment.style.animation = 'movePathAnimation 1s linear infinite';
+                pathSegment.className = `${pathLineClass} position-absolute`;
+                pathSegment.style.height = isSelected ? '3px' : '1.5px';
+                pathSegment.setAttribute('data-user-id', user.user_id);
                 
                 // 设置线段位置和变换
                 pathSegment.style.width = `${length}%`;
@@ -1754,125 +1823,168 @@ function updateMapWithUsers(users) {
                 if (i > 0 && i < routePoints.length - 1) {
                     const waypoint = document.createElement('div');
                     waypoint.className = 'waypoint position-absolute';
-                    waypoint.style.width = '8px';
-                    waypoint.style.height = '8px';
+                    waypoint.style.width = isSelected ? '8px' : '6px';
+                    waypoint.style.height = isSelected ? '8px' : '6px';
                     waypoint.style.borderRadius = '50%';
-                    waypoint.style.backgroundColor = '#007bff';
-                    waypoint.style.opacity = '0.7';
+                    waypoint.style.backgroundColor = isSelected ? 'rgba(30, 144, 255, 0.8)' : 'rgba(173, 216, 230, 0.6)';
                     waypoint.style.transform = 'translate(-50%, -50%)';
                     waypoint.style.left = `${p1.x}%`;
                     waypoint.style.top = `${p1.y}%`;
-                    waypoint.style.zIndex = '4';
+                    waypoint.style.zIndex = isSelected ? '5' : '4';
                     
                     usersLayer.appendChild(waypoint);
                 }
             }
         }
         
-        // 如果用户有目标充电桩，绘制连接线
-        if (user.target_charger && user.status !== 'charging' && chargerPositions[user.target_charger]) {
-            const chargerPos = chargerPositions[user.target_charger];
-            
-            // 绘制连接线
-            const line = document.createElement('div');
-            line.className = 'connection-line position-absolute';
-            line.style.height = '2px';
-            line.style.backgroundColor = '#fd7e14';
-            line.style.zIndex = '5';
-            
-            // 添加动画效果
-            line.style.background = 'linear-gradient(90deg, #fd7e14 50%, transparent 50%)';
-            line.style.backgroundSize = '20px 2px';
-            line.style.animation = 'movePathAnimation 1s linear infinite';
-            
-            // 计算线的长度和角度
-            const dx = chargerPos.x - x;
-            const dy = chargerPos.y - y;
-            const length = Math.sqrt(dx * dx + dy * dy);
-            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-            
-            // 设置线的位置和变换
-            line.style.width = `${length}%`;
-            line.style.left = `${x}%`;
-            line.style.top = `${y}%`;
-            line.style.transformOrigin = '0 0';
-            line.style.transform = `rotate(${angle}deg)`;
-            
-            usersLayer.appendChild(line);
-        }
-        
-        // 创建用户图标
+        // 创建用户图标 - 使用新的用户图标样式
         const userIcon = document.createElement('div');
-        userIcon.className = 'user-icon position-absolute';
+        userIcon.className = 'map-user-icon position-absolute';
+        userIcon.setAttribute('data-user-id', user.user_id);
         userIcon.style.left = `${x}%`;
         userIcon.style.top = `${y}%`;
         userIcon.style.transform = 'translate(-50%, -50%)';
-        userIcon.style.width = '28px';
-        userIcon.style.height = '28px';
-        userIcon.style.borderRadius = '50%';
-        userIcon.style.display = 'flex';
-        userIcon.style.alignItems = 'center';
-        userIcon.style.justifyContent = 'center';
-        userIcon.style.zIndex = '10';
-        userIcon.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-        userIcon.style.transition = 'all 0.3s ease';
+        userIcon.style.pointerEvents = 'auto'; // 允许鼠标事件
         
-        // 根据用户状态设置颜色
-        let bgColor = '#0d6efd'; // 默认蓝色
-        let icon = 'fa-user';
-        if (user.status === 'charging') {
-            bgColor = '#198754'; // 绿色
-            icon = 'fa-bolt';
-            userIcon.style.animation = 'pulse 1.5s infinite';
-        } else if (user.status === 'waiting') {
-            bgColor = '#fd7e14'; // 橙色
-            icon = 'fa-clock';
-        } else if (user.status === 'traveling') {
-            bgColor = '#6c757d'; // 灰色
-            icon = 'fa-car';
-            userIcon.style.animation = 'moveAnimation 2s infinite alternate';
+        // 如果是选中的用户，添加边框
+        if (user.user_id === selectedUserId) {
+            userIcon.style.border = '2px solid #1e90ff';
+            userIcon.style.boxShadow = '0 0 10px rgba(30, 144, 255, 0.8)';
         }
         
-        userIcon.style.backgroundColor = bgColor;
-        userIcon.innerHTML = `<i class="fas ${icon} fa-xs text-white"></i>`;
+        // 根据用户状态设置图标类和图标
+        let userClass = 'user-idle';  // 默认状态
+        let icon = 'fa-car';          // 默认图标
         
-        // 添加用户ID标签
-        const userLabel = document.createElement('div');
-        userLabel.className = 'user-label position-absolute bg-white px-1 py-0 rounded shadow-sm text-nowrap';
-        userLabel.style.fontSize = '0.65rem';
-        userLabel.style.bottom = '100%';
-        userLabel.style.left = '50%';
-        userLabel.style.transform = 'translateX(-50%)';
-        userLabel.style.opacity = '0';
-        userLabel.style.transition = 'opacity 0.2s';
-        userLabel.textContent = `ID:${user.user_id.split('_')[1]}`;
-        userIcon.appendChild(userLabel);
+        if (user.status === 'charging') {
+            userClass = 'user-charging';
+            // 闪电图标会通过CSS伪元素自动添加
+        } else if (user.status === 'waiting') {
+            userClass = 'user-waiting';
+            icon = 'fa-clock';
+        } else if (user.status === 'traveling') {
+            userClass = 'user-driving';
+            icon = 'fa-car';
+        }
         
-        // 添加鼠标事件
-        userIcon.addEventListener('mouseenter', function() {
-            this.style.transform = 'translate(-50%, -50%) scale(1.2)';
-            userLabel.style.opacity = '1';
+        userIcon.classList.add(userClass);
+        userIcon.innerHTML = `<i class="fas ${icon} fa-sm"></i>`;
+        
+        // 使用Tippy.js创建提示框
+        const userTemplate = document.createElement('div');
+        userTemplate.className = 'map-tooltip';
+        userTemplate.innerHTML = `
+            <div class="map-tooltip-header">用户 ${user.user_id.split('_')[1] || user.user_id}</div>
+            <div class="map-tooltip-content">
+                <div><strong>状态:</strong> <span class="map-tooltip-status ${getStatusClass(user.status)}">${getStatusText(user.status)}</span></div>
+                <div><strong>电量:</strong> ${user.soc ? user.soc.toFixed(1) : '未知'}%</div>
+                
+                <div class="map-tooltip-section">
+                    <div class="map-tooltip-section-title">用户信息</div>
+                    <div><strong>用户类型:</strong> ${user.user_type || '普通用户'}</div>
+                    <div><strong>偏好类型:</strong> ${user.preference_type || '标准'}</div>
+                    <div><strong>优先级:</strong> ${user.priority || '普通'}</div>
+                    <div><strong>活跃度:</strong> ${user.activity_level || '中等'}</div>
+                </div>
+
+                <div class="map-tooltip-section">
+                    <div class="map-tooltip-section-title">车辆信息</div>
+                    <div><strong>车型:</strong> ${user.vehicle_type || '标准电动车'}</div>
+                    <div><strong>电池容量:</strong> ${user.battery_capacity ? user.battery_capacity + ' kWh' : '未知'}</div>
+                    <div><strong>充电效率:</strong> ${user.charging_efficiency ? (user.charging_efficiency * 100).toFixed(1) + '%' : '未知'}</div>
+                    <div><strong>最大充电功率:</strong> ${user.max_charging_power ? user.max_charging_power.toFixed(1) + ' kW' : '未知'}</div>
+                </div>
+
+                ${user.destination || user.target_charger || user.target_location || user.arrival_time || user.distance_to_target ? `
+                <div class="map-tooltip-section">
+                    <div class="map-tooltip-section-title">行程信息</div>
+                    ${user.destination ? `<div><strong>目的地:</strong> ${user.destination}</div>` : ''}
+                    ${user.target_charger ? `<div><strong>目标充电桩:</strong> ${user.target_charger.split('_')[1] || user.target_charger}</div>` : ''}
+                    ${user.target_location ? `<div><strong>目标区域:</strong> ${user.target_location}</div>` : ''}
+                    ${user.arrival_time ? `<div><strong>预计到达:</strong> ${formatSimpleTime(user.arrival_time)}</div>` : ''}
+                    ${user.distance_to_target ? `<div><strong>剩余距离:</strong> ${user.distance_to_target.toFixed(1)} 公里</div>` : ''}
+                </div>
+                ` : ''}
+
+                ${user.status === 'waiting' || user.status === 'charging' ? `
+                <div class="map-tooltip-section">
+                    <div class="map-tooltip-section-title">充电信息</div>
+                    ${user.wait_time ? `<div><strong>等待时间:</strong> ${formatDuration(user.wait_time)}</div>` : ''}
+                    ${user.charging_start_time ? `<div><strong>开始充电:</strong> ${formatSimpleTime(user.charging_start_time)}</div>` : ''}
+                    ${user.charging_end_time ? `<div><strong>预计结束:</strong> ${formatSimpleTime(user.charging_end_time)}</div>` : ''}
+                    ${user.required_energy !== undefined ? `<div><strong>需要电量:</strong> ${user.required_energy.toFixed(1)} kWh</div>` : ''}
+                    ${user.charging_power !== undefined ? `<div><strong>当前充电功率:</strong> ${user.charging_power.toFixed(1)} kW</div>` : ''}
+                    ${user.current_charger ? `<div><strong>当前充电桩:</strong> ${user.current_charger.split('_')[1] || user.current_charger}</div>` : ''}
+                    ${user.queue_position !== undefined ? `<div><strong>队列位置:</strong> 第 ${user.queue_position + 1} 位</div>` : ''}
+                    ${user.target_soc !== undefined ? `<div><strong>目标电量:</strong> ${user.target_soc.toFixed(1)}%</div>` : ''}
+                    ${user.remaining_time !== undefined ? `<div><strong>剩余时间:</strong> ${formatDuration(user.remaining_time)}</div>` : ''}
+                    ${user.charging_mode ? `<div><strong>充电模式:</strong> ${user.charging_mode === 'fast' ? '快充' : '慢充'}</div>` : ''}
+                </div>
+                ` : ''}
+
+                ${user.cost !== undefined || user.estimated_total_cost !== undefined || user.price_per_kwh !== undefined || user.service_fee !== undefined ? `
+                <div class="map-tooltip-section">
+                    <div class="map-tooltip-section-title">费用信息</div>
+                    ${user.cost !== undefined ? `<div><strong>当前费用:</strong> ¥${user.cost.toFixed(2)}</div>` : ''}
+                    ${user.estimated_total_cost !== undefined ? `<div><strong>预计总费用:</strong> ¥${user.estimated_total_cost.toFixed(2)}</div>` : ''}
+                    ${user.price_per_kwh !== undefined ? `<div><strong>电价:</strong> ¥${user.price_per_kwh.toFixed(2)}/kWh</div>` : ''}
+                    ${user.service_fee !== undefined ? `<div><strong>服务费:</strong> ¥${user.service_fee.toFixed(2)}</div>` : ''}
+                    ${user.total_cost !== undefined ? `<div><strong>累计费用:</strong> ¥${user.total_cost.toFixed(2)}</div>` : ''}
+                </div>
+                ` : ''}
+            </div>
+        `;
+        
+        // 保存提示框实例
+        const tooltip = tippy(userIcon, {
+            content: userTemplate,
+            arrow: true,
+            theme: 'light',
+            placement: 'top',
+            duration: [300, 200],
+            animation: 'shift-away',
+            interactive: true,
+            allowHTML: true,
+            maxWidth: 320,
+            trigger: 'mouseenter focus',
+            appendTo: document.body
         });
         
-        userIcon.addEventListener('mouseleave', function() {
-            this.style.transform = 'translate(-50%, -50%) scale(1)';
-            userLabel.style.opacity = '0';
-        });
+        allMapTooltips.push(tooltip);
         
-        // 添加工具提示
-        userIcon.title = `用户ID: ${user.user_id}\n状态: ${user.status}\n电量: ${user.soc.toFixed(1)}%`;
+        // 添加点击事件 - 选择/取消选择用户
+        userIcon.addEventListener('click', function(e) {
+            e.stopPropagation(); // 防止事件冒泡
+            
+            if (selectedUserId === user.user_id) {
+                // 取消选择
+                selectedUserId = null;
+            } else {
+                // 选择新用户
+                selectedUserId = user.user_id;
+            }
+            
+            // 重新绘制地图以更新显示
+            updateMapWithUsers(users);
+        });
         
         usersLayer.appendChild(userIcon);
     });
     
     // 更新地图视图的用户数据计数
     updateMapStatistics('users', users.length, displayUsers.length);
+    
+    // 检查鼠标位置以更新悬停提示框
+    checkMousePositionForTooltips();
 }
 
 // 更新地图中的充电桩位置
 function updateMapWithChargers(chargers) {
     const mapContainer = document.getElementById('map-container');
     if (!mapContainer) return;
+    
+    // 清除所有地图提示框
+    clearAllMapTooltips();
     
     // 确保地图容器已创建
     showMapContent();
@@ -1939,49 +2051,28 @@ function updateMapWithChargers(chargers) {
     let filterGroup = mapDiv.querySelector('.location-filter');
     if (!filterGroup) {
         filterGroup = document.createElement('div');
-        filterGroup.className = 'location-filter position-absolute top-0 end-0 m-2 d-flex flex-column';
-        filterGroup.style.zIndex = '30';
+        filterGroup.className = 'location-filter position-absolute top-0 end-0 m-3 bg-white p-2 rounded shadow';
+        filterGroup.style.zIndex = '20';
         
-        const filterHeader = document.createElement('div');
-        filterHeader.className = 'bg-white rounded shadow p-2 mb-1 text-center small';
-        filterHeader.textContent = '地点筛选';
-        filterGroup.appendChild(filterHeader);
-        
+        // 添加全部按钮
         const allButton = document.createElement('button');
-        allButton.className = 'btn btn-sm btn-primary mb-1';
+        allButton.className = 'btn btn-sm btn-outline-primary active me-1 mb-1';
         allButton.textContent = '全部';
-        allButton.onclick = function() {
-            filterByLocation('all');
-        };
+        allButton.onclick = () => filterByLocation('all');
         filterGroup.appendChild(allButton);
-        
-        mapDiv.appendChild(filterGroup);
-    } else {
-        // 清空旧的筛选按钮
-        while (filterGroup.children.length > 1) {
-            filterGroup.removeChild(filterGroup.lastChild);
-        }
-        
-        const allButton = document.createElement('button');
-        allButton.className = 'btn btn-sm btn-primary mb-1';
-        allButton.textContent = '全部';
-        allButton.onclick = function() {
-            filterByLocation('all');
-        };
-        filterGroup.appendChild(allButton);
-    }
     
     // 为每个地点添加筛选按钮
-    Object.values(locations).forEach(location => {
+        Object.keys(locations).forEach(location => {
         const button = document.createElement('button');
-        button.className = 'btn btn-sm btn-outline-secondary mb-1';
-        button.textContent = location.name;
-        button.setAttribute('data-location', location.name);
-        button.onclick = function() {
-            filterByLocation(location.name);
-        };
+            button.className = 'btn btn-sm btn-outline-secondary me-1 mb-1';
+            button.textContent = location;
+            button.setAttribute('data-location', location);
+            button.onclick = () => filterByLocation(location);
         filterGroup.appendChild(button);
     });
+        
+        mapDiv.appendChild(filterGroup);
+    }
     
     // 在地图上显示充电桩
     displayChargers.forEach(charger => {
@@ -1991,9 +2082,9 @@ function updateMapWithChargers(chargers) {
         const x = ((charger.position.lng - minLng) / (maxLng - minLng)) * 100;
         const y = ((charger.position.lat - minLat) / (maxLat - minLat)) * 100;
         
-        // 创建充电桩图标
+        // 创建充电桩图标 - 使用新的充电桩图标样式
         const chargerIcon = document.createElement('div');
-        chargerIcon.className = 'charger-icon position-absolute';
+        chargerIcon.className = 'map-charger-icon position-absolute';
         
         // 确保charger_id存在再调用split
         if (charger.charger_id) {
@@ -2007,81 +2098,114 @@ function updateMapWithChargers(chargers) {
         chargerIcon.style.left = `${x}%`;
         chargerIcon.style.top = `${y}%`;
         chargerIcon.style.transform = 'translate(-50%, -50%)';
-        chargerIcon.style.width = '32px';
-        chargerIcon.style.height = '32px';
-        chargerIcon.style.borderRadius = '6px';
-        chargerIcon.style.display = 'flex';
-        chargerIcon.style.alignItems = 'center';
-        chargerIcon.style.justifyContent = 'center';
-        chargerIcon.style.zIndex = '9';
-        chargerIcon.style.boxShadow = '0 3px 6px rgba(0,0,0,0.2)';
-        chargerIcon.style.transition = 'all 0.3s ease';
+        chargerIcon.style.pointerEvents = 'auto'; // 允许鼠标事件
         
-        // 根据充电桩状态设置颜色和图标
-        let bgColor, icon;
+        // 根据充电桩状态设置图标类和图标
+        let chargerClass, icon;
+        
         switch (charger.status) {
             case 'available':
-                bgColor = '#198754'; // 绿色
-                icon = 'fa-plug';
+                chargerClass = 'charger-available';
+                icon = 'fa-charging-station';
                 break;
             case 'occupied':
-                bgColor = '#fd7e14'; // 橙色
-                icon = 'fa-charging-station';
-                // 添加脉冲动画
-                chargerIcon.style.animation = 'pulse 2s infinite';
+                chargerClass = 'charger-occupied';
+                icon = 'fa-bolt';
                 break;
             case 'failure':
-                bgColor = '#dc3545'; // 红色
+                chargerClass = 'charger-failure'; 
                 icon = 'fa-exclamation-triangle';
-                // 添加故障闪烁动画
-                chargerIcon.style.animation = 'blink 1s infinite';
                 break;
             default:
-                bgColor = '#6c757d'; // 灰色
-                icon = 'fa-plug';
+                chargerClass = '';
+                icon = 'fa-charging-station';
         }
         
-        chargerIcon.style.backgroundColor = bgColor;
-        chargerIcon.innerHTML = `<i class="fas ${icon} fa-sm text-white"></i>`;
+        chargerIcon.classList.add(chargerClass);
         
-        // 添加充电桩标记
+        // 如果是快充，添加快充标识
+        if (charger.power_level && charger.power_level > 50) {
+            chargerIcon.classList.add('fast-charger');
+        }
+        
+        chargerIcon.innerHTML = `<i class="fas ${icon}"></i>`;
+        
+        // 如果有排队的用户，添加队列数量徽章
         if (charger.queue && charger.queue.length > 0) {
-            const badge = document.createElement('span');
-            badge.className = 'position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger';
-            badge.style.transform = 'translate(-50%, -50%)';
-            badge.textContent = charger.queue.length;
-            chargerIcon.appendChild(badge);
+            const queueBadge = document.createElement('div');
+            queueBadge.className = 'queue-badge';
+            queueBadge.textContent = charger.queue.length;
+            chargerIcon.appendChild(queueBadge);
         }
         
-        // 添加充电桩ID标签
-        const chargerLabel = document.createElement('div');
-        chargerLabel.className = 'charger-label position-absolute bg-white px-1 py-0 rounded shadow-sm text-nowrap';
-        chargerLabel.style.fontSize = '0.65rem';
-        chargerLabel.style.bottom = '100%';
-        chargerLabel.style.left = '50%';
-        chargerLabel.style.transform = 'translateX(-50%)';
-        chargerLabel.style.opacity = '0';
-        chargerLabel.style.transition = 'opacity 0.2s';
+        // 使用Tippy.js创建提示框
+        const chargerTemplate = document.createElement('div');
+        chargerTemplate.className = 'map-tooltip';
+        chargerTemplate.innerHTML = `
+            <div class="map-tooltip-header">充电桩 ${charger.charger_id?.split('_')[1] || charger.charger_id || '未知'}</div>
+            <div class="map-tooltip-content">
+                <div><strong>状态:</strong> <span class="map-tooltip-status ${getChargerStatusClass(charger.status)}">${getChargerStatusText(charger.status)}</span></div>
+                
+                <div class="map-tooltip-section">
+                    <div class="map-tooltip-section-title">基本信息</div>
+                    <div><strong>位置:</strong> ${charger.location || '未知'}</div>
+                    <div><strong>类型:</strong> ${charger.type === 'fast' ? '快速充电' : charger.type === 'slow' ? '慢速充电' : charger.type || '标准'}</div>
+                    <div><strong>功率:</strong> ${charger.power_level || 0} kW</div>
+                    <div><strong>运营商:</strong> ${charger.operator || '未知'}</div>
+                </div>
+                
+                <div class="map-tooltip-section">
+                    <div class="map-tooltip-section-title">使用情况</div>
+                    <div><strong>队列:</strong> ${charger.queue ? charger.queue.length : 0} 人等待</div>
+                    ${charger.current_user ? `<div><strong>当前使用者:</strong> 用户 ${charger.current_user.split('_')[1] || charger.current_user}</div>` : ''}
+                    ${charger.utilization_rate !== undefined ? `<div><strong>利用率:</strong> ${charger.utilization_rate.toFixed(1)}%</div>` : ''}
+                    ${charger.availability_rate !== undefined ? `<div><strong>可用率:</strong> ${charger.availability_rate.toFixed(1)}%</div>` : ''}
+                </div>
+                
+                ${charger.status === 'occupied' ? `
+                <div class="map-tooltip-section">
+                    <div class="map-tooltip-section-title">当前充电信息</div>
+                    ${charger.charging_start_time ? `<div><strong>开始时间:</strong> ${formatSimpleTime(charger.charging_start_time)}</div>` : ''}
+                    ${charger.charging_end_time ? `<div><strong>预计结束:</strong> ${formatSimpleTime(charger.charging_end_time)}</div>` : ''}
+                    ${charger.current_power ? `<div><strong>当前功率:</strong> ${charger.current_power.toFixed(1)} kW</div>` : ''}
+                    ${charger.energy_delivered !== undefined ? `<div><strong>已输出电量:</strong> ${charger.energy_delivered.toFixed(1)} kWh</div>` : ''}
+                </div>
+                ` : ''}
+                
+                ${charger.status === 'failure' ? `
+                <div class="map-tooltip-section">
+                    <div class="map-tooltip-section-title">故障信息</div>
+                    <div><strong>故障类型:</strong> ${charger.failure_type || '未知故障'}</div>
+                    ${charger.failure_time ? `<div><strong>故障时间:</strong> ${formatSimpleTime(charger.failure_time)}</div>` : ''}
+                    ${charger.estimated_repair_time ? `<div><strong>预计修复:</strong> ${formatSimpleTime(charger.estimated_repair_time)}</div>` : ''}
+                </div>
+                ` : ''}
+                
+                <div class="map-tooltip-section">
+                    <div class="map-tooltip-section-title">经济数据</div>
+                    ${charger.daily_revenue !== undefined ? `<div><strong>今日收入:</strong> ¥${charger.daily_revenue.toFixed(2)}</div>` : ''}
+                    ${charger.price_per_kwh !== undefined ? `<div><strong>电价:</strong> ¥${charger.price_per_kwh.toFixed(2)}/kWh</div>` : ''}
+                    ${charger.service_fee !== undefined ? `<div><strong>服务费:</strong> ¥${charger.service_fee.toFixed(2)}</div>` : ''}
+                </div>
+            </div>
+        `;
         
-        // 安全地获取charger_id的后缀，使用可选链和空值合并操作符
-        const chargerId = charger.charger_id?.split('_')?.[1] || '未知';
-        chargerLabel.textContent = `ID:${chargerId}`;
-        
-        chargerIcon.appendChild(chargerLabel);
-        
-        // 添加鼠标事件
-        chargerIcon.addEventListener('mouseenter', function() {
-            this.style.transform = 'translate(-50%, -50%) scale(1.2)';
-            chargerLabel.style.opacity = '1';
+        // 保存提示框实例
+        const tooltip = tippy(chargerIcon, {
+            content: chargerTemplate,
+            arrow: true,
+            theme: 'light',
+            placement: 'top',
+            duration: [300, 200],
+            animation: 'shift-away',
+            interactive: true,
+            allowHTML: true,
+            maxWidth: 320,
+            trigger: 'mouseenter focus', 
+            appendTo: document.body
         });
         
-        chargerIcon.addEventListener('mouseleave', function() {
-            this.style.transform = 'translate(-50%, -50%) scale(1)';
-            chargerLabel.style.opacity = '0';
-        });
-        
-        // 添加工具提示 - 使用可选链和空值合并操作符确保不会出现undefined错误
-        chargerIcon.title = `充电桩ID: ${charger.charger_id || '未知'}\n位置: ${charger.location || '未知'}\n状态: ${charger.status || '未知'}\n队列长度: ${charger.queue ? charger.queue.length : 0}`;
+        allMapTooltips.push(tooltip);
         
         chargersLayer.appendChild(chargerIcon);
     });
@@ -2126,6 +2250,78 @@ function updateMapWithChargers(chargers) {
         occupied: occupiedCount,
         failure: failureCount
     });
+    
+    // 检查鼠标位置以更新悬停提示框
+    checkMousePositionForTooltips();
+}
+
+// 根据用户状态获取CSS类
+function getStatusClass(status) {
+    switch (status) {
+        case 'charging': return 'status-charging';
+        case 'waiting': return 'status-waiting';
+        case 'traveling': return 'status-idle';
+        default: return 'status-idle';
+    }
+}
+
+// 根据充电桩状态获取CSS类
+function getChargerStatusClass(status) {
+    switch (status) {
+        case 'available': return 'status-charging';
+        case 'occupied': return 'status-waiting';
+        case 'failure': return 'status-failure';
+        default: return 'status-idle';
+    }
+}
+
+// 格式化时间为简单格式 HH:MM
+function formatSimpleTime(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+// 格式化时长
+function formatDuration(minutes) {
+    if (minutes < 60) {
+        return `${minutes} 分钟`;
+    } else {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return `${hours} 小时 ${mins} 分钟`;
+    }
+}
+
+// 初始化时添加鼠标跟踪
+document.addEventListener('DOMContentLoaded', function() {
+    // 其他初始化代码...
+    
+    // 初始化鼠标位置跟踪
+    trackMousePosition();
+});
+
+// ... existing code ...
+
+// 获取用户友好的状态文本
+function getStatusText(status) {
+    switch(status) {
+        case 'charging': return '充电中';
+        case 'waiting': return '等待中';
+        case 'traveling': return '行驶中';
+        case 'idle': return '空闲';
+        default: return status;
+    }
+}
+
+// 获取充电桩友好的状态文本
+function getChargerStatusText(status) {
+    switch(status) {
+        case 'available': return '可用';
+        case 'occupied': return '占用中';
+        case 'failure': return '故障';
+        default: return status;
+    }
 }
 
 // 更新地图统计信息
@@ -2158,8 +2354,8 @@ function updateMapStatistics(type, count, details = null) {
         const displayCount = typeof details === 'number' ? details : count;
         userStats.innerHTML = `
             <div class="d-flex align-items-center mb-1">
-                <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center me-2" style="width:24px;height:24px;">
-                    <i class="fas fa-user fa-xs text-white"></i>
+                <div class="map-user-icon user-idle me-2" style="position:relative; width:24px; height:24px; transform:none; display:inline-flex;">
+                    <i class="fas fa-car fa-xs"></i>
                 </div>
                 <div>
                     <div class="fw-bold">用户总数: <span class="ms-1">${count}</span></div>
@@ -2179,8 +2375,8 @@ function updateMapStatistics(type, count, details = null) {
             const displayCount = details.display || count;
             chargerStats.innerHTML = `
                 <div class="d-flex align-items-center mb-1">
-                    <div class="rounded-3 bg-success d-flex align-items-center justify-content-center me-2" style="width:24px;height:24px;">
-                        <i class="fas fa-charging-station fa-xs text-white"></i>
+                    <div class="map-charger-icon charger-available me-2" style="position:relative; width:24px; height:24px; transform:none; display:inline-flex;">
+                        <i class="fas fa-charging-station fa-xs"></i>
                     </div>
                     <div>
                         <div class="fw-bold">充电桩总数: <span class="ms-1">${count}</span></div>
@@ -2196,8 +2392,8 @@ function updateMapStatistics(type, count, details = null) {
         } else {
             chargerStats.innerHTML = `
                 <div class="d-flex align-items-center">
-                    <div class="rounded-3 bg-success d-flex align-items-center justify-content-center me-2" style="width:24px;height:24px;">
-                        <i class="fas fa-charging-station fa-xs text-white"></i>
+                    <div class="map-charger-icon charger-available me-2" style="position:relative; width:24px; height:24px; transform:none; display:inline-flex;">
+                        <i class="fas fa-charging-station fa-xs"></i>
                     </div>
                     <div class="fw-bold">充电桩总数: <span class="ms-1">${count}</span></div>
                 </div>
@@ -3640,10 +3836,23 @@ function updateMapStatistics(type, count, details = null) {
         let userStats = statsDiv.querySelector('.user-stats');
         if (!userStats) {
             userStats = document.createElement('div');
-            userStats.className = 'user-stats mb-1';
+            userStats.className = 'user-stats mb-2';
             statsDiv.appendChild(userStats);
         }
-        userStats.innerHTML = `<i class="fas fa-user me-1 text-primary"></i> 用户总数: <strong>${count}</strong>`;
+        
+        // 第二个参数可能是显示的用户数
+        const displayCount = typeof details === 'number' ? details : count;
+        userStats.innerHTML = `
+            <div class="d-flex align-items-center mb-1">
+                <div class="map-user-icon user-idle me-2" style="position:relative; width:24px; height:24px; transform:none; display:inline-flex;">
+                    <i class="fas fa-car fa-xs"></i>
+                </div>
+                <div>
+                    <div class="fw-bold">用户总数: <span class="ms-1">${count}</span></div>
+                    <div class="small text-muted">显示: ${displayCount}/${count}</div>
+                </div>
+            </div>
+        `;
     } else if (type === 'chargers') {
         let chargerStats = statsDiv.querySelector('.charger-stats');
         if (!chargerStats) {
@@ -3653,16 +3862,32 @@ function updateMapStatistics(type, count, details = null) {
         }
         
         if (details) {
+            const displayCount = details.display || count;
             chargerStats.innerHTML = `
-                <i class="fas fa-charging-station me-1 text-success"></i> 充电桩总数: <strong>${count}</strong>
-                <div class="d-flex flex-wrap mt-1 small">
-                    <div class="me-2"><span class="badge bg-success">可用:</span> ${details.available}</div>
-                    <div class="me-2"><span class="badge bg-warning">占用:</span> ${details.occupied}</div>
-                    <div><span class="badge bg-danger">故障:</span> ${details.failure}</div>
+                <div class="d-flex align-items-center mb-1">
+                    <div class="map-charger-icon charger-available me-2" style="position:relative; width:24px; height:24px; transform:none; display:inline-flex;">
+                        <i class="fas fa-charging-station fa-xs"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold">充电桩总数: <span class="ms-1">${count}</span></div>
+                        <div class="small text-muted">显示: ${displayCount}/${count}</div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between mt-1 small">
+                    <span class="badge bg-success me-1">可用: ${details.available}</span>
+                    <span class="badge bg-warning me-1">占用: ${details.occupied}</span>
+                    <span class="badge bg-danger">故障: ${details.failure}</span>
                 </div>
             `;
         } else {
-            chargerStats.innerHTML = `<i class="fas fa-charging-station me-1 text-success"></i> 充电桩总数: <strong>${count}</strong>`;
+            chargerStats.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <div class="map-charger-icon charger-available me-2" style="position:relative; width:24px; height:24px; transform:none; display:inline-flex;">
+                        <i class="fas fa-charging-station fa-xs"></i>
+                    </div>
+                    <div class="fw-bold">充电桩总数: <span class="ms-1">${count}</span></div>
+                </div>
+            `;
         }
     }
 }

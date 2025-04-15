@@ -231,28 +231,40 @@ canvas {
 /* 用户图标动画 */
 @keyframes pulse {
     0% {
-        transform: translate(-50%, -50%) scale(1);
+        transform: scale(1);
     }
     50% {
-        transform: translate(-50%, -50%) scale(1.1);
+        transform: scale(1.1);
     }
     100% {
-        transform: translate(-50%, -50%) scale(1);
+        transform: scale(1);
     }
 }
 
 @keyframes moveAnimation {
     0% {
-        transform: translate(-50%, -50%) translateX(-2px);
+        transform: translateX(-2px);
     }
     100% {
-        transform: translate(-50%, -50%) translateX(2px);
+        transform: translateX(2px);
     }
 }
 
 /* 路径和路径点样式 */
 .path-line {
     pointer-events: none;
+    stroke-dasharray: 4, 4;
+    stroke-width: 1.5px;
+    stroke: rgba(173, 216, 230, 0.6);
+    fill: none;
+}
+
+.path-line-selected {
+    pointer-events: none;
+    stroke-dasharray: 4, 4;
+    stroke-width: 3px;
+    stroke: rgba(30, 144, 255, 0.8);
+    fill: none;
 }
 
 .waypoint {
@@ -262,4 +274,218 @@ canvas {
 
 .connection-line {
     pointer-events: none;
+}
+
+/* 增强型地图图标样式 */
+/* 用户图标 */
+.map-user-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    position: relative;
+    z-index: 10;
+    transition: all 0.3s ease;
+}
+
+.user-idle {
+    background-color: #c8e6ff; /* 浅蓝色背景 */
+}
+
+.user-waiting {
+    background-color: #ffae42; /* 橙色背景 */
+    animation: pulse 1s infinite;
+}
+
+.user-charging {
+    background-color: #fffacd; /* 淡黄色背景 */
+}
+
+.user-charging::after {
+    content: '\f0e7'; /* FontAwesome 闪电图标 */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    top: -5px;
+    right: -3px;
+    color: #ffd700;
+    font-size: 10px;
+    text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+}
+
+.user-driving {
+    animation: moveAnimation 0.8s alternate infinite;
+}
+
+/* 充电桩图标 */
+.map-charger-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    background-color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    position: relative;
+    z-index: 5;
+}
+
+.charger-available {
+    background-color: #d4f7d4; /* 浅绿色背景 */
+    animation: pulse 2s infinite;
+}
+
+.charger-occupied {
+    background-color: #ffefd5; /* 橙黄色背景 */
+}
+
+.charger-failure {
+    background-color: #ffcccc; /* 浅红色背景 */
+}
+
+.charger-failure::after {
+    content: '!';
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: #dc3545;
+    color: white;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 16px;
+    font-weight: bold;
+    font-size: 10px;
+}
+
+/* 排队数量徽章 */
+.queue-badge {
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    background-color: #007bff;
+    color: white;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* 充电桩类型区分 */
+.fast-charger i {
+    font-size: 14px;
+    position: relative;
+}
+
+.fast-charger i::after {
+    content: '+';
+    position: absolute;
+    top: -5px;
+    right: -3px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* 地图图标脉冲动画 */
+@keyframes pulse-glow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+    }
+}
+
+.charger-available {
+    animation: pulse-glow 2s infinite;
+}
+
+/* 地图提示框样式 */
+.map-tooltip {
+    background-color: #ffffff;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 13px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+    z-index: 1000;
+    pointer-events: none;
+    max-width: 320px;
+    transition: opacity 0.2s;
+    color: #333;
+    border: 1px solid #ddd;
+}
+
+.map-tooltip-header {
+    font-weight: bold;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 5px;
+    color: #0d6efd;
+    font-size: 15px;
+}
+
+.map-tooltip-content {
+    line-height: 1.5;
+}
+
+.map-tooltip-section {
+    margin-top: 10px;
+    padding-top: 6px;
+    border-top: 1px dashed #ddd;
+}
+
+.map-tooltip-section-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+    font-size: 13px;
+    color: #495057;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background-color: #f8f9fa;
+    padding: 3px 6px;
+    border-radius: 3px;
+    display: inline-block;
+}
+
+.map-tooltip-status {
+    margin-top: 5px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    display: inline-block;
+    font-weight: bold;
+}
+
+.status-charging {
+    background-color: #d4f7d4;
+    color: #198754;
+}
+
+.status-waiting {
+    background-color: #fff3cd;
+    color: #fd7e14;
+}
+
+.status-idle {
+    background-color: #e9ecef;
+    color: #6c757d;
+}
+
+.status-failure {
+    background-color: #f8d7da;
+    color: #dc3545;
 }
