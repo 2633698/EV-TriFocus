@@ -988,7 +988,8 @@ class ChargingEnvironment:
             if user_status in ["idle", "traveling", "post_charge"] and not user.get("target_charger"):
                 # 首先检查是否充电量太小
                 estimated_charge_amount = 100 - current_soc  # 假设充满电的情况
-                if estimated_charge_amount < 25:  # 如果充电量小于25%，不充电
+                MIN_CHARGE_AMOUNT_THRESHOLD = 25.0
+                if estimated_charge_amount < MIN_CHARGE_AMOUNT_THRESHOLD:  # 如果充电量小于25%，不充电
                     user["needs_charge_decision"] = False
                     logger.debug(f"User {user_id} needs only {estimated_charge_amount:.1f}% charge, skipping charging.")
                 # 当SOC较低时强制充电
@@ -1869,7 +1870,7 @@ class ChargingEnvironment:
                   exponent = -k * (x - x0)
                   if exponent > 700: return -1.0
                   if exponent < -700: return 1.0
-                  return 2 / (1 + math.exp(exponent)) - 1
+                  return 2 / (1 + math.exp(exponent)) - 1-random.random() * 0.1 # Add some random noise
              except (OverflowError, ValueError):
                   logger.warning("Math error during profit curve calculation.")
                   return 0.0 # Fallback
@@ -2026,9 +2027,10 @@ class ChargingEnvironment:
 
         # 检查充电量是否太小，如果太小直接返回非常低的概率
         estimated_charge_amount = 100 - current_soc
-        if estimated_charge_amount < 25:
+        MIN_CHARGE_AMOUNT_THRESHOLD = 25.0
+        if estimated_charge_amount < MIN_CHARGE_AMOUNT_THRESHOLD:
             logger.debug(f"User {user.get('id')} charge amount too small ({estimated_charge_amount:.1f}%), returning minimal probability.")
-            return 0.01  # 极低概率
+            return 0  # 极低概率
 
         # 1. Base probability using sigmoid curve
         soc_midpoint = 40  # 降低中点SOC到40%
@@ -3275,13 +3277,6 @@ class ChargingScheduler:
         """
         计算运营商利润评分，考虑多种收益和成本因素
         返回值范围：-1到1，值越高代表利润越高
-        
-        考虑因素:
-        1. 电价和充电费率（峰谷时段不同）
-        2. 充电桩利用率和吞吐量
-        3. 不同充电类型的成本差异
-        4. 充电量与收入的关系
-        5. 潜在长期收益（客户忠诚度）
         """
         # 安全获取数据
         timestamp_str = state.get("timestamp", datetime.now().isoformat())
@@ -3312,22 +3307,24 @@ class ChargingScheduler:
         base_cost = base_price * 0.7  # 简化：成本是电价的70%
         
         # 根据时段调整价格和成本
-        time_multiplier = 1.0
+        time_multiplier = 1.7
         if hour in peak_hours:
-            time_multiplier = 1.2  # 高峰时段高价格，但成本也高
+            time_multiplier = 1.9  # 高峰时段高价格，但成本也高
         elif hour in valley_hours:
-            time_multiplier = 0.8  # 低谷时段低价格，成本也低
+            time_multiplier = 1.6  # 低谷时段低价格，成本也低
 
-        # 根据电网负载调整成本
-        # 电网负载高时，获取电力成本更高，用电成本上升
-        grid_load_cost_factor = 1.0 + max(0, (current_grid_load - 70) / 100)  # 负载超过70%时成本开始上升
+        # 根据电网负载调整成本 - 降低影响
+        grid_load_cost_factor = 1.0 + 0.2 * max(0, (current_grid_load - 80) / 100)  # 负载超过80%时成本开始上升
         
         # 充电桩类型调整
         charger_price_multiplier = 1.0
         charger_cost_multiplier = 1.0
         if charger_type == "fast":
-            charger_price_multiplier = 1.15  # 快充更贵
-            charger_cost_multiplier = 1.2  # 快充建设和维护成本更高
+            charger_price_multiplier = 1.2  # 快充溢价
+            charger_cost_multiplier = 1.1  # 快充成本
+        elif charger_type == "superfast":
+            charger_price_multiplier = 1.4  # 超快充溢价
+            charger_cost_multiplier = 1.2  # 超快充成本
         
         # 2. 计算收入和成本
         charge_price = base_price * time_multiplier * charger_price_multiplier
@@ -3336,7 +3333,7 @@ class ChargingScheduler:
         expected_revenue = charging_need * charge_price
         expected_cost = charging_need * charge_cost
         expected_profit = expected_revenue - expected_cost
-        
+       
         # 3. 考虑充电桩利用率
         utilization_bonus = 0
         
@@ -3356,27 +3353,49 @@ class ChargingScheduler:
         elif user_profile == "economic":
             loyalty_potential = 0.15 if hour in valley_hours else -0.05  # 经济型用户在低谷时段充电更可能成为忠诚客户
         
-        # 5. 综合利润评分计算
-        # 基础利润分数
-        profit_score = 0
-        
-        # 避免除以零或负数
-        max_theoretical_profit = user_battery_capacity * base_price * 0.3  # 理论最大利润
+        # 5. 计算利润评分
+        # 修改理论最大利润计算
+        max_theoretical_profit = charging_need * base_price * 0.3  # 理论最大利润是充电量的30%
         
         if max_theoretical_profit > 0:
-            # 使用对数函数平滑增长
             raw_profit_ratio = expected_profit / max_theoretical_profit
-            if raw_profit_ratio <= 0:
-                profit_score = raw_profit_ratio  # 负利润维持原值
-            else:
-                # 对数函数: log(x+1)在x=0时为0，随x增加而缓慢增加
-                profit_score = min(1.0, math.log(raw_profit_ratio * 5 + 1) / 2)
+            
+            # 将raw_profit_ratio限制在合理范围内
+            raw_profit_ratio = max(0, min(3, raw_profit_ratio))
+            
+            # 使用sigmoid函数将利润率映射到[-1,1]区间
+            def sigmoid(x):
+                try:
+                    return (2 / (1 + math.exp(-1.5 * x))) - 1  # 降低sigmoid斜率使得变化更平滑
+                except OverflowError:
+                    return 1 if x > 0 else -1
+            
+            # 计算最终评分
+            profit_score = sigmoid(raw_profit_ratio)
+            
+            # 添加利用率和忠诚度修正
+            profit_score = profit_score + (utilization_bonus + loyalty_potential) * 0.1
+            
+            # 确保最终评分在[-1,1]范围内
+            profit_score = max(-1, min(1, profit_score))
+            
+        else:
+            profit_score = -0.5  # 如果无法计算理论最大利润，给予较低分数
         
-        # 添加利用率和忠诚度修正
-        profit_score += utilization_bonus + loyalty_potential
+        # 记录详细的计算过程用于调试
+        logger.info(f"Operator Profit Calculation:")
+        logger.info(f"  - Charging need: {charging_need:.2f} kWh")
+        logger.info(f"  - Base price: {base_price:.2f}, Base cost: {base_cost:.2f}")
+        logger.info(f"  - Time multiplier: {time_multiplier:.2f}")
+        logger.info(f"  - Grid load cost factor: {grid_load_cost_factor:.2f}")
+        logger.info(f"  - Expected revenue: {expected_revenue:.2f}")
+        logger.info(f"  - Expected cost: {expected_cost:.2f}")
+        logger.info(f"  - Expected profit: {expected_profit:.2f}")
+        logger.info(f"  - Max theoretical profit: {max_theoretical_profit:.2f}")
+        logger.info(f"  - Raw profit ratio: {raw_profit_ratio:.2f}")
+        logger.info(f"  - Final profit score: {profit_score:.2f}")
         
-        # 归一化到[-1, 1]区间
-        return max(-1, min(1, profit_score * 2 - 1 if profit_score > 0.5 else profit_score))
+        return profit_score
     
     def _calculate_grid_friendliness(self, charger, state):
         """

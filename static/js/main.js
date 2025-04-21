@@ -2923,13 +2923,9 @@ function updateGridLoadChart(gridStatus) {
         return;
     }
 
-    console.log("updateGridLoadChart: Received grid_status:", JSON.stringify(gridStatus));
-
     try {
-        // 提取时间戳并使用简化格式
-        const timestamp = gridStatus.timestamp || new Date().toISOString();
-        // 使用简化的时间格式
-        const timeLabel = formatSimulationTime(timestamp);
+        // 直接使用时间序列图的时间标签
+        const timeLabel = simulation.metricsHistory.timestamps[simulation.metricsHistory.timestamps.length - 1];
         
         // 提取电网负载数据
         const baseLoad = gridStatus.current_load ? (gridStatus.current_load - (gridStatus.ev_load || 0)) : 0;
@@ -2937,15 +2933,14 @@ function updateGridLoadChart(gridStatus) {
         const totalLoad = gridStatus.current_load || 0;
         
         // 添加到历史数据数组
-        simulation.gridLoadHistory.timestamps.push(timeLabel);
+        simulation.gridLoadHistory.timestamps = simulation.metricsHistory.timestamps; // 直接使用相同的时间数组
         simulation.gridLoadHistory.baseLoad.push(baseLoad);
         simulation.gridLoadHistory.evLoad.push(evLoad);
         simulation.gridLoadHistory.totalLoad.push(totalLoad);
         
-        // 保留最多48个数据点（相当于模拟12小时，每15分钟一个点）
-        const maxPoints = 48;
-        if (simulation.gridLoadHistory.timestamps.length > maxPoints) {
-            simulation.gridLoadHistory.timestamps.shift();
+        // 保持与时间序列图相同的数据点数量
+        const maxPoints = simulation.metricsHistory.timestamps.length;
+        while (simulation.gridLoadHistory.baseLoad.length > maxPoints) {
             simulation.gridLoadHistory.baseLoad.shift();
             simulation.gridLoadHistory.evLoad.shift();
             simulation.gridLoadHistory.totalLoad.shift();
@@ -2953,19 +2948,11 @@ function updateGridLoadChart(gridStatus) {
         
         // 更新图表
         if (gridLoadChart) {
-            // 使用简化的时间格式
-            gridLoadChart.data.labels = simulation.gridLoadHistory.timestamps;
+            gridLoadChart.data.labels = simulation.metricsHistory.timestamps;
             gridLoadChart.data.datasets[0].data = simulation.gridLoadHistory.baseLoad;
             gridLoadChart.data.datasets[1].data = simulation.gridLoadHistory.evLoad;
             gridLoadChart.data.datasets[2].data = simulation.gridLoadHistory.totalLoad;
             gridLoadChart.update();
-            
-            console.log("Updated grid-load-chart with new data point", {
-                timestamp: timeLabel,
-                baseLoad: baseLoad,
-                evLoad: evLoad,
-                totalLoad: totalLoad
-            });
         } else {
             console.warn("gridLoadChart not initialized. Grid load chart will not be updated.");
         }
@@ -2979,7 +2966,6 @@ function updateGridLoadChart(gridStatus) {
     const renewableRatioElement = document.getElementById('renewableRatio');
 
     if (totalLoadElement) {
-        // 使用current_load代替grid_load，current_load是实际的kW负载值
         totalLoadElement.textContent = `${(gridStatus.current_load || 0).toFixed(1)} kW`;
     }
     if (evLoadElement) {
@@ -4521,14 +4507,22 @@ pauseResumeBtn.disabled = true;
 
 // 定期更新图表
 setInterval(() => {
-    fetch('/api/grid_status')
-        .then(response => response.json())
-        .then(data => {
-            updateGridLoadChart(data);
-        })
-        .catch(error => {
-            console.error('获取电网状态失败:', error);
-        });
+    // 只在模拟运行时更新
+    if (simulation.running) {
+        fetch('/api/grid_status')
+            .then(response => response.json())
+            .then(data => {
+                // 确保数据中包含模拟时间
+                if (data && data.simulation_time) {
+                    updateGridLoadChart(data);
+                } else {
+                    console.warn('Grid status data missing simulation time');
+                }
+            })
+            .catch(error => {
+                console.error('获取电网状态失败:', error);
+            });
+    }
 }, 5000);
 
 // 页面加载时初始化图表
