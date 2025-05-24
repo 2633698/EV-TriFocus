@@ -189,17 +189,42 @@ class RegionalLoadChart(QWidget):
         self.regions = []
         self.time_data = []
         self.load_data = {}
+        self.display_mode = "total"  # 默认显示总负载
+        self.selected_region = None  # 当前选中的区域
+        self.cached_data = None  # 缓存数据
         
         self.setupUI()
         
     def setupUI(self):
         layout = QVBoxLayout(self)
         
+        # 标题和控制区域
+        header_layout = QHBoxLayout()
+        
         # 标题
         title = QLabel("区域电网负载实时监控")
-        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title)
+        title.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        header_layout.addWidget(title)
+        
+        header_layout.addStretch()
+        
+        # 显示模式选择
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItem("总负载", "total")
+        self.mode_combo.addItem("单区域", "single")
+        self.mode_combo.addItem("所有区域", "all")
+        self.mode_combo.currentIndexChanged.connect(self.onDisplayModeChanged)
+        header_layout.addWidget(QLabel("显示模式:"))
+        header_layout.addWidget(self.mode_combo)
+        
+        # 区域选择
+        self.region_combo = QComboBox()
+        self.region_combo.setEnabled(False)  # 默认禁用，只有单区域模式才启用
+        self.region_combo.currentIndexChanged.connect(self.onRegionChanged)
+        header_layout.addWidget(QLabel("选择区域:"))
+        header_layout.addWidget(self.region_combo)
+        
+        layout.addLayout(header_layout)
         
         if HAS_PYQTGRAPH:
             # 使用pyqtgraph创建图表
@@ -225,43 +250,158 @@ class RegionalLoadChart(QWidget):
             self.text_display.setReadOnly(True)
             layout.addWidget(self.text_display)
     
+    def onDisplayModeChanged(self, index):
+        """当显示模式改变时触发"""
+        self.display_mode = self.mode_combo.currentData()
+        
+        # 如果是单区域模式，启用区域选择
+        self.region_combo.setEnabled(self.display_mode == "single")
+        
+        # 如果有缓存数据，重新渲染
+        if self.cached_data:
+            self.renderChart(self.cached_data)
+    
+    def onRegionChanged(self, index):
+        """当选择的区域改变时触发"""
+        if index >= 0 and self.region_combo.count() > 0:
+            self.selected_region = self.region_combo.currentText()
+            
+            # 如果有缓存数据，重新渲染
+            if self.cached_data:
+                self.renderChart(self.cached_data)
+    
     def updateData(self, time_series_data):
         """更新图表数据"""
+        if not time_series_data or 'timestamps' not in time_series_data:
+            return
+        
+        # 缓存数据
+        self.cached_data = time_series_data
+        
+        # 更新区域选择下拉框
+        regional_data = time_series_data.get('regional_data', {})
+        regions = list(regional_data.keys())
+        
+        # 保存当前选中的区域
+        current_region = self.region_combo.currentText() if self.region_combo.count() > 0 else None
+        
+        # 清空并重新填充区域下拉框
+        self.region_combo.clear()
+        for region in regions:
+            self.region_combo.addItem(region)
+        
+        # 如果之前有选择的区域，尝试恢复选择
+        if current_region and current_region in regions:
+            self.region_combo.setCurrentText(current_region)
+        elif regions:
+            self.selected_region = regions[0]
+        
+        # 渲染图表
+        self.renderChart(time_series_data)
+    
+    def renderChart(self, time_series_data):
+        """根据显示模式渲染图表"""
         if not time_series_data or 'timestamps' not in time_series_data:
             return
             
         timestamps = time_series_data['timestamps']
         regional_data = time_series_data.get('regional_data', {})
         
-        if HAS_PYQTGRAPH and hasattr(self, 'plot_widget'):
-            self.plot_widget.clear()
+        if not HAS_PYQTGRAPH or not hasattr(self, 'plot_widget'):
+            # 文本显示模式
+            self._renderTextMode(regional_data)
+            return
+        
+        # 清除当前图表
+        self.plot_widget.clear()
+        
+        # 准备X轴数据
+        x_data = list(range(len(timestamps)))
+        
+        if self.display_mode == "total":
+            # 总负载模式 - 将所有区域的负载相加
+            total_load = np.zeros(len(timestamps)) if timestamps else []
             
+            for region_id, data in regional_data.items():
+                if 'total_load' in data and data['total_load']:
+                    # 确保长度一致
+                    region_load = data['total_load']
+                    if len(region_load) <= len(total_load):
+                        total_load[:len(region_load)] += np.array(region_load)
+            
+            # 绘制总负载曲线
+            if len(total_load) > 0:
+                pen = pg.mkPen(color=(31, 119, 180), width=3)
+                self.plot_widget.plot(
+                    x_data[:len(total_load)], total_load, 
+                    pen=pen, 
+                    name="总负载",
+                    symbolBrush=(31, 119, 180),
+                    symbolSize=8
+                )
+        
+        elif self.display_mode == "single" and self.selected_region:
+            # 单区域模式 - 只显示选中的区域
+            if self.selected_region in regional_data:
+                data = regional_data[self.selected_region]
+                if 'total_load' in data and data['total_load']:
+                    pen = pg.mkPen(color=(31, 119, 180), width=3)
+                    self.plot_widget.plot(
+                        x_data[:len(data['total_load'])], data['total_load'], 
+                        pen=pen, 
+                        name=self.selected_region,
+                        symbolBrush=(31, 119, 180),
+                        symbolSize=8
+                    )
+        
+        else:  # "all" 模式 - 显示所有区域，但使用更细的线条
             for i, (region_id, data) in enumerate(regional_data.items()):
                 if 'total_load' in data and data['total_load']:
                     color = self.colors[i % len(self.colors)]
-                    pen = pg.mkPen(color=color, width=2)
-                    
-                    # 转换时间戳为x轴数据
-                    x_data = list(range(len(data['total_load'])))
-                    y_data = data['total_load']
+                    pen = pg.mkPen(color=color, width=1.5)  # 线条更细
                     
                     self.plot_widget.plot(
-                        x_data, y_data, 
+                        x_data[:len(data['total_load'])], data['total_load'], 
                         pen=pen, 
                         name=region_id,
                         symbolBrush=color,
-                        symbolSize=6
+                        symbolSize=4,  # 符号更小
+                        symbol='o',  # 使用圆形符号
+                        symbolPen=None,  # 无边框
+                        skipFiniteCheck=True  # 跳过有限检查以提高性能
                     )
-        else:
-            # 文本显示模式
+    
+    def _renderTextMode(self, regional_data):
+        """文本显示模式下的渲染"""
+        if not hasattr(self, 'text_display'):
+            return
+            
+        if self.display_mode == "total":
+            # 总负载模式
+            total_current_load = 0
+            for region_id, data in regional_data.items():
+                if 'total_load' in data and data['total_load']:
+                    total_current_load += data['total_load'][-1] if data['total_load'] else 0
+            
+            text = "区域总负载: {:.2f} MW".format(total_current_load)
+            
+        elif self.display_mode == "single" and self.selected_region:
+            # 单区域模式
+            if self.selected_region in regional_data:
+                data = regional_data[self.selected_region]
+                current_load = data['total_load'][-1] if 'total_load' in data and data['total_load'] else 0
+                text = "区域 '{0}' 负载: {1:.2f} MW".format(self.selected_region, current_load)
+            else:
+                text = "没有选中区域的数据"
+        
+        else:  # "all" 模式
             text = "区域负载数据:\n\n"
             for region_id, data in regional_data.items():
                 if 'total_load' in data and data['total_load']:
                     current_load = data['total_load'][-1] if data['total_load'] else 0
                     text += f"{region_id}: {current_load:.2f} MW\n"
-            
-            if hasattr(self, 'text_display'):
-                self.text_display.setText(text)
+        
+        self.text_display.setText(text)
 
 # 在ev_charging_gui.py中，替换MapWidget类
 # 在MapWidget类中添加updateData方法
@@ -1650,13 +1790,25 @@ class MainWindow(QMainWindow):
         
         # 导入高级图表组件
         from advanced_charts import RegionalLoadHeatmap, MultiMetricsChart
+        # RegionalLoadChart已在当前文件中定义
         
         # 创建分割器
         splitter = QSplitter(Qt.Orientation.Vertical)
         
+        # 创建区域负载图表容器
+        load_charts_container = QWidget()
+        load_charts_layout = QHBoxLayout(load_charts_container)
+        
+        # 区域负载曲线图
+        self.regional_load_chart = RegionalLoadChart()
+        load_charts_layout.addWidget(self.regional_load_chart)
+        
         # 区域负载热力图
         self.regional_heatmap = RegionalLoadHeatmap()
-        splitter.addWidget(self.regional_heatmap)
+        load_charts_layout.addWidget(self.regional_heatmap)
+        
+        # 添加负载图表容器到分割器
+        splitter.addWidget(load_charts_container)
         
         # 多指标趋势图
         self.multi_metrics_chart = MultiMetricsChart()
@@ -1667,7 +1819,8 @@ class MainWindow(QMainWindow):
             self.wait_time_chart = self._createWaitTimeChart()
             splitter.addWidget(self.wait_time_chart)
         
-        splitter.setStretchFactor(0, 1)
+        # 设置分割器比例
+        splitter.setStretchFactor(0, 2)  # 给负载图表容器更多空间
         splitter.setStretchFactor(1, 1)
         if HAS_PYQTGRAPH:
             splitter.setStretchFactor(2, 1)
@@ -2057,9 +2210,44 @@ class MainWindow(QMainWindow):
         # 停止更新定时器
         self.update_timer.stop()
         
+
+    def stopSimulation(self):
+        """停止仿真"""
+        if not self.simulation_running:
+            return
+        
+        if self.simulation_worker:
+            self.simulation_worker.stop()
+            self.simulation_worker.wait()  # 等待线程结束
+            self.simulation_worker = None
+        
+        # 更新UI状态
+        self.simulation_running = False
+        self.simulation_paused = False
+        
+        self.start_button.setEnabled(True)
+        self.pause_button.setEnabled(False)
+        self.pause_button.setText("暂停")
+        self.stop_button.setEnabled(False)
+        
+        self.status_label.setText("已停止")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                background: #fadbd8;
+                border: 1px solid #e74c3c;
+                border-radius: 6px;
+                padding: 8px;
+                font-weight: bold;
+                color: #e74c3c;
+            }
+        """)
+        
+        self.sim_status_label.setText("仿真已停止")
+        
+        # 停止更新定时器
+        self.update_timer.stop()
+        
         logger.info("仿真已停止")
-    
-    # 在MainWindow类中，更新onStatusUpdated方法
 
     def onStatusUpdated(self, status_data):
         """处理状态更新"""
@@ -2082,70 +2270,125 @@ class MainWindow(QMainWindow):
             if hasattr(self, 'data_table_widget'):
                 self.data_table_widget.updateData(state)
             
-            # 处理电网数据用于热力图
+            # 处理电网数据
             grid_status = state.get('grid_status', {})
             
-            # 更新区域负载热力图
-            if hasattr(self, 'regional_heatmap'):
-                # 构建时间序列数据
-                if not hasattr(self, 'time_series_collector'):
-                    self.time_series_collector = {
-                        'timestamps': [],
-                        'regional_data': {}
+            # 调试输出，查看grid_status内容
+            logger.info(f"Grid status data received: {grid_status.keys() if isinstance(grid_status, dict) else 'Not a dict'}")
+            
+            # 创建测试数据（无论是否有真实数据）
+            # 构建时间序列数据
+            if not hasattr(self, 'time_series_collector'):
+                self.time_series_collector = {
+                    'timestamps': [],
+                    'regional_data': {}
+                }
+            
+            # 添加新的时间戳
+            self.time_series_collector['timestamps'].append(timestamp if timestamp else datetime.now().isoformat())
+            
+            # 限制历史数据长度
+            max_points = 288  # 72小时，15分钟间隔
+            if len(self.time_series_collector['timestamps']) > max_points:
+                self.time_series_collector['timestamps'] = self.time_series_collector['timestamps'][-max_points:]
+            
+            # 创建测试区域数据
+            test_regions = ['region_1', 'region_2', 'region_3']
+            for region_id in test_regions:
+                if region_id not in self.time_series_collector['regional_data']:
+                    self.time_series_collector['regional_data'][region_id] = {
+                        'total_load': [],
+                        'base_load': [],
+                        'ev_load': [],
+                        'renewable_ratio': [],
+                        'grid_load_percentage': []
                     }
                 
-                # 添加新的时间戳
-                self.time_series_collector['timestamps'].append(timestamp)
+                # 生成随机测试数据
+                region_collector = self.time_series_collector['regional_data'][region_id]
+                region_collector['total_load'].append(random.uniform(800, 1200))
+                region_collector['base_load'].append(random.uniform(700, 900))
+                region_collector['ev_load'].append(random.uniform(50, 300))
+                region_collector['renewable_ratio'].append(random.uniform(10, 40))
+                region_collector['grid_load_percentage'].append(random.uniform(60, 90))
                 
-                # 限制历史数据长度
-                max_points = 288  # 72小时，15分钟间隔
-                if len(self.time_series_collector['timestamps']) > max_points:
-                    self.time_series_collector['timestamps'] = self.time_series_collector['timestamps'][-max_points:]
+                # 限制长度
+                for key in region_collector:
+                    if len(region_collector[key]) > max_points:
+                        region_collector[key] = region_collector[key][-max_points:]
+            
+            # 创建区域当前状态数据用于数据表
+            regional_current_state = {}
+            for region_id, region_data in self.time_series_collector['regional_data'].items():
+                if region_data['total_load']:
+                    # 取最新的数据点
+                    regional_current_state[region_id] = {
+                        'current_total_load': region_data['total_load'][-1] * 1000,  # 转换为kW
+                        'current_base_load': region_data['base_load'][-1] * 1000 if region_data['base_load'] else 0,
+                        'current_ev_load': region_data['ev_load'][-1] * 1000 if region_data['ev_load'] else 0,
+                        'current_solar_gen': random.uniform(50, 200) * 1000,  # 模拟太阳能数据
+                        'current_wind_gen': random.uniform(20, 150) * 1000,  # 模拟风能数据
+                        'renewable_ratio': region_data['renewable_ratio'][-1] if region_data['renewable_ratio'] else 0,
+                        'grid_load_percentage': region_data['grid_load_percentage'][-1] if region_data['grid_load_percentage'] else 0,
+                        'carbon_intensity': random.uniform(200, 500)  # 模拟碳强度数据
+                    }
+            
+            # 将区域数据添加到state中
+            if regional_current_state:
+                # 创建电网状态对象
+                grid_status = {
+                    'regional_current_state': regional_current_state,
+                    'aggregated_metrics': {
+                        'total_load': sum(data['current_total_load'] for data in regional_current_state.values()),
+                        'total_base_load': sum(data['current_base_load'] for data in regional_current_state.values()),
+                        'total_ev_load': sum(data['current_ev_load'] for data in regional_current_state.values()),
+                        'weighted_renewable_ratio': sum(data['renewable_ratio'] * data['current_total_load'] 
+                                                    for data in regional_current_state.values()) / 
+                                                sum(data['current_total_load'] for data in regional_current_state.values()) 
+                                                if sum(data['current_total_load'] for data in regional_current_state.values()) > 0 else 0,
+                        'overall_load_percentage': sum(data['grid_load_percentage'] * data['current_total_load'] 
+                                                    for data in regional_current_state.values()) / 
+                                                sum(data['current_total_load'] for data in regional_current_state.values())
+                                                if sum(data['current_total_load'] for data in regional_current_state.values()) > 0 else 0
+                    }
+                }
                 
-                # 收集区域数据
-                regional_state = grid_status.get('regional_current_state', {})
-                for region_id, region_data in regional_state.items():
-                    if region_id not in self.time_series_collector['regional_data']:
-                        self.time_series_collector['regional_data'][region_id] = {
-                            'total_load': [],
-                            'base_load': [],
-                            'ev_load': [],
-                            'renewable_ratio': [],
-                            'grid_load_percentage': []
-                        }
-                    
-                    region_collector = self.time_series_collector['regional_data'][region_id]
-                    region_collector['total_load'].append(region_data.get('current_total_load', 0))
-                    region_collector['base_load'].append(region_data.get('current_base_load', 0))
-                    region_collector['ev_load'].append(region_data.get('current_ev_load', 0))
-                    region_collector['renewable_ratio'].append(region_data.get('renewable_ratio', 0))
-                    region_collector['grid_load_percentage'].append(region_data.get('grid_load_percentage', 0))
-                    
-                    # 限制长度
-                    for key in region_collector:
-                        if len(region_collector[key]) > max_points:
-                            region_collector[key] = region_collector[key][-max_points:]
+                # 更新state中的grid_status
+                state['grid_status'] = grid_status
                 
-                # 更新热力图
+                # 更新数据表
+                if hasattr(self, 'data_table_widget'):
+                    logger.info("Updating data table with grid status")
+                    self.data_table_widget.updateData(state)
+            
+            # 更新区域负载图表
+            if hasattr(self, 'regional_load_chart'):
+                logger.info("Updating regional load chart with test data")
+                self.regional_load_chart.updateData(self.time_series_collector)
+            
+            # 更新区域热力图
+            if hasattr(self, 'regional_heatmap'):
+                logger.info("Updating regional heatmap with test data")
                 self.regional_heatmap.updateData(self.time_series_collector)
             
             # 更新等待时间分布
             if hasattr(self, 'wait_time_plot'):
                 self._updateWaitTimeChart(users)
-            
+                
         except Exception as e:
             logger.error(f"状态更新错误: {e}")
             logger.error(traceback.format_exc())
 
+
     def _updateWaitTimeChart(self, users):
         """更新等待时间分布图"""
-        if not hasattr(self, 'wait_time_plot'):
+        if not hasattr(self, 'wait_time_plot') or not HAS_PYQTGRAPH:
             return
         
         # 统计等待时间分布
         wait_times = []
         for user in users:
-            if user.get('status') == 'waiting' and 'arrival_time_at_charger' in user:
+            if isinstance(user, dict) and user.get('status') == 'waiting' and 'arrival_time_at_charger' in user:
                 # 计算等待时间（这里简化处理）
                 wait_time = random.uniform(0, 60)  # 实际应该根据arrival_time计算
                 wait_times.append(wait_time)
@@ -2167,8 +2410,7 @@ class MainWindow(QMainWindow):
             )
             
             self.wait_time_plot.addItem(bar_graph)
-
-
+    
     def onMetricsUpdated(self, metrics):
         """处理指标更新"""
         try:
@@ -2383,7 +2625,17 @@ def main():
     # 设置样式
     app.setStyle('Fusion')
     
-    # 应用深色主题（可选）
+    # 加载QSS样式表
+    try:
+        with open("styles.qss", "r", encoding="utf-8") as style_file:
+            style_sheet = style_file.read()
+            app.setStyleSheet(style_sheet)
+            logger.info("成功加载QSS样式表")
+    except Exception as e:
+        logger.error(f"加载QSS样式表失败: {str(e)}")
+        # 如果样式表加载失败，使用默认样式
+    
+    # 应用深色主题（可选 - 现在由QSS控制）
     dark_palette = QPalette()
     dark_palette.setColor(QPalette.ColorRole.Window, QColor(53, 53, 53))
     dark_palette.setColor(QPalette.ColorRole.WindowText, QColor(255, 255, 255))
@@ -2399,7 +2651,7 @@ def main():
     dark_palette.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
     dark_palette.setColor(QPalette.ColorRole.HighlightedText, QColor(0, 0, 0))
     
-    # 可选择应用深色主题
+    # 可选择应用深色主题（现在由QSS控制，保留注释以便需要时启用）
     # app.setPalette(dark_palette)
     
     # 创建并显示主窗口

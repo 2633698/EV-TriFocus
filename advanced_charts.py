@@ -99,38 +99,75 @@ class RegionalLoadHeatmap(QWidget):
         if not regional_data or not timestamps:
             return
         
+        # 获取当前时间范围
+        current_range = self.time_range_combo.currentText()
+        max_points = {
+            "最近1小时": 4,    # 假设15分钟一个时间步，1小时 = 4个时间步
+            "最近6小时": 24,   # 6小时 = 24个时间步
+            "最近24小时": 96,  # 24小时 = 96个时间步
+            "全部": None       # 全部数据
+        }.get(current_range, 4)  # 默认显示最近1小时
+        
         # 构建数据矩阵
         regions = list(regional_data.keys())
         self.regions = regions
         
-        # 获取负载数据
+        # 获取负载数据 - 只取最新的N个时间点
         load_matrix = []
         for region_id in regions:
             region_loads = regional_data[region_id].get('total_load', [])
             if region_loads:
+                # 只取最新的数据点
+                if max_points and len(region_loads) > max_points:
+                    region_loads = region_loads[-max_points:]
                 load_matrix.append(region_loads)
         
         if load_matrix:
+            # 确保所有区域的数据长度一致
+            max_len = max(len(row) for row in load_matrix)
+            for i in range(len(load_matrix)):
+                if len(load_matrix[i]) < max_len:
+                    # 用前一个值或零填充
+                    padding = [load_matrix[i][0] if load_matrix[i] else 0] * (max_len - len(load_matrix[i]))
+                    load_matrix[i] = padding + load_matrix[i]
+            
             self.load_matrix = np.array(load_matrix)
             
             if HAS_PYQTGRAPH and hasattr(self, 'heatmap'):
-                # 更新热力图
+                # 更新热力图 - 只显示当前时间范围的数据
                 self.heatmap.setImage(self.load_matrix, autoLevels=True)
                 
                 # 设置坐标轴标签
                 self.plot_item.setLabel('left', '区域')
                 self.plot_item.setLabel('bottom', '时间')
                 
-                # 设置刻度
+                # 设置刻度 - 只显示当前时间范围
                 y_ticks = [(i, region) for i, region in enumerate(regions)]
-                x_ticks = [(i, timestamps[i] if i < len(timestamps) else str(i)) 
-                          for i in range(0, len(timestamps), max(1, len(timestamps)//10))]
+                
+                # 计算要显示的时间点
+                display_timestamps = timestamps
+                if max_points and len(timestamps) > max_points:
+                    display_timestamps = timestamps[-max_points:]
+                
+                # 生成X轴刻度，最多显示10个时间点
+                step = max(1, len(display_timestamps) // 10)
+                x_ticks = []
+                for i in range(0, len(display_timestamps), step):
+                    if i < len(display_timestamps):
+                        # 从时间戳中提取时间
+                        ts = display_timestamps[i]
+                        try:
+                            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                            time_str = dt.strftime('%H:%M')
+                        except:
+                            time_str = str(i)
+                        x_ticks.append((i, time_str))
                 
                 self.plot_item.getAxis('left').setTicks([y_ticks])
                 self.plot_item.getAxis('bottom').setTicks([x_ticks])
             else:
                 # 表格显示
-                self._updateTable(regions, timestamps, self.load_matrix)
+                self._updateTable(regions, display_timestamps if 'display_timestamps' in locals() else timestamps, self.load_matrix)
     
     def _updateTable(self, regions, timestamps, load_matrix):
         """更新表格显示"""
