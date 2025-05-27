@@ -92,8 +92,8 @@ class ChargingScheduler:
                 self.algorithm = "rule_based"
                 logger.warning("Falling back to rule_based.")
 
-    def make_scheduling_decision(self, state):
-        """根据配置的算法进行调度决策"""
+    def make_scheduling_decision(self, state, manual_decisions=None):
+        """根据配置的算法进行调度决策，支持手动决策优先"""
         decisions = {}
         logger.debug(f"Making decision using algorithm: {self.algorithm}")
 
@@ -102,49 +102,77 @@ class ChargingScheduler:
             return decisions
 
         try:
-            if self.algorithm == "rule_based":
-                decisions = rule_based.schedule(state, self.config)
-            elif self.algorithm == "uncoordinated":
-                decisions = uncoordinated.schedule(state)
-            elif self.algorithm == "coordinated_mas" and self.coordinated_mas_system:
-                # 确保 MAS 系统有最新的配置 (尤其是权重)
-                self.coordinated_mas_system.config = self.config
-                decisions = self.coordinated_mas_system.make_decisions(state)
-            elif self.algorithm == "marl" and self.marl_system:
-                # 1. 为 MARL 生成动态动作映射
-                charger_action_maps = {}
-                if state.get("chargers"):
-                    for charger in state["chargers"]:
-                        charger_id = charger.get("charger_id")
-                        # 确保充电桩状态有效
-                        if charger_id and charger.get("status") != "failure":
-                            action_map, action_size = self._create_dynamic_action_map(charger_id, state)
-                            charger_action_maps[charger_id] = {"map": action_map, "size": action_size}
-                logger.debug(f"Generated {len(charger_action_maps)} action maps for MARL.")
+            # 优先应用手动决策
+            if manual_decisions and isinstance(manual_decisions, dict):
+                logger.info(f"Applying manual decisions: {manual_decisions}")
+                decisions.update(manual_decisions)
+                
+                # 验证手动决策的有效性
+                users = {u.get('user_id'): u for u in state.get('users', []) if isinstance(u, dict)}
+                chargers = {c.get('charger_id'): c for c in state.get('chargers', []) if isinstance(c, dict)}
+                
+                valid_manual_decisions = {}
+                for user_id, charger_id in manual_decisions.items():
+                    if user_id in users and charger_id in chargers:
+                        user = users[user_id]
+                        charger = chargers[charger_id]
+                        
+                        # 检查用户是否可以接受调度
+                        if user.get('status') not in ['charging', 'waiting']:
+                            # 检查充电桩是否可用或队列未满
+                            if (charger.get('status') != 'failure' and 
+                                len(charger.get('queue', [])) < charger.get('queue_capacity', 5)):
+                                valid_manual_decisions[user_id] = charger_id
+                                
+                                # 标记为手动决策
+                                user['manual_decision'] = True
+                                logger.info(f"Valid manual decision: User {user_id} -> Charger {charger_id}")
+                            else:
+                                logger.warning(f"Invalid manual decision: Charger {charger_id} not available or queue full")
+                        else:
+                            logger.warning(f"Invalid manual decision: User {user_id} already charging/waiting")
+                    else:
+                        logger.warning(f"Invalid manual decision: User {user_id} or Charger {charger_id} not found")
+                
+                decisions = valid_manual_decisions
 
-                # 2. MARL 系统选择动作 (返回 {charger_id: action_index})
-                marl_actions = self.marl_system.choose_actions(state)
-                logger.debug(f"MARL raw actions received: {marl_actions}")
-
-                # 3. 将 MARL 动作转换为决策 (返回 {user_id: charger_id})
-                decisions = self._convert_marl_actions_to_decisions(marl_actions, state, charger_action_maps)
-                logger.debug(f"Converted MARL decisions: {decisions}")
-            else:
-                logger.warning(f"Algorithm '{self.algorithm}' not recognized or system not initialized. Falling back to rule-based.")
-                decisions = rule_based.schedule(state, self.config)
+            # 如果没有手动决策或手动决策不足，使用算法补充
+            if len(decisions) == 0:
+                if self.algorithm == "rule_based":
+                    decisions = rule_based.schedule(state, self.config)
+                elif self.algorithm == "uncoordinated":
+                    decisions = uncoordinated.schedule(state)
+                elif self.algorithm == "coordinated_mas" and self.coordinated_mas_system:
+                    self.coordinated_mas_system.config = self.config
+                    decisions = self.coordinated_mas_system.make_decisions(state)
+                elif self.algorithm == "marl" and self.marl_system:
+                    # MARL逻辑保持不变
+                    charger_action_maps = {}
+                    if state.get("chargers"):
+                        for charger in state["chargers"]:
+                            charger_id = charger.get("charger_id")
+                            if charger_id and charger.get("status") != "failure":
+                                action_map, action_size = self._create_dynamic_action_map(charger_id, state)
+                                charger_action_maps[charger_id] = {"map": action_map, "size": action_size}
+                    
+                    marl_actions = self.marl_system.choose_actions(state)
+                    decisions = self._convert_marl_actions_to_decisions(marl_actions, state, charger_action_maps)
+                else:
+                    logger.warning(f"Algorithm '{self.algorithm}' not recognized. Using rule-based fallback.")
+                    decisions = rule_based.schedule(state, self.config)
 
         except Exception as e:
             logger.error(f"Error during scheduling with {self.algorithm}: {e}", exc_info=True)
             logger.warning("Falling back to rule-based scheduling due to error.")
             try:
-                 decisions = rule_based.schedule(state, self.config)
+                decisions = rule_based.schedule(state, self.config)
             except Exception as fallback_e:
-                 logger.error(f"Error during fallback rule-based scheduling: {fallback_e}", exc_info=True)
-                 decisions = {} # Final fallback
+                logger.error(f"Error during fallback rule-based scheduling: {fallback_e}", exc_info=True)
+                decisions = {}
 
         logger.info(f"Scheduler ({self.algorithm}) made {len(decisions)} assignments.")
         return decisions
-
+        
     # --- learn, load_q_tables, save_q_tables ---
     def learn(self, state, actions, rewards, next_state):
         """如果使用 MARL，则调用其学习方法"""

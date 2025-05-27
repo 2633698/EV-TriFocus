@@ -8,11 +8,11 @@ import time  # <--- 确认导入 time 模块
 
 # 使用相对导入，确保这些文件在同一目录下或正确配置了PYTHONPATH
 try:
-    from .grid_model import GridModel
-    from .user_model import simulate_step as simulate_users_step
-    from .charger_model import simulate_step as simulate_chargers_step
-    from .metrics import calculate_rewards
-    from .utils import get_random_location, calculate_distance
+    from simulation.grid_model_enhanced import EnhancedGridModel
+    from simulation.user_model import simulate_step as simulate_users_step
+    from simulation.charger_model import simulate_step as simulate_chargers_step
+    from simulation.metrics import calculate_rewards
+    from simulation.utils import get_random_location, calculate_distance
 except ImportError as e:
     logging.error(f"Error importing simulation submodules in environment.py: {e}", exc_info=True)
     # 在启动时如果无法导入核心模块，抛出错误可能更好
@@ -62,7 +62,7 @@ class ChargingEnvironment:
         self.completed_charging_sessions = [] # 存储完成的充电会话日志
 
         # 初始化子模型 - GridModel 需要完整的 config
-        self.grid_simulator = GridModel(config)
+        self.grid_simulator = EnhancedGridModel(config)
 
         logger.info(f"Config loaded: Users={self.user_count}, Stations={self.station_count}, Chargers/Station={self.chargers_per_station}")
         self.reset() # 调用 reset 来完成初始化
@@ -279,122 +279,135 @@ class ChargingEnvironment:
         logger.info(f"Initialized {self.charger_count} chargers across {self.station_count} stations.")
         return chargers
 
-    def step(self, decisions):
-        """执行一个仿真时间步"""
+    def step(self, decisions, manual_decisions=None):
+        """执行一个仿真时间步，支持手动决策"""
         if self.start_time is None:
-             logger.error("Simulation start time not set! Resetting environment.")
-             self.reset()
+            logger.error("Simulation start time not set! Resetting environment.")
+            self.reset()
 
         logger.debug(f"--- Step Start: {self.current_time} ---")
-        step_start_time = time.time() # 使用导入的 time 模块
+        step_start_time = time.time()
 
-        # 1. 应用决策: 设置用户目标充电桩并规划初始路线
+        # 1. 合并手动决策和算法决策
+        final_decisions = {}
+        if manual_decisions and isinstance(manual_decisions, dict):
+            final_decisions.update(manual_decisions)
+            logger.info(f"Applied {len(manual_decisions)} manual decisions")
+        
+        if decisions and isinstance(decisions, dict):
+            # 添加不与手动决策冲突的算法决策
+            for user_id, charger_id in decisions.items():
+                if user_id not in final_decisions:
+                    final_decisions[user_id] = charger_id
+        
+        # 2. 应用决策: 设置用户目标充电桩并规划初始路线
         users_routed = 0
-        for user_id, charger_id in decisions.items():
+        for user_id, charger_id in final_decisions.items():
             if user_id in self.users and charger_id in self.chargers:
                 user = self.users[user_id]
                 charger = self.chargers[charger_id]
-                # 只有当用户当前需要去这个充电桩时才规划路线
+                
+                # 检查用户是否已经在处理中
                 if user.get('status') not in ['charging', 'waiting'] and user.get('target_charger') != charger_id:
-                    # 导入 user_model 中的路线规划函数
                     from .user_model import plan_route_to_charger
                     charger_pos = charger.get('position')
                     if charger_pos:
-                        # ===> 修正: 直接设置 target_charger <===
+                        # 设置目标充电桩
                         user['target_charger'] = charger_id
-                        user['_current_segment_index'] = 0 # 重置路径跟踪
+                        user['_current_segment_index'] = 0
+                        
+                        # 如果是手动决策，设置特殊标记和参数
+                        if manual_decisions and user_id in manual_decisions:
+                            user['manual_decision'] = True
+                            user['manual_decision_time'] = self.current_time.isoformat()
+                            
+                            # 应用手动设置的目标SOC
+                            if hasattr(user, 'manual_charging_params'):
+                                params = user.get('manual_charging_params', {})
+                                user['target_soc'] = params.get('target_soc', 80)
+                                user['preferred_charging_type'] = params.get('charging_type', '快充')
+                        
                         if plan_route_to_charger(user, charger_pos, self.map_bounds):
-                            user['status'] = 'traveling' # 设置为旅行状态
+                            user['status'] = 'traveling'
                             users_routed += 1
+                            logger.info(f"Routed user {user_id} to charger {charger_id}")
                         else:
-                             logger.warning(f"Failed to plan route for user {user_id} to charger {charger_id}")
-                             user['target_charger'] = None # 规划失败，清除目标
+                            logger.warning(f"Failed to plan route for user {user_id} to charger {charger_id}")
+                            user['target_charger'] = None
+                            user['manual_decision'] = False
                     else:
-                         logger.warning(f"Charger {charger_id} has no position data.")
-            # else: logger.warning(f"Invalid decision: User {user_id} or Charger {charger_id} not found.")
+                        logger.warning(f"Charger {charger_id} has no position data.")
 
-        logger.debug(f"Processed {len(decisions)} decisions, routed {users_routed} users.")
+        logger.debug(f"Processed {len(final_decisions)} decisions, routed {users_routed} users.")
 
         # 2. 模拟用户行为 (调用 user_model)
         simulate_users_step(self.users, self.chargers, self.current_time, self.time_step_minutes, self.config)
-        logger.debug("User simulation step completed.")
-        # ===> 新增逻辑：处理到达的用户，将其加入队列 <===
+            
+        # 处理到达用户加入队列
         users_added_to_queue = 0
         for user_id, user in self.users.items():
             if user.get("status") == "waiting":
                 target_charger_id = user.get("target_charger")
                 if target_charger_id and target_charger_id in self.chargers:
                     charger = self.chargers[target_charger_id]
-                    # 确保 charger['queue'] 是一个列表
                     if not isinstance(charger.get('queue'), list):
                         charger['queue'] = []
-                    # 如果用户不在队列中，则添加
+                    
                     if user_id not in charger['queue']:
-                        # 检查队列容量
-                        queue_capacity = charger.get("queue_capacity", 5) # 获取容量
+                        queue_capacity = charger.get("queue_capacity", 5)
                         current_queue_len = len(charger['queue'])
                         if current_queue_len < queue_capacity:
-                             charger['queue'].append(user_id)
-                             users_added_to_queue += 1
-                             logger.info(f"User {user_id} arrived and added to queue for charger {target_charger_id}. Queue size: {len(charger['queue'])}")
-                             # 清除 target_charger，表示已到达并入队，防止重复添加
-                             # user["target_charger"] = None # <--- 考虑是否需要清除，可能影响重试逻辑
+                            charger['queue'].append(user_id)
+                            users_added_to_queue += 1
+                            
+                            # 为手动决策用户提供优先级
+                            if user.get('manual_decision'):
+                                # 将手动决策用户移到队列前面（但不超过正在充电的用户）
+                                if len(charger['queue']) > 1:
+                                    charger['queue'].remove(user_id)
+                                    charger['queue'].insert(0, user_id)
+                                    logger.info(f"Manual decision user {user_id} given priority in queue for {target_charger_id}")
+                            
+                            logger.info(f"User {user_id} added to queue for charger {target_charger_id}")
                         else:
-                             logger.warning(f"User {user_id} arrived at charger {target_charger_id}, but queue is full ({current_queue_len}/{queue_capacity}). User remains WAITING.")
-                             # 用户仍然是 waiting 状态，但未入队，下一轮调度可能会重新分配或用户放弃？
-                             # 或者让用户状态变回 idle?
-                             # user['status'] = 'idle' # 方案1：让用户变回空闲
-                             # user['target_charger'] = None
-                             pass # 方案2：保持 waiting，依赖后续逻辑处理
+                            logger.warning(f"User {user_id} arrived but queue full for charger {target_charger_id}")
 
-                # else: # 用户状态是 waiting 但没有有效的 target_charger，这不应该发生
-                    # logger.warning(f"User {user_id} is WAITING but has no valid target_charger ID ({target_charger_id}).")
-        if users_added_to_queue > 0:
-            logger.debug(f"{users_added_to_queue} users added to charger queues this step.")
-        # 3. 模拟充电过程 (调用 charger_model)
+        # 模拟充电过程
         current_grid_status = self.grid_simulator.get_status()
         total_ev_load, completed_sessions_this_step = simulate_chargers_step(
             self.chargers, self.users, self.current_time, self.time_step_minutes, current_grid_status
         )
-        self.completed_charging_sessions.extend(completed_sessions_this_step) # 添加到总列表
-        logger.debug(f"Charger simulation step completed. EV Load: {total_ev_load:.2f} kW. Sessions completed: {len(completed_sessions_this_step)}")
+        self.completed_charging_sessions.extend(completed_sessions_this_step)
 
-        # 4. 更新电网状态 (调用 grid_model)
+        # 更新电网状态
         self.grid_simulator.update_step(self.current_time, total_ev_load)
-        logger.debug("Grid simulation step completed.")
 
-        # 5. 前进模拟时间
+        # 前进模拟时间
         self.current_time += timedelta(minutes=self.time_step_minutes)
 
-        # 6. 计算奖励 (调用 metrics 模块)
-        current_state = self.get_current_state() # 获取更新后的状态
+        # 计算奖励
+        current_state = self.get_current_state()
         rewards = calculate_rewards(current_state, self.config)
-        logger.debug(f"Rewards calculated: {rewards}")
 
-        # 7. 保存历史状态
+        # 保存历史状态
         self._save_current_state(rewards)
 
-        # 8. 检查结束条件 (使用正确的开始时间)
-        # ===> 修正 done 计算 <===
+        # 检查结束条件
         if self.start_time:
-             # 确保比较时去除时区信息（如果存在）以避免错误
-             current_sim_time_naive = self.current_time.replace(tzinfo=None)
-             start_sim_time_naive = self.start_time.replace(tzinfo=None)
-             # 计算总的模拟分钟数
-             total_minutes_elapsed = (current_sim_time_naive - start_sim_time_naive).total_seconds() / 60
-             # 计算总的目标分钟数
-             total_simulation_minutes = self.simulation_days * 24 * 60
-             # 判断是否完成（留一点点余量防止浮点数问题）
-             done = total_minutes_elapsed >= (total_simulation_minutes - self.time_step_minutes / 2)
-             logger.debug(f"Checking completion: Elapsed Min={total_minutes_elapsed:.1f}, Target Min={total_simulation_minutes}, Done={done}")
+            current_sim_time_naive = self.current_time.replace(tzinfo=None)
+            start_sim_time_naive = self.start_time.replace(tzinfo=None)
+            total_minutes_elapsed = (current_sim_time_naive - start_sim_time_naive).total_seconds() / 60
+            total_simulation_minutes = self.simulation_days * 24 * 60
+            done = total_minutes_elapsed >= (total_simulation_minutes - self.time_step_minutes / 2)
         else:
-             logger.error("Simulation start time is missing! Cannot determine completion.")
-             done = True # 无法判断，强制结束
+            logger.error("Simulation start time is missing!")
+            done = True
 
         step_duration = time.time() - step_start_time
         logger.debug(f"--- Step End: {self.current_time} (Duration: {step_duration:.3f}s) ---")
 
         return rewards, current_state, done
+
 
     def get_current_state(self):
         """获取当前环境状态"""

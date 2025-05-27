@@ -9,18 +9,7 @@ logger = logging.getLogger(__name__)
 
 def simulate_step(users, chargers, current_time, time_step_minutes, config):
     """
-    模拟所有用户的行为在一个时间步内。
-    直接修改传入的 users 字典。
-
-    Args:
-        users (dict): 用户状态字典 {user_id: user_data}
-        chargers (dict): 充电桩状态字典 {charger_id: charger_data} (用于查找目标)
-        current_time (datetime): 当前模拟时间
-        time_step_minutes (int): 模拟时间步长（分钟）
-        config (dict): 全局配置字典
-
-    Returns:
-        None: 直接修改 users 字典
+    模拟所有用户的行为，特别处理手动决策用户
     """
     time_step_hours = time_step_minutes / 60.0
     env_config = config.get('environment', {})
@@ -28,7 +17,7 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
         "lat_min": 30.5, "lat_max": 31.0, "lng_min": 114.0, "lng_max": 114.5
     })
 
-    for user_id, user in list(users.items()): # 使用 list(users.items()) 允许在循环中删除用户（如果需要）
+    for user_id, user in list(users.items()):
         if not isinstance(user, dict):
             logger.warning(f"Invalid user data found for ID {user_id}. Skipping.")
             continue
@@ -36,202 +25,203 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
         current_soc = user.get("soc", 0)
         user_status = user.get("status", "idle")
         battery_capacity = user.get("battery_capacity", 60)
+        is_manual_decision = user.get("manual_decision", False)
 
-        # --- 后充电状态处理 ---
-        # (与之前提供的 user_model.py 相同)
+        # 手动决策用户的特殊处理
+        if is_manual_decision:
+            # 手动决策用户减少随机行为，更确定地执行决策
+            if user_status == "traveling" and user.get("target_charger"):
+                # 加速到达目标（模拟用户更积极的驾驶）
+                travel_speed = user.get("travel_speed", 45) * 1.2  # 提高20%速度
+                user["travel_speed"] = travel_speed
+                
+                logger.debug(f"Manual decision user {user_id} traveling faster to target charger")
+            
+            # 手动决策用户不会改变充电需求
+            user["needs_charge_decision"] = False
+
+        # 原有的用户行为模拟逻辑...
+        # 后充电状态处理
         if user_status == "post_charge":
             if user.get("post_charge_timer") is None:
                 user["post_charge_timer"] = random.randint(1, 4)
             if user["post_charge_timer"] > 0:
                 user["post_charge_timer"] -= 1
             else:
-                logger.debug(f"User {user_id} post-charge timer expired. Assigning new random destination.")
+                # 清除手动决策标记
+                user["manual_decision"] = False
+                user["manual_charging_params"] = None
+                
+                logger.debug(f"User {user_id} post-charge timer expired.")
                 new_destination = get_random_location(map_bounds)
                 while calculate_distance(user.get("current_position", {}), new_destination) < 0.1:
-                     new_destination = get_random_location(map_bounds)
+                    new_destination = get_random_location(map_bounds)
 
                 user["status"] = "traveling"
                 user["target_charger"] = None
                 user["post_charge_timer"] = None
                 user["needs_charge_decision"] = False
                 user["last_destination_type"] = "random"
+                
                 if plan_route_to_destination(user, new_destination, map_bounds):
-                    logger.debug(f"User {user_id} planned route to new random destination after charging.")
+                    logger.debug(f"User {user_id} planned route to new destination after charging.")
                 else:
-                    logger.warning(f"User {user_id} failed to plan route to new random destination. Setting idle.")
+                    logger.warning(f"User {user_id} failed to plan route. Setting idle.")
                     user["status"] = "idle"
                     user["destination"] = None
 
-
-        # --- 电量消耗 (非充电/等待状态) ---
-        # (使用原 ChargingEnvironment._simulate_user_behavior 中的详细逻辑)
+        # 电量消耗（对手动决策用户同样适用）
         if user_status not in ["charging", "waiting"]:
-            idle_consumption_rate = 0.4 # 基础 kWh/h
+            # 原有电量消耗逻辑...
+            idle_consumption_rate = 0.4
             vehicle_type = user.get("vehicle_type", "sedan")
 
-            # 根据车型调整
             if vehicle_type == "sedan": idle_consumption_rate = 0.8
             elif vehicle_type == "suv": idle_consumption_rate = 1.2
             elif vehicle_type == "truck": idle_consumption_rate = 2.0
             elif vehicle_type == "luxury": idle_consumption_rate = 1.0
             elif vehicle_type == "compact": idle_consumption_rate = 0.6
 
-            # 季节因素
             current_month = current_time.month
             season_factor = 1.0
-            if 6 <= current_month <= 8: season_factor = 2.2 # Summer AC
-            elif current_month <= 2 or current_month == 12: season_factor = 2.5 # Winter Heat
-            else: season_factor = 1.3 # Spring/Autumn
+            if 6 <= current_month <= 8: season_factor = 2.2
+            elif current_month <= 2 or current_month == 12: season_factor = 2.5
+            else: season_factor = 1.3
             idle_consumption_rate *= season_factor
 
-            # 时间因素
             hour = current_time.hour
             time_factor = 1.0
-            if hour in [6, 7, 8, 17, 18, 19]: time_factor = 1.6 # Peak prep
-            elif 22 <= hour or hour <= 4: time_factor = 0.8 # Night low
+            if hour in [6, 7, 8, 17, 18, 19]: time_factor = 1.6
+            elif 22 <= hour or hour <= 4: time_factor = 0.8
             idle_consumption_rate *= time_factor
 
-            # 随机行为因素
             behavior_factor = random.uniform(0.9, 1.8)
             idle_consumption_rate *= behavior_factor
 
-            # 计算并应用SOC减少
             idle_energy_used = idle_consumption_rate * time_step_hours
             idle_soc_decrease = (idle_energy_used / battery_capacity) * 100 if battery_capacity > 0 else 0
             user["soc"] = max(0, user.get("soc", 0) - idle_soc_decrease)
-            current_soc = user["soc"] # 更新当前SOC
+            current_soc = user["soc"]
 
-
-        # --- 检查充电需求 ---
-        # (使用原 ChargingEnvironment._simulate_user_behavior 中的详细逻辑)
-        user["needs_charge_decision"] = False # Reset flag each step
-        if user_status in ["idle", "traveling", "post_charge"] and not user.get("target_charger"):
-            # 检查是否充电量太小
-            estimated_charge_amount = 100 - current_soc
-            MIN_CHARGE_AMOUNT_THRESHOLD = config.get('environment',{}).get('min_charge_threshold_percent', 25.0)
-            if estimated_charge_amount < MIN_CHARGE_AMOUNT_THRESHOLD:
-                # logger.debug(f"User {user_id} needs only {estimated_charge_amount:.1f}% charge, skipping.")
-                pass # 不标记需要充电
-            # 强制充电检查
-            elif current_soc <= config.get('environment',{}).get('force_charge_soc_threshold', 20.0):
-                user["needs_charge_decision"] = True
-                logger.debug(f"User {user_id} SOC critical ({current_soc:.1f}%), forcing charge need.")
-            else:
-                # 计算概率
-                charging_prob = calculate_charging_probability(user, current_time.hour, config)
-                # (应用各种调整因子 - 从原逻辑复制)
-                timer_value = user.get("post_charge_timer")
-                if user_status == "post_charge" and isinstance(timer_value, int) and timer_value > 0:
-                    charging_prob *= 0.1
-                if user_status == "traveling" and user.get("last_destination_type") == "random":
-                    charging_prob *= (0.1 if current_soc > 60 else 1.2)
-                if current_soc > 75: charging_prob *= 0.01
-                elif current_soc > 60: charging_prob *= 0.1
-                if user.get("user_type") in ["taxi", "ride_hailing"]:
-                    charging_prob *= (0.5 if current_soc > 50 else 1.2)
-                hour = current_time.hour # 确保使用当前小时
-                grid_status = config.get('grid', {}) # 获取电网配置
-                peak_hours = grid_status.get('peak_hours', [])
-                if hour in peak_hours:
-                     charging_prob *= (0.5 if current_soc > 60 else 1.2)
-                if 20 < current_soc <= 35: charging_prob *= 1.5
-
-                # 最终决定
-                if random.random() < charging_prob:
+        # 检查充电需求（手动决策用户跳过）
+        if not is_manual_decision:
+            user["needs_charge_decision"] = False
+            if user_status in ["idle", "traveling", "post_charge"] and not user.get("target_charger"):
+                estimated_charge_amount = 100 - current_soc
+                MIN_CHARGE_AMOUNT_THRESHOLD = config.get('environment',{}).get('min_charge_threshold_percent', 25.0)
+                
+                if estimated_charge_amount < MIN_CHARGE_AMOUNT_THRESHOLD:
+                    pass
+                elif current_soc <= config.get('environment',{}).get('force_charge_soc_threshold', 20.0):
                     user["needs_charge_decision"] = True
-                    # logger.debug(f"User {user_id} decided to charge based on probability {charging_prob:.2f}")
+                    logger.debug(f"User {user_id} SOC critical, forcing charge need.")
+                else:
+                    charging_prob = calculate_charging_probability(user, current_time.hour, config)
+                    # 应用各种调整因子
+                    timer_value = user.get("post_charge_timer")
+                    if user_status == "post_charge" and isinstance(timer_value, int) and timer_value > 0:
+                        charging_prob *= 0.1
+                    if user_status == "traveling" and user.get("last_destination_type") == "random":
+                        charging_prob *= (0.1 if current_soc > 60 else 1.2)
+                    if current_soc > 75: charging_prob *= 0.01
+                    elif current_soc > 60: charging_prob *= 0.1
+                    if user.get("user_type") in ["taxi", "ride_hailing"]:
+                        charging_prob *= (0.5 if current_soc > 50 else 1.2)
+                    
+                    hour = current_time.hour
+                    grid_status = config.get('grid', {})
+                    peak_hours = grid_status.get('peak_hours', [])
+                    if hour in peak_hours:
+                        charging_prob *= (0.5 if current_soc > 60 else 1.2)
+                    if 20 < current_soc <= 35: charging_prob *= 1.5
 
+                    if random.random() < charging_prob:
+                        user["needs_charge_decision"] = True
 
-        # --- 基于充电需求的状态转换 ---
-        # 这个逻辑块在协调模式下是多余的，因为调度器会处理 `needs_charge_decision`.
-        # 如果要模拟完全无序的行为，可以在 uncoordinated.py 中实现类似逻辑。
-        # 这里我们只设置标志，让调度器决定。
-        if user["needs_charge_decision"] and user_status in ["idle", "traveling"] and (user.get("last_destination_type") == "random" or user_status == "idle"):
-             logger.info(f"User {user_id} (SOC: {current_soc:.1f}%) flagged as needing charging decision.")
-             # 停止当前随机行程 (如果适用)
-             if user_status == "traveling":
-                  user["status"] = "idle" # 停止旅行，等待调度
-                  user["destination"] = None
-                  user["route"] = None
-                  logger.debug(f"User {user_id} stopped random travel to wait for charge decision.")
+        # 基于充电需求的状态转换
+        if (user["needs_charge_decision"] and user_status in ["idle", "traveling"] and 
+            (user.get("last_destination_type") == "random" or user_status == "idle")):
+            logger.info(f"User {user_id} (SOC: {current_soc:.1f}%) flagged as needing charging decision.")
+            if user_status == "traveling":
+                user["status"] = "idle"
+                user["destination"] = None
+                user["route"] = None
+                logger.debug(f"User {user_id} stopped random travel to wait for charge decision.")
 
-
-        # --- 移动模拟 ---
-        # (使用原 ChargingEnvironment._simulate_user_behavior 中的详细逻辑)
+        # 移动模拟
         if user_status == "traveling" and user.get("destination"):
             travel_speed = user.get("travel_speed", 45)
-            if travel_speed <= 0: travel_speed = 45 # 防御性编程
+            if travel_speed <= 0: travel_speed = 45
 
             distance_this_step = travel_speed * time_step_hours
             actual_distance_moved = update_user_position_along_route(user, distance_this_step, map_bounds)
 
-            # --- 行驶能耗计算 (使用原详细逻辑) ---
-            base_energy_per_km = 0.25 * (1 + (travel_speed / 80)) # 基础能耗率
+            # 行驶能耗计算
+            base_energy_per_km = 0.25 * (1 + (travel_speed / 80))
             vehicle_type = user.get("vehicle_type", "sedan")
             energy_per_km = base_energy_per_km
-            # 车型调整
+            
             if vehicle_type == "sedan": energy_per_km *= 1.2
             elif vehicle_type == "suv": energy_per_km *= 1.5
             elif vehicle_type == "truck": energy_per_km *= 1.8
-            # 驾驶风格
+            
             driving_style = user.get("driving_style", "normal")
             if driving_style == "aggressive": energy_per_km *= 1.3
             elif driving_style == "eco": energy_per_km *= 0.9
-            # 路况、天气、交通 (简化)
+            
             road_condition = random.uniform(1.0, 1.3)
             weather_impact = random.uniform(1.0, 1.2)
             traffic_factor = 1.0
-            hour = current_time.hour # 使用当前小时
-            grid_status = config.get('grid', {}) # 获取电网配置
+            hour = current_time.hour
+            grid_status = config.get('grid', {})
             peak_hours = grid_status.get('peak_hours', [])
             if hour in peak_hours: traffic_factor = random.uniform(1.1, 1.4)
             energy_per_km *= road_condition * weather_impact * traffic_factor
-            # --- 结束能耗计算 ---
 
             energy_consumed = actual_distance_moved * energy_per_km
             soc_decrease_travel = (energy_consumed / battery_capacity) * 100 if battery_capacity > 0 else 0
-            # 从已经计算过 idle 消耗的 SOC 上减去行驶消耗
             user["soc"] = max(0, user["soc"] - soc_decrease_travel)
 
-            # 更新剩余时间
             time_taken_minutes = (actual_distance_moved / travel_speed) * 60 if travel_speed > 0 else 0
             user["time_to_destination"] = max(0, user.get("time_to_destination", 0) - time_taken_minutes)
 
             # 检查是否到达
             if has_reached_destination(user):
-                 logger.debug(f"User {user_id} arrived at destination {user['destination']}.")
-                 user["current_position"] = user["destination"].copy()
-                 user["time_to_destination"] = 0
-                 user["route"] = None
+                logger.debug(f"User {user_id} arrived at destination.")
+                user["current_position"] = user["destination"].copy()
+                user["time_to_destination"] = 0
+                user["route"] = None
 
-                 target_charger_id = user.get("target_charger")
-                 last_dest_type = user.get("last_destination_type")
+                target_charger_id = user.get("target_charger")
+                last_dest_type = user.get("last_destination_type")
 
-                 if target_charger_id:
-                      logger.info(f"User {user_id} arrived at target charger {target_charger_id}. Setting status to WAITING.")
-                      user["status"] = "waiting"
-                      user["destination"] = None
-                      user["arrival_time_at_charger"] = current_time # 记录到达时间
-                      # 注意：加入队列的逻辑由 charger_model 或 environment 处理
-                 # (处理其他到达情况 - Fallback 和随机目的地)
-                 elif last_dest_type == "charger":
-                     logger.warning(f"User {user_id} arrived at target charger destination, but target_charger ID is None. Setting WAITING.")
-                     user["status"] = "waiting"
-                     user["destination"] = None
-                     user["arrival_time_at_charger"] = current_time
-                 else: # Arrived at random destination
-                     logger.info(f"User {user_id} reached random destination. Setting IDLE.")
-                     user["status"] = "idle"
-                     user["destination"] = None
-                     user["target_charger"] = None
-                     # 到达后强制检查充电需求
-                     if user["soc"] < 70: user["needs_charge_decision"] = True
-
+                if target_charger_id:
+                    logger.info(f"User {user_id} arrived at target charger {target_charger_id}. Setting status to WAITING.")
+                    user["status"] = "waiting"
+                    user["destination"] = None
+                    user["arrival_time_at_charger"] = current_time
+                    
+                    # 如果是手动决策用户，记录到达时间
+                    if is_manual_decision:
+                        user["manual_decision_arrival_time"] = current_time.isoformat()
+                        logger.info(f"Manual decision user {user_id} arrived at target charger")
+                        
+                elif last_dest_type == "charger":
+                    logger.warning(f"User {user_id} arrived at charger destination, but target_charger ID is None. Setting WAITING.")
+                    user["status"] = "waiting"
+                    user["destination"] = None
+                    user["arrival_time_at_charger"] = current_time
+                else:
+                    logger.info(f"User {user_id} reached random destination. Setting IDLE.")
+                    user["status"] = "idle"
+                    user["destination"] = None
+                    user["target_charger"] = None
+                    # 清除手动决策标记
+                    user["manual_decision"] = False
+                    if user["soc"] < 70: user["needs_charge_decision"] = True
 
         # 更新最终用户续航里程
         user["current_range"] = user.get("max_range", 300) * (user["soc"] / 100)
-
-
 # --- 辅助函数 ---
 
 def calculate_charging_probability(user, current_hour, config):
@@ -443,3 +433,101 @@ def has_reached_destination(user):
         return False
     # 检查剩余时间是否为0或非常小
     return user["time_to_destination"] <= 0.1
+class UserDecisionManager:
+    """用户决策管理器 - 处理用户手动决策的验证和应用"""
+    
+    def __init__(self):
+        self.pending_decisions = {}
+        self.decision_history = []
+    
+    def add_user_decision(self, user_id, charger_id, charging_params, timestamp):
+        """添加用户决策"""
+        decision = {
+            'user_id': user_id,
+            'charger_id': charger_id,
+            'charging_params': charging_params,
+            'timestamp': timestamp,
+            'status': 'pending'
+        }
+        
+        self.pending_decisions[user_id] = decision
+        logger.info(f"Added user decision: {user_id} -> {charger_id}")
+        
+        return decision
+    
+    def validate_decision(self, user_id, users_data, chargers_data):
+        """验证用户决策的有效性"""
+        if user_id not in self.pending_decisions:
+            return False, "没有找到待处理的决策"
+        
+        decision = self.pending_decisions[user_id]
+        charger_id = decision['charger_id']
+        
+        # 检查用户状态
+        user = users_data.get(user_id)
+        if not user:
+            return False, f"用户 {user_id} 不存在"
+        
+        if user.get('status') in ['charging', 'waiting']:
+            return False, f"用户 {user_id} 正在充电或等待中"
+        
+        # 检查充电桩状态
+        charger = chargers_data.get(charger_id)
+        if not charger:
+            return False, f"充电桩 {charger_id} 不存在"
+        
+        if charger.get('status') == 'failure':
+            return False, f"充电桩 {charger_id} 故障中"
+        
+        queue_length = len(charger.get('queue', []))
+        queue_capacity = charger.get('queue_capacity', 5)
+        
+        if queue_length >= queue_capacity:
+            return False, f"充电桩 {charger_id} 队列已满"
+        
+        return True, "决策有效"
+    
+    def apply_decision(self, user_id):
+        """应用用户决策"""
+        if user_id not in self.pending_decisions:
+            return None
+        
+        decision = self.pending_decisions[user_id]
+        decision['status'] = 'applied'
+        decision['applied_timestamp'] = datetime.now().isoformat()
+        
+        # 移动到历史记录
+        self.decision_history.append(decision)
+        del self.pending_decisions[user_id]
+        
+        logger.info(f"Applied user decision for {user_id}")
+        return decision
+    
+    def get_pending_decisions(self):
+        """获取所有待处理决策"""
+        return self.pending_decisions.copy()
+    
+    def get_decision_history(self, user_id=None):
+        """获取决策历史"""
+        if user_id:
+            return [d for d in self.decision_history if d['user_id'] == user_id]
+        return self.decision_history.copy()
+    
+    def clear_expired_decisions(self, expiry_minutes=30):
+        """清理过期的待处理决策"""
+        current_time = datetime.now()
+        expired_users = []
+        
+        for user_id, decision in self.pending_decisions.items():
+            decision_time = datetime.fromisoformat(decision['timestamp'])
+            if (current_time - decision_time).total_seconds() > expiry_minutes * 60:
+                expired_users.append(user_id)
+        
+        for user_id in expired_users:
+            expired_decision = self.pending_decisions[user_id]
+            expired_decision['status'] = 'expired'
+            self.decision_history.append(expired_decision)
+            del self.pending_decisions[user_id]
+            logger.info(f"Expired user decision for {user_id}")
+        
+        return len(expired_users)

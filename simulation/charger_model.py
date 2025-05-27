@@ -8,33 +8,19 @@ logger = logging.getLogger(__name__)
 
 def simulate_step(chargers, users, current_time, time_step_minutes, grid_status):
     """
-    模拟所有充电桩在一个时间步内的操作。
-    直接修改传入的 chargers 和 users 字典。
-
-    Args:
-        chargers (dict): 充电桩状态字典
-        users (dict): 用户状态字典
-        current_time (datetime): 当前模拟时间
-        time_step_minutes (int): 模拟时间步长（分钟）
-        grid_status (dict): 当前电网状态 (用于获取价格)
-
-    Returns:
-        tuple: (total_ev_load, completed_sessions)
-               - float: 该时间步的总 EV 充电负载 (kW)
-               - list: 本次时间步完成的充电会话信息列表
+    模拟所有充电桩的操作，特别关注手动决策用户
     """
     time_step_hours = round(time_step_minutes / 60, 4)
     total_ev_load = 0
-    completed_sessions_this_step = [] # 存储本次完成的会话
+    completed_sessions_this_step = []
 
     for charger_id, charger in chargers.items():
-        if not isinstance(charger, dict): continue # 基本检查
+        if not isinstance(charger, dict): continue
         if charger.get("status") == "failure": continue
 
         current_user_id = charger.get("current_user")
 
-        # --- 处理正在充电的用户 ---
-        # (这部分逻辑与上次提供的版本一致)
+        # 处理正在充电的用户（保持原有逻辑）
         if charger.get("status") == "occupied" and current_user_id:
             if current_user_id in users:
                 user = users[current_user_id]
@@ -42,21 +28,31 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                 battery_capacity = user.get("battery_capacity", 60)
                 target_soc = user.get("target_soc", 95)
                 initial_soc = user.get("initial_soc", current_soc)
+                is_manual_decision = user.get("manual_decision", False)
 
-                # --- 充电功率和效率计算 (使用原详细逻辑) ---
+                # 充电功率和效率计算
                 charger_type = charger.get("type", "normal")
                 charger_max_power = charger.get("max_power", 60)
                 vehicle_max_power = user.get("max_charging_power", 60)
                 power_limit = min(charger_max_power, vehicle_max_power)
                 base_efficiency = user.get("charging_efficiency", 0.92)
+                
+                # 手动决策用户的充电功率优化
+                if is_manual_decision:
+                    preferred_type = user.get("preferred_charging_type", "快充")
+                    if preferred_type == "快充" and charger_type in ["fast", "superfast"]:
+                        # 提高充电效率
+                        base_efficiency = min(0.95, base_efficiency * 1.03)
+                        logger.debug(f"Manual decision user {current_user_id} getting optimized charging")
+
                 soc_factor = 1.0
                 if current_soc < 20: soc_factor = 1.0
                 elif current_soc < 50: soc_factor = 1.0 - ((current_soc - 20) / 30) * 0.1
                 elif current_soc < 80: soc_factor = 0.9 - ((current_soc - 50) / 30) * 0.2
                 else: soc_factor = 0.7 - ((current_soc - 80) / 20) * 0.5
+                
                 actual_power = power_limit * max(0.1, soc_factor)
                 power_to_battery = actual_power * base_efficiency
-                # --- 结束功率计算 ---
 
                 soc_needed = max(0, target_soc - current_soc)
                 energy_needed = (soc_needed / 100.0) * battery_capacity
@@ -76,6 +72,11 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
 
                     current_price = grid_status.get("current_price", 0.85)
                     price_multiplier = charger.get("price_multiplier", 1.0)
+                    
+                    # 手动决策用户可能享受小幅折扣
+                    if is_manual_decision:
+                        price_multiplier *= 0.98  # 2%折扣
+                    
                     revenue = actual_energy_from_grid * current_price * price_multiplier
                     charger["daily_revenue"] = charger.get("daily_revenue", 0) + revenue
                     charger["daily_energy"] = charger.get("daily_energy", 0) + actual_energy_from_grid
@@ -83,14 +84,18 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                     # 检查充电是否完成
                     charging_start_time = charger.get("charging_start_time", current_time - timedelta(minutes=time_step_minutes))
                     charging_duration_minutes = (current_time - charging_start_time).total_seconds() / 60
-                    max_charging_time = 180 # Default
+                    max_charging_time = 180
                     if charger_type == "superfast": max_charging_time = 30
                     elif charger_type == "fast": max_charging_time = 60
 
-                    # --- 结束充电逻辑 ---
+                    # 结束充电逻辑
                     if new_soc >= target_soc - 0.5 or charging_duration_minutes >= max_charging_time - 0.1:
                         reason = "target_reached" if new_soc >= target_soc - 0.5 else "time_limit_exceeded"
-                        logger.info(f"User {current_user_id} finished charging at {charger_id} ({reason}). Final SOC: {new_soc:.1f}%")
+                        
+                        if is_manual_decision:
+                            logger.info(f"Manual decision user {current_user_id} finished charging at {charger_id} ({reason}). Final SOC: {new_soc:.1f}%")
+                        else:
+                            logger.info(f"User {current_user_id} finished charging at {charger_id} ({reason}). Final SOC: {new_soc:.1f}%")
 
                         session_energy = charger.get("daily_energy", 0) - charger.get("_prev_energy", 0)
                         session_revenue = charger.get("daily_revenue", 0) - charger.get("_prev_revenue", 0)
@@ -100,9 +105,11 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                             "duration_minutes": round(charging_duration_minutes, 2),
                             "initial_soc": initial_soc, "final_soc": new_soc,
                             "energy_charged_grid": round(session_energy, 3),
-                            "cost": round(session_revenue, 2), "termination_reason": reason
+                            "cost": round(session_revenue, 2), "termination_reason": reason,
+                            "manual_decision": is_manual_decision
                         }
                         completed_sessions_this_step.append(charging_session)
+                        
                         if "charging_history" not in user: user["charging_history"] = []
                         user["charging_history"].append(charging_session)
 
@@ -110,81 +117,69 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                         charger["status"] = "available"
                         charger["current_user"] = None
                         charger["charging_start_time"] = None
-                        # 更新 _prev 以便下次计算差值
                         charger["_prev_energy"] = charger.get("daily_energy", 0)
                         charger["_prev_revenue"] = charger.get("daily_revenue", 0)
 
                         user["status"] = "post_charge"
                         user["target_charger"] = None
                         user["post_charge_timer"] = random.randint(1, 3)
-                        user["initial_soc"] = None; user["target_soc"] = None
+                        user["initial_soc"] = None
+                        user["target_soc"] = None
+                        # 保留手动决策标记直到post_charge结束
 
-                        # 注意：这里不再立即处理队列，交给下面的逻辑块统一处理
-
-                else: # 充电量过小，也算完成
-                     if current_soc >= target_soc - 1.0:
-                         logger.debug(f"User {current_user_id} charging considered complete at {charger_id}. SOC: {current_soc:.1f}%")
-                         charging_start_time = charger.get("charging_start_time", current_time - timedelta(minutes=time_step_minutes))
-                         charging_duration_minutes = (current_time - charging_start_time).total_seconds() / 60
-                         session_energy = charger.get("daily_energy", 0) - charger.get("_prev_energy", 0)
-                         session_revenue = charger.get("daily_revenue", 0) - charger.get("_prev_revenue", 0)
-                         charging_session = { "user_id": current_user_id, "charger_id": charger_id,"start_time": charging_start_time.isoformat(),"end_time": current_time.isoformat(),"duration_minutes": round(charging_duration_minutes, 2),"initial_soc": initial_soc,"final_soc": current_soc,"energy_charged_grid": round(session_energy, 3),"cost": round(session_revenue, 2),"termination_reason": "target_reached"}
-                         completed_sessions_this_step.append(charging_session)
-                         if "charging_history" not in user: user["charging_history"] = []
-                         user["charging_history"].append(charging_session)
-
-                         charger["status"] = "available"; charger["current_user"] = None
-                         charger["charging_start_time"] = None
-                         charger["_prev_energy"] = charger.get("daily_energy", 0)
-                         charger["_prev_revenue"] = charger.get("daily_revenue", 0)
-
-                         user["status"] = "post_charge"; user["target_charger"] = None
-                         user["post_charge_timer"] = random.randint(1, 3)
-                         user["initial_soc"] = None; user["target_soc"] = None
-
-            else: # 用户不存在
-                logger.warning(f"Charger {charger_id} occupied by non-existent user {current_user_id}. Setting available.")
-                charger["status"] = "available"; charger["current_user"] = None
-                charger["charging_start_time"] = None
-
-        # ===> 修正后的等待队列处理逻辑 <===
-        # 检查条件：充电桩现在是 'available' 状态，并且它的 'queue' 不为空
+        # 处理等待队列 - 优先处理手动决策用户
         if charger.get("status") == "available" and charger.get("queue"):
-            queue = charger["queue"] # 获取队列列表的引用
-            next_user_id = queue[0] # 查看队首用户 ID
+            queue = charger["queue"]
+            
+            # 重新排序队列，手动决策用户优先
+            manual_users = []
+            regular_users = []
+            
+            for queued_user_id in queue:
+                if queued_user_id in users:
+                    user = users[queued_user_id]
+                    if user.get("status") == "waiting":
+                        if user.get("manual_decision"):
+                            manual_users.append(queued_user_id)
+                        else:
+                            regular_users.append(queued_user_id)
+            
+            # 重新排列队列：手动决策用户优先
+            charger["queue"] = manual_users + regular_users
+            
+            if charger["queue"]:
+                next_user_id = charger["queue"][0]
+                
+                if next_user_id in users:
+                    next_user = users[next_user_id]
+                    if next_user.get("status") == "waiting":
+                        is_manual = next_user.get("manual_decision", False)
+                        if is_manual:
+                            logger.info(f"Starting charging for manual decision user {next_user_id} at {charger_id}")
+                        else:
+                            logger.info(f"Starting charging for user {next_user_id} at {charger_id}")
 
-            if next_user_id in users:
-                next_user = users[next_user_id]
-                # 关键检查：确认用户的状态是 'waiting'
-                if next_user.get("status") == "waiting":
-                    logger.info(f"Starting charging for user {next_user_id} from queue at {charger_id}")
+                        # 更新充电桩状态
+                        charger["status"] = "occupied"
+                        charger["current_user"] = next_user_id
+                        charger["charging_start_time"] = current_time
+                        charger["_prev_energy"] = charger.get("daily_energy", 0)
+                        charger["_prev_revenue"] = charger.get("daily_revenue", 0)
 
-                    # 更新充电桩状态
-                    charger["status"] = "occupied"
-                    charger["current_user"] = next_user_id
-                    charger["charging_start_time"] = current_time
-                    # 记录开始充电时的能量和收入基准
-                    charger["_prev_energy"] = charger.get("daily_energy", 0)
-                    charger["_prev_revenue"] = charger.get("daily_revenue", 0)
+                        # 更新用户状态
+                        next_user["status"] = "charging"
+                        
+                        # 使用手动设置的目标SOC或默认值
+                        if is_manual and 'manual_charging_params' in next_user:
+                            target_soc = next_user['manual_charging_params'].get('target_soc', 80)
+                        else:
+                            target_soc = min(95, next_user.get("soc", 0) + 60)
+                        
+                        next_user["target_soc"] = target_soc
+                        next_user["initial_soc"] = next_user.get("soc", 0)
 
-                    # 更新用户状态
-                    next_user["status"] = "charging"
-                    next_user["target_soc"] = min(95, next_user.get("soc", 0) + 60) # 设置充电目标
-                    next_user["initial_soc"] = next_user.get("soc", 0) # 记录开始充电时的SOC
+                        # 从队列中移除
+                        charger["queue"].pop(0)
+                        logger.debug(f"User {next_user_id} removed from queue {charger_id}.")
 
-                    # 从队列中移除已开始充电的用户
-                    queue.pop(0)
-                    logger.debug(f"User {next_user_id} removed from queue {charger_id}.")
-
-                else:
-                    # 用户状态不是 'waiting'，暂时不处理，让他留在队首，下一轮再检查
-                    logger.warning(f"User {next_user_id} at head of queue for {charger_id} has status '{next_user.get('status')}' (expected 'waiting'). Skipping charging start this step.")
-            else:
-                # 队列中的用户 ID 在 users 字典中找不到，说明用户可能已离开或数据错误
-                logger.warning(f"User {next_user_id} in queue for {charger_id} not found in users dict. Removing from queue.")
-                queue.pop(0) # 从队列移除无效用户
-
-            # 注意：因为我们直接修改了 charger['queue'] 列表，所以不需要 charger['queue'] = queue 这行了。
-
-    # 返回总负载和本次完成的充电记录
     return total_ev_load, completed_sessions_this_step

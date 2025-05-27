@@ -45,6 +45,7 @@ try:
     from simulation.scheduler import ChargingScheduler
     from simulation.grid_model_enhanced import EnhancedGridModel
     from simulation.metrics import calculate_rewards
+    from user_panel import UserControlPanel
 except ImportError as e:
     print(f"警告：无法导入仿真模块: {e}")
     print("请确保simulation包在Python路径中")
@@ -1005,7 +1006,9 @@ class SimulationWorker(QThread):
             # 初始化仿真环境
             self.environment = ChargingEnvironment(self.config)
             self.scheduler = ChargingScheduler(self.config)
-            
+            # 添加手动决策支持
+            self.manual_decisions = {}
+
             logger.info("仿真开始")
             
             while self.running:
@@ -1016,9 +1019,13 @@ class SimulationWorker(QThread):
                 # 获取当前状态
                 current_state = self.environment.get_current_state()
                 
-                # 调度决策
-                decisions = self.scheduler.make_scheduling_decision(current_state)
-                
+                # 调度决策 - 优先使用手动决策
+                if hasattr(self, 'manual_decisions') and self.manual_decisions:
+                    decisions = self.manual_decisions.copy()
+                    self.manual_decisions.clear()  # 清除已使用的手动决策
+                    logger.info(f"应用手动决策: {decisions}")
+                else:
+                    decisions = self.scheduler.make_scheduling_decision(current_state)
                 # 执行一步仿真
                 rewards, next_state, done = self.environment.step(decisions)
                 
@@ -1277,7 +1284,11 @@ class MainWindow(QMainWindow):
         self.simulation_worker = None
         self.current_metrics = {}
         self.time_series_data = {'timestamps': [], 'regional_data': {}}
-        
+        # 添加用户面板相关状态
+        self.user_panel_active = False
+        self.selected_user_id = None
+        self.simulation_history = []  # 存储仿真历史状态
+        self.current_simulation_step = 0
         # 初始化其他属性
         self.simulation_running = False
         self.simulation_paused = False
@@ -1777,12 +1788,92 @@ class MainWindow(QMainWindow):
         # 数据选项卡
         data_tab = self._createDataTab()
         tab_widget.addTab(data_tab, "📋 数据详情")
-        
+    
+        # 新增：用户面板选项卡
+        user_panel_tab = self._createUserPanelTab()
+        tab_widget.addTab(user_panel_tab, "👤 用户面板")
+
         layout = QVBoxLayout(panel)
         layout.addWidget(tab_widget)
         
         return panel
-    
+    def _createUserPanelTab(self):
+        """创建用户面板选项卡"""
+        self.user_control_panel = UserControlPanel()
+        
+        # 连接信号
+        self.user_control_panel.userSelected.connect(self.onUserSelected)
+        self.user_control_panel.simulationStepChanged.connect(self.onSimulationStepChanged)
+        self.user_control_panel.chargingDecisionMade.connect(self.onChargingDecisionMade)
+        
+        return self.user_control_panel
+
+    # 5. 添加用户面板相关的事件处理方法
+    def onUserSelected(self, user_id):
+        """处理用户选择事件"""
+        self.selected_user_id = user_id
+        logger.info(f"用户已选择: {user_id}")
+        
+        # 暂停仿真以允许用户交互
+        if self.simulation_running and not self.simulation_paused:
+            self.pauseSimulation()
+            self.user_panel_active = True
+            
+            # 更新状态显示
+            self.status_label.setText("用户交互模式")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    background: #e3f2fd;
+                    border: 1px solid #2196f3;
+                    border-radius: 6px;
+                    padding: 8px;
+                    font-weight: bold;
+                    color: #1976d2;
+                }
+            """)
+    def onSimulationStepChanged(self, step):
+        """处理仿真步骤改变事件"""
+        self.current_simulation_step = step
+        logger.info(f"仿真步骤改变到: {step}")
+        
+        # 如果有历史数据，加载对应步骤的状态
+        if step < len(self.simulation_history):
+            historical_state = self.simulation_history[step]
+            self.user_control_panel.updateSimulationData(
+                step, len(self.simulation_history) - 1, historical_state
+            )
+
+    def onChargingDecisionMade(self, user_id, station_id, charging_params):
+        """处理充电决策事件"""
+        logger.info(f"用户 {user_id} 选择在 {station_id} 充电，参数: {charging_params}")
+        
+        # 应用用户决策到仿真环境
+        if self.simulation_worker and hasattr(self.simulation_worker, 'environment'):
+            # 创建人工决策
+            manual_decision = {user_id: station_id}
+            
+            # 更新用户目标SOC
+            target_soc = charging_params.get('target_soc', 80)
+            users = self.simulation_worker.environment.users
+            if user_id in users:
+                users[user_id]['target_soc'] = target_soc
+                users[user_id]['manual_decision'] = True
+                users[user_id]['manual_charging_params'] = charging_params
+            
+            # 存储人工决策供调度器使用
+            self.simulation_worker.manual_decisions = manual_decision
+            
+            # 显示确认消息
+            QMessageBox.information(self, "决策应用", 
+                f"已为用户 {user_id} 安排在充电站 {station_id} 充电\n"
+                f"目标电量: {target_soc}%\n"
+                f"充电类型: {charging_params.get('charging_type', '快充')}")
+            
+            # 继续仿真
+            self.user_panel_active = False
+            if self.simulation_paused:
+                self.pauseSimulation()  # 取消暂停
+
     def _createChartsTab(self):
         """创建图表选项卡"""
         widget = QWidget()
@@ -1971,13 +2062,99 @@ class MainWindow(QMainWindow):
         stop_action.triggered.connect(self.stopSimulation)
         sim_menu.addAction(stop_action)
         
+        # 新增：用户菜单
+        user_menu = menubar.addMenu("用户")
+        
+        enable_user_panel_action = QAction("启用用户面板", self)
+        enable_user_panel_action.setCheckable(True)
+        enable_user_panel_action.triggered.connect(self.toggleUserPanel)
+        user_menu.addAction(enable_user_panel_action)
+        
+        user_menu.addSeparator()
+        
+        export_user_data_action = QAction("导出用户数据", self)
+        export_user_data_action.triggered.connect(self.exportUserData)
+        user_menu.addAction(export_user_data_action)
         # 帮助菜单
         help_menu = menubar.addMenu("帮助")
         
         about_action = QAction("关于", self)
         about_action.triggered.connect(self.showAbout)
         help_menu.addAction(about_action)
-    
+
+    def toggleUserPanel(self, enabled):
+        """切换用户面板"""
+        # 这里可以控制用户面板的启用/禁用
+        if hasattr(self, 'user_control_panel'):
+            self.user_control_panel.setEnabled(enabled)
+
+    def exportUserData(self):
+        """导出用户数据"""
+        if not self.simulation_history:
+            QMessageBox.warning(self, "警告", "没有可导出的用户数据")
+            return
+        
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "导出用户数据", "user_data.json", "JSON files (*.json)"
+        )
+        if filename:
+            try:
+                # 提取用户相关数据
+                user_data = {
+                    'selected_user': self.selected_user_id,
+                    'simulation_steps': len(self.simulation_history),
+                    'user_sessions': [],
+                    'charging_decisions': []
+                }
+                
+                # 收集用户会话数据
+                for step, state in enumerate(self.simulation_history):
+                    users = state.get('users', [])
+                    for user in users:
+                        if user.get('user_id') == self.selected_user_id:
+                            user_data['user_sessions'].append({
+                                'step': step,
+                                'timestamp': state.get('timestamp'),
+                                'user_state': user
+                            })
+                            break
+                
+                with open(filename, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+                QMessageBox.information(self, "成功", f"用户数据已导出到 {filename}")
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"导出失败:\n{str(e)}")
+
+    # 9. 添加用户面板相关的工具栏按钮
+    def _createToolBar(self):
+        """创建工具栏"""
+        toolbar = self.addToolBar("主工具栏")
+        
+        # 现有工具栏项目...
+        toolbar.addAction("▶️", self.startSimulation)
+        toolbar.addAction("⏸️", self.pauseSimulation)
+        toolbar.addAction("⏹️", self.stopSimulation)
+        toolbar.addSeparator()
+        
+        # 配置工具
+        toolbar.addAction("⚙️", self.showConfig)
+        toolbar.addSeparator()
+        
+        # 新增：用户面板工具
+        toolbar.addAction("👤", self.showUserPanel)
+        toolbar.addSeparator()
+        
+        # 导出工具
+        toolbar.addAction("💾", self.exportData)
+
+    def showUserPanel(self):
+        """显示用户面板"""
+        # 切换到用户面板选项卡
+        if hasattr(self, 'tab_widget'):  # 假设主选项卡widget有这个名字
+            for i in range(self.tab_widget.count()):
+                if "用户面板" in self.tab_widget.tabText(i):
+                    self.tab_widget.setCurrentIndex(i)
+                    break
     def _createToolBar(self):
         """创建工具栏"""
         toolbar = self.addToolBar("主工具栏")
@@ -2255,7 +2432,20 @@ class MainWindow(QMainWindow):
             state = status_data.get('state', {})
             rewards = status_data.get('rewards', {})
             timestamp = status_data.get('timestamp', '')
+            # 保存到历史记录
+            self.simulation_history.append(state.copy())
             
+            # 限制历史记录长度
+            max_history = 1000
+            if len(self.simulation_history) > max_history:
+                self.simulation_history = self.simulation_history[-max_history:]
+            
+            # 更新用户面板
+            if hasattr(self, 'user_control_panel'):
+                current_step = len(self.simulation_history) - 1
+                self.user_control_panel.updateSimulationData(
+                    current_step, len(self.simulation_history) - 1, state
+                )
             # 更新时间显示
             if timestamp:
                 dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
