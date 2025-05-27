@@ -2081,7 +2081,6 @@ class MainWindow(QMainWindow):
         about_action = QAction("关于", self)
         about_action.triggered.connect(self.showAbout)
         help_menu.addAction(about_action)
-
     def toggleUserPanel(self, enabled):
         """切换用户面板"""
         # 这里可以控制用户面板的启用/禁用
@@ -2155,22 +2154,6 @@ class MainWindow(QMainWindow):
                 if "用户面板" in self.tab_widget.tabText(i):
                     self.tab_widget.setCurrentIndex(i)
                     break
-    def _createToolBar(self):
-        """创建工具栏"""
-        toolbar = self.addToolBar("主工具栏")
-        
-        # 仿真控制工具
-        toolbar.addAction("▶️", self.startSimulation)
-        toolbar.addAction("⏸️", self.pauseSimulation)
-        toolbar.addAction("⏹️", self.stopSimulation)
-        toolbar.addSeparator()
-        
-        # 配置工具
-        toolbar.addAction("⚙️", self.showConfig)
-        toolbar.addSeparator()
-        
-        # 导出工具
-        toolbar.addAction("💾", self.exportData)
     
     def _createStatusBar(self):
         """创建状态栏"""
@@ -2707,13 +2690,15 @@ class MainWindow(QMainWindow):
         """更新显示 - 定时器调用"""
         # 更新进度条
         if self.simulation_running and hasattr(self, 'simulation_worker') and self.simulation_worker:
-            # 这里可以根据实际仿真进度更新进度条
-            # 暂时使用模拟进度
-            current_value = self.progress_bar.value()
-            if current_value < 100:
-                self.progress_bar.setValueAnimated(current_value + 1)
-            else:
-                self.progress_bar.setValueAnimated(0)
+            # 根据当前步数和总步数计算进度
+            current_step = getattr(self.simulation_worker, 'current_step', 0)
+            total_steps = getattr(self.simulation_worker, 'total_steps', 100)
+            
+            if total_steps > 0:
+                progress = int((current_step / total_steps) * 100)
+                # 确保进度在0-100之间
+                progress = max(0, min(100, progress))
+                self.progress_bar.setValueAnimated(progress)
     
     def updateCurrentTime(self):
         """更新当前时间显示"""
