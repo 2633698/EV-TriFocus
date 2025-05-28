@@ -1082,6 +1082,7 @@ class SimulationWorker(QThread):
     metricsUpdated = pyqtSignal(dict)
     errorOccurred = pyqtSignal(str)
     simulationFinished = pyqtSignal()
+    environmentReady = pyqtSignal(object)  # 新增：环境准备就绪信号
     
     def __init__(self, config):
         super().__init__()
@@ -1102,6 +1103,9 @@ class SimulationWorker(QThread):
             self.scheduler = ChargingScheduler(self.config)
             # 添加手动决策支持
             self.manual_decisions = {}
+            
+            # 发出环境准备就绪信号
+            self.environmentReady.emit(self.environment)
 
             logger.info("仿真开始")
             
@@ -2449,6 +2453,7 @@ class MainWindow(QMainWindow):
             self.simulation_worker.metricsUpdated.connect(self.onMetricsUpdated)
             self.simulation_worker.errorOccurred.connect(self.onErrorOccurred)
             self.simulation_worker.simulationFinished.connect(self.onSimulationFinished)
+            self.simulation_worker.environmentReady.connect(self.onEnvironmentReady)
             
             # 启动线程
             self.simulation_worker.start()
@@ -2886,6 +2891,12 @@ class MainWindow(QMainWindow):
         """处理仿真完成"""
         self.stopSimulation()
         QMessageBox.information(self, "完成", "仿真已完成!")
+    
+    def onEnvironmentReady(self, environment):
+        """处理仿真环境准备就绪"""
+        # 设置用户面板的仿真环境
+        if hasattr(self, 'user_control_panel') and self.user_control_panel:
+            self.user_control_panel.setSimulationEnvironment(environment)
     
     def showConfig(self):
         """显示配置对话框"""

@@ -31,8 +31,10 @@ from reservation_system import (
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QSize, QRect
 from PyQt6.QtGui import (
     QFont, QPainter, QPen, QBrush, QColor, QPixmap, QIcon,
-    QLinearGradient, QPalette
+    QLinearGradient, QPalette, QPolygonF
 )
+from PyQt6.QtCore import QPointF
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +59,263 @@ class ChargingStation:
     estimated_cost: float
 
 
+class UserProfileWidget(QWidget):
+    """用户画像可视化组件"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.user_data = {}
+        self.profile_scores = {
+            '时间敏感度': 0.5,
+            '价格敏感度': 0.5,
+            '续航焦虑': 0.3,
+            '充电频率': 0.4,
+            '快充偏好': 0.6
+        }
+        self.setMinimumSize(300, 250)
+        
+    def updateProfile(self, user_data, charging_history=None):
+        """更新用户画像数据"""
+        self.user_data = user_data
+        
+        # 根据用户类型和画像计算特征分数
+        user_profile = user_data.get('user_profile', 'flexible')
+        user_type = user_data.get('user_type', 'private')
+        
+        # 基于用户画像设置基础分数
+        if user_profile == 'urgent':
+            self.profile_scores = {
+                '时间敏感度': 0.9,
+                '价格敏感度': 0.2,
+                '续航焦虑': 0.4,
+                '充电频率': 0.7,
+                '快充偏好': 0.9
+            }
+        elif user_profile == 'economic':
+            self.profile_scores = {
+                '时间敏感度': 0.3,
+                '价格敏感度': 0.9,
+                '续航焦虑': 0.3,
+                '充电频率': 0.4,
+                '快充偏好': 0.2
+            }
+        elif user_profile == 'anxious':
+            self.profile_scores = {
+                '时间敏感度': 0.6,
+                '价格敏感度': 0.4,
+                '续航焦虑': 0.9,
+                '充电频率': 0.8,
+                '快充偏好': 0.7
+            }
+        else:  # flexible
+            self.profile_scores = {
+                '时间敏感度': 0.5,
+                '价格敏感度': 0.5,
+                '续航焦虑': 0.4,
+                '充电频率': 0.5,
+                '快充偏好': 0.5
+            }
+        
+        # 根据用户类型调整
+        if user_type == 'taxi':
+            self.profile_scores['时间敏感度'] = min(1.0, self.profile_scores['时间敏感度'] + 0.2)
+            self.profile_scores['充电频率'] = min(1.0, self.profile_scores['充电频率'] + 0.3)
+        elif user_type == 'logistics':
+            self.profile_scores['价格敏感度'] = min(1.0, self.profile_scores['价格敏感度'] + 0.2)
+            self.profile_scores['续航焦虑'] = min(1.0, self.profile_scores['续航焦虑'] + 0.1)
+        
+        # 根据充电历史调整（如果有的话）
+        if charging_history and len(charging_history) > 0:
+            self._adjustScoresFromHistory(charging_history)
+        
+        self.update()  # 触发重绘
+    
+    def _adjustScoresFromHistory(self, charging_history):
+        """根据充电历史调整画像分数"""
+        if len(charging_history) < 3:
+            return
+        
+        recent_sessions = charging_history[-10:]  # 最近10次充电
+        
+        # 分析快充使用频率
+        fast_charge_count = sum(1 for session in recent_sessions 
+                               if session.get('power_kw', 0) > 50)
+        fast_charge_ratio = fast_charge_count / len(recent_sessions)
+        self.profile_scores['快充偏好'] = fast_charge_ratio
+        
+        # 分析充电频率
+        if len(charging_history) > 1:
+            # 计算平均充电间隔
+            intervals = []
+            for i in range(1, len(recent_sessions)):
+                prev_time = datetime.fromisoformat(recent_sessions[i-1].get('start_time', '2024-01-01T00:00:00'))
+                curr_time = datetime.fromisoformat(recent_sessions[i].get('start_time', '2024-01-01T00:00:00'))
+                interval_hours = (curr_time - prev_time).total_seconds() / 3600
+                intervals.append(interval_hours)
+            
+            if intervals:
+                avg_interval = sum(intervals) / len(intervals)
+                # 间隔越短，充电频率越高
+                frequency_score = max(0, min(1, 1 - (avg_interval - 12) / 48))  # 12-60小时映射到1-0
+                self.profile_scores['充电频率'] = frequency_score
+        
+        # 分析SOC偏好（续航焦虑）
+        final_socs = [session.get('final_soc', 80) for session in recent_sessions]
+        avg_final_soc = sum(final_socs) / len(final_socs)
+        # 充电到越高SOC，续航焦虑越高
+        anxiety_score = max(0, min(1, (avg_final_soc - 60) / 40))  # 60-100%映射到0-1
+        self.profile_scores['续航焦虑'] = anxiety_score
+    
+    def paintEvent(self, event):
+        """绘制用户画像雷达图"""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # 获取绘制区域
+        rect = self.rect()
+        center_x = rect.width() // 2
+        center_y = rect.height() // 2
+        radius = min(center_x, center_y) - 40
+        
+        # 绘制背景网格
+        self._drawGrid(painter, center_x, center_y, radius)
+        
+        # 绘制雷达图
+        self._drawRadarChart(painter, center_x, center_y, radius)
+        
+        # 绘制标签
+        self._drawLabels(painter, center_x, center_y, radius)
+        
+        # 绘制用户画像标签
+        self._drawProfileInfo(painter, rect)
+    
+    def _drawGrid(self, painter, center_x, center_y, radius):
+        """绘制网格背景"""
+        painter.setPen(QPen(QColor(200, 200, 200), 1))
+        
+        # 绘制同心圆
+        for i in range(1, 6):
+            r = radius * i / 5
+            painter.drawEllipse(int(center_x - r), int(center_y - r), int(2 * r), int(2 * r))
+        
+        # 绘制射线
+        angles = [i * 2 * math.pi / 5 for i in range(5)]
+        for angle in angles:
+            x = center_x + radius * math.cos(angle - math.pi/2)
+            y = center_y + radius * math.sin(angle - math.pi/2)
+            painter.drawLine(int(center_x), int(center_y), int(x), int(y))
+    
+    def _drawRadarChart(self, painter, center_x, center_y, radius):
+        """绘制雷达图数据"""
+        # 计算各个点的坐标
+        points = []
+        angles = [i * 2 * math.pi / 5 for i in range(5)]
+        scores = list(self.profile_scores.values())
+        
+        for i, (angle, score) in enumerate(zip(angles, scores)):
+            r = radius * score
+            x = center_x + r * math.cos(angle - math.pi/2)
+            y = center_y + r * math.sin(angle - math.pi/2)
+            points.append(QPointF(x, y))
+        
+        # 绘制填充区域
+        polygon = QPolygonF(points)
+        
+        # 设置填充颜色（半透明蓝色）
+        painter.setBrush(QBrush(QColor(0, 123, 255, 100)))
+        painter.setPen(QPen(QColor(0, 123, 255), 2))
+        painter.drawPolygon(polygon)
+        
+        # 绘制数据点
+        painter.setBrush(QBrush(QColor(0, 123, 255)))
+        for point in points:
+            painter.drawEllipse(int(point.x() - 4), int(point.y() - 4), 8, 8)
+    
+    def _drawLabels(self, painter, center_x, center_y, radius):
+        """绘制标签"""
+        painter.setPen(QPen(QColor(50, 50, 50)))
+        painter.setFont(QFont("Arial", 9))
+        
+        labels = list(self.profile_scores.keys())
+        angles = [i * 2 * math.pi / 5 for i in range(5)]
+        
+        for i, (angle, label) in enumerate(zip(angles, labels)):
+            # 标签位置稍微外移
+            label_radius = radius + 25
+            x = center_x + label_radius * math.cos(angle - math.pi/2)
+            y = center_y + label_radius * math.sin(angle - math.pi/2)
+            
+            # 调整文本位置以居中
+            metrics = painter.fontMetrics()
+            text_width = metrics.horizontalAdvance(label)
+            text_height = metrics.height()
+            
+            painter.drawText(int(x - text_width//2), int(y + text_height//4), label)
+            
+            # 显示数值
+            score = list(self.profile_scores.values())[i]
+            score_text = f"{score:.1f}"
+            score_width = metrics.horizontalAdvance(score_text)
+            painter.drawText(int(x - score_width//2), int(y + text_height//4 + 15), score_text)
+    
+    def _drawProfileInfo(self, painter, rect):
+        """绘制用户画像信息"""
+        painter.setPen(QPen(QColor(50, 50, 50)))
+        painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        
+        # 获取用户画像类型
+        user_profile = self.user_data.get('user_profile', 'flexible')
+        profile_names = {
+            'urgent': '快充优先型',
+            'economic': '价格敏感型', 
+            'anxious': '续航焦虑型',
+            'flexible': '均衡偏好型'
+        }
+        
+        profile_name = profile_names.get(user_profile, '未知类型')
+        
+        # 在顶部绘制画像类型
+        painter.drawText(10, 20, f"用户画像: {profile_name}")
+        
+        # 绘制特征标签
+        painter.setFont(QFont("Arial", 8))
+        y_offset = 40
+        
+        # 根据分数生成特征标签
+        tags = self._generateProfileTags()
+        for i, tag in enumerate(tags[:3]):  # 最多显示3个标签
+            painter.setPen(QPen(QColor(255, 255, 255)))
+            painter.setBrush(QBrush(QColor(0, 123, 255)))
+            
+            # 绘制标签背景
+            tag_rect = QRect(10, y_offset + i * 20, 80, 16)
+            painter.drawRoundedRect(tag_rect, 8, 8)
+            
+            # 绘制标签文字
+            painter.drawText(tag_rect, Qt.AlignmentFlag.AlignCenter, tag)
+    
+    def _generateProfileTags(self):
+        """根据画像分数生成特征标签"""
+        tags = []
+        
+        if self.profile_scores['时间敏感度'] > 0.7:
+            tags.append('时间优先')
+        if self.profile_scores['价格敏感度'] > 0.7:
+            tags.append('价格敏感')
+        if self.profile_scores['续航焦虑'] > 0.7:
+            tags.append('续航焦虑')
+        if self.profile_scores['充电频率'] > 0.7:
+            tags.append('频繁充电')
+        if self.profile_scores['快充偏好'] > 0.7:
+            tags.append('快充偏好')
+        
+        # 如果没有突出特征，添加均衡标签
+        if not tags:
+            tags.append('均衡用户')
+        
+        return tags
+
+
 class UserInfoPanel(QGroupBox):
     """用户信息管理面板"""
     
@@ -67,6 +326,13 @@ class UserInfoPanel(QGroupBox):
     
     def setupUI(self):
         layout = QVBoxLayout(self)
+        
+        # 创建水平布局，左侧基本信息，右侧用户画像
+        main_layout = QHBoxLayout()
+        
+        # 左侧：基本信息
+        info_widget = QWidget()
+        info_layout = QVBoxLayout(info_widget)
         
         # 静态信息
         static_group = QGroupBox("基本信息")
@@ -86,7 +352,7 @@ class UserInfoPanel(QGroupBox):
         static_layout.addWidget(QLabel("充电偏好:"), 3, 0)
         static_layout.addWidget(self.charging_preference_label, 3, 1)
         
-        layout.addWidget(static_group)
+        info_layout.addWidget(static_group)
         
         # 动态信息
         dynamic_group = QGroupBox("实时状态")
@@ -110,9 +376,18 @@ class UserInfoPanel(QGroupBox):
         dynamic_layout.addWidget(QLabel("目标电量:"), 3, 0)
         dynamic_layout.addWidget(self.target_soc_spin, 3, 1)
         
-        layout.addWidget(dynamic_group)
+        info_layout.addWidget(dynamic_group)
+        
+        # 右侧：用户画像可视化
+        self.profile_widget = UserProfileWidget()
+        
+        # 添加到主布局
+        main_layout.addWidget(info_widget, 1)  # 基本信息占1份
+        main_layout.addWidget(self.profile_widget, 1)  # 用户画像占1份
+        
+        layout.addLayout(main_layout)
     
-    def updateUserInfo(self, user_data):
+    def updateUserInfo(self, user_data, charging_history=None):
         """更新用户信息"""
         self.user_data = user_data
         
@@ -147,6 +422,9 @@ class UserInfoPanel(QGroupBox):
                 background-color: {color};
             }}
         """)
+        
+        # 更新用户画像
+        self.profile_widget.updateProfile(user_data, charging_history)
     
     def _translateUserType(self, user_type):
         """翻译用户类型"""
@@ -1098,11 +1376,10 @@ class UserControlPanel(QWidget):
         self.user_info_panel = UserInfoPanel()
         tab_widget.addTab(self.user_info_panel, "用户信息")
         
-        # 行程信息选项卡（预留）
-        trip_widget = QLabel("行程信息功能正在开发中...")
-        trip_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        trip_widget.setStyleSheet("color: #6c757d; font-size: 14px;")
-        tab_widget.addTab(trip_widget, "行程信息")
+        # 行程信息选项卡
+        from trip_info_panel import TripInfoPanel
+        self.trip_info_panel = TripInfoPanel()
+        tab_widget.addTab(self.trip_info_panel, "行程信息")
         
         # 充电历史选项卡
         self.history_panel = ChargingHistoryPanel()
@@ -1111,6 +1388,9 @@ class UserControlPanel(QWidget):
         # 充电站推荐选项卡
         self.recommendation_panel = StationRecommendationPanel()
         self.recommendation_panel.stationSelected.connect(self.onStationSelected)
+        
+        # 连接trip_info_panel的充电决策信号
+        self.trip_info_panel.chargingDecisionMade.connect(self.onTripInfoChargingDecision)
         tab_widget.addTab(self.recommendation_panel, "充电站推荐")
         
         # 充电站详情选项卡
@@ -1201,6 +1481,10 @@ class UserControlPanel(QWidget):
             self.updateCurrentUserInfo()
             self.updateRecommendations()
             
+            # 更新行程信息面板
+            if hasattr(self, 'trip_info_panel'):
+                self.trip_info_panel.setSelectedUser(user_id)
+            
             # 启用应用决策按钮
             self.apply_btn.setEnabled(True)
     
@@ -1224,8 +1508,9 @@ class UserControlPanel(QWidget):
         self.current_user_label.setText(f"用户: {self.current_user_id}\n状态: {current_user.get('status', '')}\nSOC: {current_user.get('soc', 0):.1f}%")
         
         # 更新各个面板
-        self.user_info_panel.updateUserInfo(current_user)
-        self.history_panel.updateHistory(current_user.get('charging_history', []))
+        charging_history = current_user.get('charging_history', [])
+        self.user_info_panel.updateUserInfo(current_user, charging_history)
+        self.history_panel.updateHistory(charging_history)
         
         # 更新充电站详情面板的用户数据
         self.details_panel.setCurrentUserData(current_user)
@@ -1260,9 +1545,13 @@ class UserControlPanel(QWidget):
         self.recommendation_panel.updateStations(recommendations, user_position)
     
     def _generateRecommendations(self, user, chargers_data):
-        """生成充电站推荐"""
+        """生成个性化充电站推荐"""
         recommendations = []
         user_pos = user.get('current_position', {})
+        
+        # 获取用户充电历史和偏好分析
+        charging_history = user.get('charging_history', [])
+        user_preferences = self._analyzeUserPreferences(charging_history, user)
         
         for charger in chargers_data[:20]:  # 限制数量
             if charger.get('status') == 'failure':
@@ -1294,6 +1583,24 @@ class UserControlPanel(QWidget):
             charger_type_cn = {'superfast': '超快充', 'fast': '快充', 'normal': '慢充'}.get(charger.get('type', 'normal'), '普通')
             full_name = f"{station_name}-{charger_type_cn}桩({charger_id})"
             
+            # 实时价格预测
+            base_price = charger.get('price_multiplier', 1.0) * 0.85
+            predicted_price_factor = self._predictPriceFactor(charger, eta_minutes)
+            predicted_price = base_price * predicted_price_factor
+            
+            # 个性化评分计算
+            base_rating = round(4.0 + (charger.get('max_power', 60) - 50) / 100, 1)
+            preference_score = self._calculatePreferenceScore(charger, user_preferences, distance, predicted_price)
+            personalized_rating = min(5.0, base_rating + preference_score)
+            
+            # 个性化标签生成
+            tags = self._generatePersonalizedTags(charger, user_preferences, charging_history, predicted_price, base_price)
+            
+            # 个性化成本估算
+            base_cost = distance * 0.5 + charger.get('max_power', 60) * 0.3
+            preference_cost_adjustment = self._calculatePreferenceCostAdjustment(charger, user_preferences)
+            estimated_cost = round(base_cost + preference_cost_adjustment, 1)
+            
             # 生成推荐数据
             station = ChargingStation(
                 station_id=charger_id,
@@ -1308,18 +1615,231 @@ class UserControlPanel(QWidget):
                 queue_length=len(charger.get('queue', [])),
                 wait_time_minutes=len(charger.get('queue', [])) * 15,
                 max_power=charger.get('max_power', 60),
-                current_price=charger.get('price_multiplier', 1.0) * 0.85,
-                rating=round(4.0 + (charger.get('max_power', 60) - 50) / 100, 1),  # 基于功率的真实评分
-                tags=self._generateTags(charger),
-                estimated_cost=round(distance * 0.5 + charger.get('max_power', 60) * 0.3, 1)  # 基于距离和功率的真实成本
+                current_price=round(predicted_price, 2),
+                rating=round(personalized_rating, 1),
+                tags=tags,
+                estimated_cost=estimated_cost
             )
+            
+            # 添加个性化属性
+            station.preference_score = round(preference_score, 2)
+            station.price_trend = self._getPriceTrend(predicted_price_factor)
             
             recommendations.append(station)
         
+        # 个性化排序：综合偏好分数、距离和价格
+        recommendations.sort(key=lambda x: (
+            -getattr(x, 'preference_score', 0) * 2,  # 偏好分数权重最高
+            x.distance * 0.5,                        # 距离权重中等
+            x.current_price * 0.3                    # 价格权重较低
+        ))
+        
         return recommendations
     
+    def _analyzeUserPreferences(self, charging_history, user):
+        """分析用户充电偏好"""
+        preferences = {
+            'preferred_charger_types': {},
+            'preferred_power_range': [50, 120],
+            'price_sensitivity': 0.5,
+            'distance_tolerance': 5.0,
+            'time_preferences': {},
+            'location_preferences': {},
+            'avg_charging_duration': 30,
+            'preferred_soc_range': [20, 80]
+        }
+        
+        if not charging_history:
+            return preferences
+        
+        # 分析充电桩类型偏好
+        type_counts = {}
+        power_values = []
+        durations = []
+        soc_values = []
+        
+        for session in charging_history[-20:]:  # 分析最近20次充电记录
+            charger_type = session.get('charger_type', 'normal')
+            type_counts[charger_type] = type_counts.get(charger_type, 0) + 1
+            
+            power = session.get('power_kw', 60)
+            power_values.append(power)
+            
+            duration = session.get('duration_minutes', 30)
+            durations.append(duration)
+            
+            final_soc = session.get('final_soc', 80)
+            soc_values.append(final_soc)
+        
+        # 计算偏好
+        if type_counts:
+            preferences['preferred_charger_types'] = type_counts
+        
+        if power_values:
+            avg_power = sum(power_values) / len(power_values)
+            preferences['preferred_power_range'] = [max(30, avg_power - 20), min(150, avg_power + 20)]
+        
+        if durations:
+            preferences['avg_charging_duration'] = sum(durations) / len(durations)
+        
+        if soc_values:
+            avg_soc = sum(soc_values) / len(soc_values)
+            preferences['preferred_soc_range'] = [max(10, avg_soc - 20), min(100, avg_soc + 10)]
+        
+        # 分析价格敏感度
+        user_type = user.get('user_type', 'normal')
+        if user_type == 'economic':
+            preferences['price_sensitivity'] = 0.8
+        elif user_type == 'business':
+            preferences['price_sensitivity'] = 0.3
+        else:
+            preferences['price_sensitivity'] = 0.5
+        
+        return preferences
+    
+    def _calculatePreferenceScore(self, charger, user_preferences, distance, price):
+        """计算个性化偏好分数"""
+        score = 0.0
+        
+        # 充电桩类型偏好
+        charger_type = charger.get('type', 'normal')
+        type_prefs = user_preferences.get('preferred_charger_types', {})
+        if charger_type in type_prefs:
+            total_sessions = sum(type_prefs.values())
+            type_ratio = type_prefs[charger_type] / total_sessions
+            score += type_ratio * 0.3
+        
+        # 功率偏好
+        power = charger.get('max_power', 60)
+        power_range = user_preferences.get('preferred_power_range', [50, 120])
+        if power_range[0] <= power <= power_range[1]:
+            score += 0.2
+        
+        # 距离偏好
+        distance_tolerance = user_preferences.get('distance_tolerance', 5.0)
+        if distance <= distance_tolerance:
+            score += 0.2 * (1 - distance / distance_tolerance)
+        
+        # 价格偏好
+        price_sensitivity = user_preferences.get('price_sensitivity', 0.5)
+        base_price = 0.85
+        if price <= base_price:
+            score += 0.3 * (1 - price_sensitivity)
+        else:
+            score -= 0.2 * price_sensitivity * (price - base_price) / base_price
+        
+        return max(0, min(1, score))
+    
+    def _predictPriceFactor(self, charger, eta_minutes):
+        """预测价格变化因子"""
+        from datetime import datetime, timedelta
+        
+        # 获取预计到达时间
+        arrival_time = datetime.now() + timedelta(minutes=eta_minutes)
+        hour = arrival_time.hour
+        
+        # 基于时间的价格预测
+        if 7 <= hour <= 9 or 17 <= hour <= 21:  # 高峰期
+            price_factor = 1.1
+        elif 22 <= hour or hour <= 6:  # 谷期
+            price_factor = 0.9
+        else:  # 平期
+            price_factor = 1.0
+        
+        # 基于充电桩类型的价格调整
+        charger_type = charger.get('type', 'normal')
+        if charger_type == 'superfast':
+            price_factor *= 1.05
+        elif charger_type == 'normal':
+            price_factor *= 0.95
+        
+        # 基于队列长度的价格调整
+        queue_length = len(charger.get('queue', []))
+        if queue_length > 2:
+            price_factor *= 1.02
+        elif queue_length == 0:
+            price_factor *= 0.98
+        
+        return price_factor
+    
+    def _calculatePreferenceCostAdjustment(self, charger, user_preferences):
+        """计算基于偏好的成本调整"""
+        adjustment = 0.0
+        
+        # 如果不是偏好的充电桩类型，增加成本
+        charger_type = charger.get('type', 'normal')
+        type_prefs = user_preferences.get('preferred_charger_types', {})
+        if type_prefs and charger_type not in type_prefs:
+            adjustment += 2.0
+        
+        # 功率不在偏好范围内，增加成本
+        power = charger.get('max_power', 60)
+        power_range = user_preferences.get('preferred_power_range', [50, 120])
+        if not (power_range[0] <= power <= power_range[1]):
+            adjustment += 1.5
+        
+        return adjustment
+    
+    def _generatePersonalizedTags(self, charger, user_preferences, charging_history, predicted_price, base_price):
+        """生成个性化标签"""
+        tags = []
+        
+        # 基础标签
+        charger_type = charger.get('type', 'normal')
+        if charger_type == 'superfast':
+            tags.append('超快充')
+        elif charger_type == 'fast':
+            tags.append('快充')
+        else:
+            tags.append('慢充')
+        
+        if charger.get('status') == 'available':
+            tags.append('有车位')
+        
+        # 个性化标签
+        type_prefs = user_preferences.get('preferred_charger_types', {})
+        if charger_type in type_prefs:
+            tags.append('偏好类型')
+        
+        # 价格标签
+        if predicted_price < base_price * 0.9:
+            tags.append('优惠价格')
+        elif predicted_price > base_price * 1.1:
+            tags.append('高峰价格')
+        
+        # 功率标签
+        power = charger.get('max_power', 60)
+        power_range = user_preferences.get('preferred_power_range', [50, 120])
+        if power_range[0] <= power <= power_range[1]:
+            tags.append('适合功率')
+        
+        # 历史使用标签
+        charger_id = charger.get('charger_id', '')
+        if self._isFrequentlyUsed(charger_id, charging_history):
+            tags.append('常用站点')
+        
+        return tags
+    
+    def _isFrequentlyUsed(self, charger_id, charging_history):
+        """检查是否为常用充电站"""
+        if not charging_history:
+            return False
+        
+        usage_count = sum(1 for session in charging_history 
+                         if session.get('charger_id') == charger_id)
+        return usage_count >= 2
+    
+    def _getPriceTrend(self, price_factor):
+        """获取价格趋势"""
+        if price_factor > 1.05:
+            return '上涨'
+        elif price_factor < 0.95:
+            return '下降'
+        else:
+            return '稳定'
+    
     def _generateTags(self, charger):
-        """生成充电站标签"""
+        """生成充电站标签（保留原方法以兼容）"""
         tags = []
         
         charger_type = charger.get('type', 'normal')
@@ -1356,7 +1876,12 @@ class UserControlPanel(QWidget):
             self.details_panel.showStationDetails(station_details)
     
     def _generateStationDetails(self, charger):
-        """生成充电站详细信息（使用真实数据）"""
+        """生成充电站详细信息（使用真实数据，包含价格预测）"""
+        # 获取当前用户信息
+        current_user = self.simulation_data.get('users', [{}])[0] if self.simulation_data.get('users') else {}
+        charging_history = current_user.get('charging_history', [])
+        user_preferences = self._analyzeUserPreferences(charging_history, current_user)
+        
         # 计算真实距离
         user_pos = self.getCurrentUserPosition()
         charger_pos = charger.get('position', {})
@@ -1461,6 +1986,14 @@ class UserControlPanel(QWidget):
         if self.current_step < self.max_step:
             self.step_slider.setValue(self.current_step + 1)
     
+    def setSimulationEnvironment(self, environment):
+        """设置仿真环境"""
+        self.simulation_environment = environment
+        
+        # 将仿真环境传递给行程信息面板
+        if hasattr(self, 'trip_info_panel'):
+            self.trip_info_panel.setSimulationEnvironment(environment)
+    
     def applyDecisionAndContinue(self):
         """应用决策并继续仿真"""
         if self.current_user_id:
@@ -1468,3 +2001,11 @@ class UserControlPanel(QWidget):
             self.decisionAppliedAndContinue.emit()
             QMessageBox.information(self, "决策应用", "用户决策已应用，仿真将继续")
             self.apply_btn.setEnabled(False)
+    
+    def onTripInfoChargingDecision(self, user_id: str, station_id: str, charging_params: dict):
+        """处理来自行程信息面板的充电决策"""
+        logger.info(f"用户面板接收到来自行程信息面板的充电决策: 用户{user_id} -> 充电站{station_id}")
+        
+        # 转发充电决策信号到主窗口
+        self.chargingDecisionMade.emit(user_id, station_id, charging_params)
+        logger.info(f"已转发充电决策信号到主窗口")
