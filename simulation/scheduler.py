@@ -117,34 +117,89 @@ class ChargingScheduler:
                         user = users[user_id]
                         charger = chargers[charger_id]
                         
-                        # 检查用户是否可以接受调度
-                        if user.get('status') not in ['charging', 'waiting']:
-                            # 检查充电桩是否可用或队列未满
-                            if (charger.get('status') != 'failure' and 
-                                len(charger.get('queue', [])) < charger.get('queue_capacity', 5)):
+                        # 手动决策强制执行：无论用户当前状态如何都接受
+                        if True:  # 移除状态限制，允许所有状态的用户接受手动决策
+                            if charger.get('status') != 'failure':
                                 valid_manual_decisions[user_id] = charger_id
                                 
-                                # 标记为手动决策
+                                # 处理正在充电的用户：强制中断当前充电
+                                current_status = user.get('status')
+                                if current_status == 'charging':
+                                    logger.info(f"=== FORCING CHARGING USER TO SWITCH CHARGERS ===")
+                                    logger.info(f"User {user_id} currently charging, will be forced to switch to {charger_id}")
+                                    
+                                    # 强制中断当前充电，设置为需要重新路由
+                                    user['status'] = 'idle'
+                                    user['target_charger'] = None
+                                    user['needs_charge_decision'] = True
+                                    
+                                    # 清除当前充电桩的用户分配
+                                    current_charger_id = None
+                                    for cid, c in chargers.items():
+                                        if c.get('current_user') == user_id:
+                                            current_charger_id = cid
+                                            c['current_user'] = None
+                                            c['status'] = 'available'
+                                            logger.info(f"Released user {user_id} from charger {cid}")
+                                            break
+                                
+                                elif current_status == 'waiting':
+                                    logger.info(f"=== FORCING WAITING USER TO SWITCH CHARGERS ===")
+                                    logger.info(f"User {user_id} currently waiting, will be forced to switch to {charger_id}")
+                                    
+                                    # 从当前等待队列中移除
+                                    for cid, c in chargers.items():
+                                        if user_id in c.get('queue', []):
+                                            c['queue'].remove(user_id)
+                                            logger.info(f"Removed user {user_id} from queue of charger {cid}")
+                                            break
+                                    
+                                    # 设置为需要重新路由
+                                    user['status'] = 'idle'
+                                    user['target_charger'] = None
+                                    user['needs_charge_decision'] = True
+                                
+                                # 标记为手动决策并强制锁定到目标充电桩
                                 user['manual_decision'] = True
-                                logger.info(f"Valid manual decision: User {user_id} -> Charger {charger_id}")
+                                user['manual_decision_locked'] = True  # 锁定到特定充电桩
+                                user['force_target_charger'] = True   # 强制使用目标充电桩
+                                user['manual_decision_override'] = True  # 标记为强制覆盖决策
+                                
+                                # 详细记录手动决策信息
+                                queue_size = len(charger.get('queue', []))
+                                queue_capacity = charger.get('queue_capacity', 5)
+                                logger.info(f"=== MANUAL DECISION FORCE ACCEPTED ===")
+                                logger.info(f"User {user_id} -> Charger {charger_id} (FORCE LOCKED)")
+                                logger.info(f"Previous status: {current_status} -> Now: {user.get('status')}")
+                                logger.info(f"Target charger status: {charger.get('status')}")
+                                logger.info(f"Target queue: {queue_size}/{queue_capacity}")
+                                logger.info(f"User FORCE LOCKED - will override any system allocation")
+                                
+                                if queue_size >= queue_capacity:
+                                    logger.info(f"Manual decision accepted despite full queue - user will wait")
                             else:
-                                logger.warning(f"Invalid manual decision: Charger {charger_id} not available or queue full")
-                        else:
-                            logger.warning(f"Invalid manual decision: User {user_id} already charging/waiting")
+                                logger.warning(f"Manual decision rejected: Charger {charger_id} is in failure status")
                     else:
-                        logger.warning(f"Invalid manual decision: User {user_id} or Charger {charger_id} not found")
+                        logger.warning(f"Manual decision rejected: User {user_id} or Charger {charger_id} not found in current state")
                 
                 decisions = valid_manual_decisions
 
+            # 获取已锁定的手动决策用户列表
+            locked_manual_users = set()
+            if state and state.get('users'):
+                for user in state['users']:
+                    if isinstance(user, dict) and user.get('manual_decision_locked'):
+                        locked_manual_users.add(user.get('user_id'))
+            
             # 如果没有手动决策或手动决策不足，使用算法补充
             if len(decisions) == 0:
                 if self.algorithm == "rule_based":
-                    decisions = rule_based.schedule(state, self.config)
+                    algo_decisions = rule_based.schedule(state, self.config)
                 elif self.algorithm == "uncoordinated":
-                    decisions = uncoordinated.schedule(state)
+                    algo_decisions = uncoordinated.schedule(state)
                 elif self.algorithm == "coordinated_mas" and self.coordinated_mas_system:
                     self.coordinated_mas_system.config = self.config
-                    decisions = self.coordinated_mas_system.make_decisions(state)
+                    algo_decisions = self.coordinated_mas_system.make_decisions(state)
                 elif self.algorithm == "marl" and self.marl_system:
                     # MARL逻辑保持不变
                     charger_action_maps = {}
@@ -156,10 +211,20 @@ class ChargingScheduler:
                                 charger_action_maps[charger_id] = {"map": action_map, "size": action_size}
                     
                     marl_actions = self.marl_system.choose_actions(state)
-                    decisions = self._convert_marl_actions_to_decisions(marl_actions, state, charger_action_maps)
+                    algo_decisions = self._convert_marl_actions_to_decisions(marl_actions, state, charger_action_maps)
                 else:
                     logger.warning(f"Algorithm '{self.algorithm}' not recognized. Using rule-based fallback.")
-                    decisions = rule_based.schedule(state, self.config)
+                    algo_decisions = rule_based.schedule(state, self.config)
+                
+                # 过滤掉已锁定的手动决策用户，防止算法重新分配
+                filtered_decisions = {}
+                for user_id, charger_id in algo_decisions.items():
+                    if user_id not in locked_manual_users:
+                        filtered_decisions[user_id] = charger_id
+                    else:
+                        logger.info(f"Algorithm decision for locked manual user {user_id} ignored - user locked to specific charger")
+                
+                decisions = filtered_decisions
 
         except Exception as e:
             logger.error(f"Error during scheduling with {self.algorithm}: {e}", exc_info=True)

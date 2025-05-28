@@ -895,9 +895,13 @@ class UserControlPanel(QWidget):
     def setupUI(self):
         layout = QVBoxLayout(self)
         
-        # 控制头部
+        # 创建垂直分割器
+        vertical_splitter = QSplitter(Qt.Orientation.Vertical)
+        
+        # 控制头部 - 设置为较小的固定高度
         control_header = self._createControlHeader()
-        layout.addWidget(control_header)
+        control_header.setMaximumHeight(120)  # 限制控制头部高度
+        vertical_splitter.addWidget(control_header)
         
         # 主要内容区域
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -910,11 +914,18 @@ class UserControlPanel(QWidget):
         right_panel = self._createRightPanel()
         main_splitter.addWidget(right_panel)
         
-        # 设置分割比例
+        # 设置水平分割比例 - 调整为更平衡的比例
         main_splitter.setStretchFactor(0, 1)
-        main_splitter.setStretchFactor(1, 2)
+        main_splitter.setStretchFactor(1, 1)
         
-        layout.addWidget(main_splitter)
+        vertical_splitter.addWidget(main_splitter)
+        
+        # 设置垂直分割比例 - 控制头部小，主内容区域大
+        vertical_splitter.setStretchFactor(0, 0)  # 控制头部不拉伸
+        vertical_splitter.setStretchFactor(1, 1)  # 主内容区域可拉伸
+        vertical_splitter.setSizes([120, 600])  # 设置初始大小
+        
+        layout.addWidget(vertical_splitter)
     
     def _createControlHeader(self):
         """创建控制头部"""
@@ -1167,18 +1178,38 @@ class UserControlPanel(QWidget):
             
             charger_pos = charger.get('position', {})
             
-            # 计算距离（简化）
-            distance = random.uniform(0.5, 10.0)
-            eta_minutes = int(distance * 3 + random.uniform(-5, 15))
+            # 计算真实距离
+            user_pos = user.get('current_position', {})
+            if user_pos.get('lat') and user_pos.get('lng') and charger_pos.get('lat') and charger_pos.get('lng'):
+                # 使用简化的距离计算公式（度数转换为公里）
+                lat_diff = user_pos['lat'] - charger_pos['lat']
+                lng_diff = user_pos['lng'] - charger_pos['lng']
+                distance = ((lat_diff ** 2 + lng_diff ** 2) ** 0.5) * 111  # 大约1度=111公里
+            else:
+                distance = random.uniform(0.5, 10.0)  # 备用距离
+            
+            eta_minutes = max(5, int(distance * 3 + random.uniform(-2, 5)))  # 基于真实距离的预估时间
+            
+            # 生成真实地址（基于坐标）
+            lat = charger_pos.get('lat', 0)
+            lng = charger_pos.get('lng', 0)
+            real_address = f"经度{lng:.4f}°, 纬度{lat:.4f}°"
+            
+            # 生成更有区分性的充电站名称
+            charger_id = charger.get('charger_id', '')
+            charger_number = charger_id.split('_')[-1] if '_' in charger_id else charger_id
+            station_name = charger.get('location', f"充电站{charger_number}")
+            charger_type_cn = {'superfast': '超快充', 'fast': '快充', 'normal': '慢充'}.get(charger.get('type', 'normal'), '普通')
+            full_name = f"{station_name}-{charger_type_cn}桩({charger_id})"
             
             # 生成推荐数据
             station = ChargingStation(
-                station_id=charger.get('charger_id', ''),
-                name=f"充电站_{charger.get('charger_id', '').split('_')[-1]}",
-                address=f"模拟地址 {random.randint(100, 999)}号",
-                lat=charger_pos.get('lat', 0),
-                lng=charger_pos.get('lng', 0),
-                distance=distance,
+                station_id=charger_id,
+                name=full_name,
+                address=real_address,
+                lat=lat,
+                lng=lng,
+                distance=round(distance, 2),
                 eta_minutes=eta_minutes,
                 available_chargers=1 if charger.get('status') == 'available' else 0,
                 total_chargers=1,
@@ -1186,9 +1217,9 @@ class UserControlPanel(QWidget):
                 wait_time_minutes=len(charger.get('queue', [])) * 15,
                 max_power=charger.get('max_power', 60),
                 current_price=charger.get('price_multiplier', 1.0) * 0.85,
-                rating=random.uniform(3.5, 5.0),
+                rating=round(4.0 + (charger.get('max_power', 60) - 50) / 100, 1),  # 基于功率的真实评分
                 tags=self._generateTags(charger),
-                estimated_cost=random.uniform(20, 60)
+                estimated_cost=round(distance * 0.5 + charger.get('max_power', 60) * 0.3, 1)  # 基于距离和功率的真实成本
             )
             
             recommendations.append(station)
@@ -1233,12 +1264,34 @@ class UserControlPanel(QWidget):
             self.details_panel.showStationDetails(station_details)
     
     def _generateStationDetails(self, charger):
-        """生成充电站详细信息"""
+        """生成充电站详细信息（使用真实数据）"""
+        # 计算真实距离
+        user_pos = self.getCurrentUserPosition()
+        charger_pos = charger.get('position', {})
+        if user_pos.get('lat') and user_pos.get('lng') and charger_pos.get('lat') and charger_pos.get('lng'):
+            lat_diff = user_pos['lat'] - charger_pos['lat']
+            lng_diff = user_pos['lng'] - charger_pos['lng']
+            distance = ((lat_diff ** 2 + lng_diff ** 2) ** 0.5) * 111
+        else:
+            distance = 5.0  # 备用距离
+        
+        # 生成真实地址
+        lat = charger_pos.get('lat', 0)
+        lng = charger_pos.get('lng', 0)
+        real_address = f"经度{lng:.4f}°, 纬度{lat:.4f}°"
+        
+        # 生成更有区分性的充电站名称
+        charger_id = charger.get('charger_id', '')
+        charger_number = charger_id.split('_')[-1] if '_' in charger_id else charger_id
+        station_name = charger.get('location', f"充电站{charger_number}")
+        charger_type_cn = {'superfast': '超快充', 'fast': '快充', 'normal': '慢充'}.get(charger.get('type', 'normal'), '普通')
+        full_name = f"{station_name}-{charger_type_cn}桩({charger_id})"
+        
         return {
-            'station_id': charger.get('charger_id'),
-            'name': f"充电站_{charger.get('charger_id', '').split('_')[-1]}",
-            'address': f"详细地址 {random.randint(100, 999)}号",
-            'operator': '模拟运营商',
+            'station_id': charger_id,
+            'name': full_name,
+            'address': real_address,
+            'operator': f"{charger.get('region', 'Region_1')}运营商",
             'open_hours': '24小时',
             'available_chargers': 1 if charger.get('status') == 'available' else 0,
             'total_chargers': 1,
@@ -1248,14 +1301,25 @@ class UserControlPanel(QWidget):
             'charger_types': [charger.get('type', 'normal')],
             'interfaces': ['国标'],
             'max_power': charger.get('max_power', 60),
-            'rating': random.uniform(4.0, 5.0),
-            'review_count': random.randint(50, 200),
+            'rating': round(4.0 + (charger.get('max_power', 60) - 50) / 100, 1),  # 基于功率的真实评分
+            'review_count': max(10, int(charger.get('max_power', 60) * 2)),  # 基于功率的评论数量
             'price_details': {
                 'peak': {'electricity': 1.2, 'service': 0.5},
                 'normal': {'electricity': 0.85, 'service': 0.4},
                 'valley': {'electricity': 0.4, 'service': 0.3}
             }
         }
+    
+    def getCurrentUserPosition(self):
+        """获取当前用户位置"""
+        if not self.current_user_id:
+            return {}
+        
+        users_data = self.simulation_data.get('users', [])
+        for user in users_data:
+            if user.get('user_id') == self.current_user_id:
+                return user.get('current_position', {})
+        return {}
     
     def onChargingRequested(self, station_id, charging_params):
         """处理充电请求"""

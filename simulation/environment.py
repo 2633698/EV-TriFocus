@@ -267,7 +267,7 @@ class ChargingEnvironment:
                 chargers[charger_id] = {
                     "charger_id": charger_id, "location": location["name"], "type": charger_type,
                     "max_power": round(charger_power, 1),
-                    "position": {"lat": location["lat"] + random.uniform(-0.0005, 0.0005), "lng": location["lng"] + random.uniform(-0.0005, 0.0005)},
+                    "position": {"lat": location["lat"] + random.uniform(-0.002, 0.002), "lng": location["lng"] + random.uniform(-0.002, 0.002)},
                     "status": "failure" if is_failure else "available", "current_user": None, "queue": [],
                     "queue_capacity": queue_capacity, "daily_revenue": 0.0, "daily_energy": 0.0,
                     "price_multiplier": p_mult if isinstance(p_mult, (int, float)) else 1.0, # Ensure multiplier is number
@@ -321,18 +321,66 @@ class ChargingEnvironment:
                             user['manual_decision'] = True
                             user['manual_decision_time'] = self.current_time.isoformat()
                             
+                            # 专门为手动决策用户启用详细日志
+                            logger.info(f"=== MANUAL DECISION TRIGGERED for User {user_id} ===")
+                            logger.info(f"Decision time: {self.current_time.isoformat()}")
+                            logger.info(f"Target charger: {charger_id}")
+                            logger.info(f"User current status: {user.get('status')}")
+                            logger.info(f"User current SOC: {user.get('soc', 0):.1f}%")
+                            logger.info(f"User current position: {user.get('current_position')}")
+                            
                             # 应用手动设置的目标SOC
-                            if hasattr(user, 'manual_charging_params'):
+                            if 'manual_charging_params' in user:
                                 params = user.get('manual_charging_params', {})
+                                old_target_soc = user.get('target_soc', 80)
+                                old_charging_type = user.get('preferred_charging_type', '快充')
                                 user['target_soc'] = params.get('target_soc', 80)
                                 user['preferred_charging_type'] = params.get('charging_type', '快充')
+                                logger.info(f"Manual charging params applied:")
+                                logger.info(f"  - Target SOC: {old_target_soc}% -> {user['target_soc']}%")
+                                logger.info(f"  - Charging type: {old_charging_type} -> {user.get('preferred_charging_type')}")
+                            else:
+                                logger.warning(f"No manual_charging_params found for user {user_id}, using defaults")
+                            
+                            # 立即强制用户开始前往充电桩（覆盖当前状态）
+                            if user.get('status') in ['idle', 'traveling']:
+                                old_status = user.get('status')
+                                user['status'] = 'traveling'
+                                user['needs_charge_decision'] = False
+                                # 清除之前的路径，强制重新规划
+                                user['waypoints'] = []
+                                user['_current_segment_index'] = 0
+                                logger.info(f"Manual decision status change: {old_status} -> traveling")
+                                logger.info(f"Cleared previous waypoints, forcing route replanning")
+                                logger.info(f"User {user_id} immediately starts traveling to charger {charger_id}")
+                            else:
+                                logger.warning(f"User {user_id} status '{user.get('status')}' not suitable for immediate travel")
                         
                         if plan_route_to_charger(user, charger_pos, self.map_bounds):
                             user['status'] = 'traveling'
+                            # 确保手动决策用户正确设置目的地
+                            user['destination'] = charger_pos.copy()
                             users_routed += 1
-                            logger.info(f"Routed user {user_id} to charger {charger_id}")
+                            # 为手动决策用户添加专门的路径规划成功日志
+                            if user.get('manual_decision'):
+                                logger.info(f"=== MANUAL DECISION ROUTE PLANNING SUCCESS ===")
+                                logger.info(f"User {user_id} successfully routed to charger {charger_id}")
+                                logger.info(f"Route waypoints count: {len(user.get('waypoints', []))}")
+                                logger.info(f"User status confirmed: {user.get('status')}")
+                                logger.info(f"Destination set to: {user.get('destination')}")
+                                logger.info(f"Time to destination: {user.get('time_to_destination', 0):.1f} minutes")
+                            else:
+                                logger.info(f"Routed user {user_id} to charger {charger_id}")
                         else:
-                            logger.warning(f"Failed to plan route for user {user_id} to charger {charger_id}")
+                            # 为手动决策用户添加专门的路径规划失败日志
+                            if user.get('manual_decision'):
+                                logger.error(f"=== MANUAL DECISION ROUTE PLANNING FAILED ===")
+                                logger.error(f"Failed to plan route for MANUAL user {user_id} to charger {charger_id}")
+                                logger.error(f"User position: {user.get('current_position')}")
+                                logger.error(f"Charger position: {charger_pos}")
+                                logger.error(f"Clearing manual decision due to routing failure")
+                            else:
+                                logger.warning(f"Failed to plan route for user {user_id} to charger {charger_id}")
                             user['target_charger'] = None
                             user['manual_decision'] = False
                     else:
@@ -356,17 +404,49 @@ class ChargingEnvironment:
                     if user_id not in charger['queue']:
                         queue_capacity = charger.get("queue_capacity", 5)
                         current_queue_len = len(charger['queue'])
-                        if current_queue_len < queue_capacity:
+                        
+                        # 检查是否为锁定的手动决策用户
+                        is_locked_manual = user.get('manual_decision') and user.get('manual_decision_locked')
+                        
+                        if is_locked_manual:
+                            # 强制锁定的手动决策用户只能在目标充电桩排队
+                            locked_target = user.get('target_charger')
+                            if locked_target != target_charger_id:
+                                logger.warning(f"=== MANUAL DECISION LOCK VIOLATION PREVENTED ===")
+                                logger.warning(f"Locked manual user {user_id} can ONLY queue at {locked_target}, not {target_charger_id}")
+                                logger.warning(f"Ignoring queue addition to wrong charger")
+                                continue
+                            
+                            # 强制添加到锁定的目标充电桩，无视队列容量
                             charger['queue'].append(user_id)
                             users_added_to_queue += 1
                             
-                            # 为手动决策用户提供优先级
+                            logger.info(f"=== FORCED MANUAL DECISION QUEUE ADDITION ===")
+                            logger.info(f"Locked manual user {user_id} FORCED into queue for target charger {target_charger_id}")
+                            logger.info(f"Queue size: {len(charger['queue'])}/{queue_capacity} (capacity ignored for locked manual users)")
+                            
+                            # 将锁定的手动决策用户移到队列最前面
+                            if len(charger['queue']) > 1:
+                                charger['queue'].remove(user_id)
+                                charger['queue'].insert(0, user_id)
+                                logger.info(f"Locked manual user {user_id} moved to FRONT of queue")
+                            
+                        elif current_queue_len < queue_capacity:
+                            charger['queue'].append(user_id)
+                            users_added_to_queue += 1
+                            
+                            # 为普通手动决策用户提供优先级
                             if user.get('manual_decision'):
-                                # 将手动决策用户移到队列前面（但不超过正在充电的用户）
+                                logger.info(f"=== MANUAL DECISION QUEUE PROCESSING ===")
+                                logger.info(f"User {user_id} targeting charger {target_charger_id}")
+                                logger.info(f"Current queue size: {len(charger['queue'])}/{queue_capacity}")
+                                
+                                # 将手动决策用户移到队列前面
                                 if len(charger['queue']) > 1:
                                     charger['queue'].remove(user_id)
                                     charger['queue'].insert(0, user_id)
-                                    logger.info(f"Manual decision user {user_id} given priority in queue for {target_charger_id}")
+                                
+                                logger.info(f"Manual decision user {user_id} given priority in queue for {target_charger_id}")
                             
                             logger.info(f"User {user_id} added to queue for charger {target_charger_id}")
                         else:
@@ -440,6 +520,3 @@ class ChargingEnvironment:
         }
         self.history.append(state_snapshot)
         # 限制历史记录长度 (例如，保留最近48小时的数据点)
-        max_history_points = 48 * (60 // self.time_step_minutes)
-        if len(self.history) > max_history_points:
-            self.history = self.history[-max_history_points:]

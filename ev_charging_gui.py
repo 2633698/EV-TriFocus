@@ -51,10 +51,26 @@ except ImportError as e:
     print("请确保simulation包在Python路径中")
 
 # 配置日志
+# 配置基础日志
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+# 配置手动决策专用日志文件
+manual_decision_logger = logging.getLogger('manual_decisions')
+manual_decision_logger.setLevel(logging.INFO)
+
+# 创建文件处理器，专门记录手动决策日志
+manual_log_handler = logging.FileHandler('manual_decisions.log', encoding='utf-8')
+manual_log_handler.setLevel(logging.INFO)
+manual_log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+manual_log_handler.setFormatter(manual_log_formatter)
+manual_decision_logger.addHandler(manual_log_handler)
+
+# 防止日志重复输出到根logger
+manual_decision_logger.propagate = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -316,19 +332,36 @@ class RegionalLoadChart(QWidget):
         # 清除当前图表
         self.plot_widget.clear()
         
+        # 数据采样优化 - 限制显示的数据点数量
+        max_points = 100  # 最多显示100个数据点
+        if len(timestamps) > max_points:
+            # 计算采样步长
+            step = len(timestamps) // max_points
+            sampled_timestamps = timestamps[::step]
+            sampled_indices = list(range(0, len(timestamps), step))
+        else:
+            sampled_timestamps = timestamps
+            sampled_indices = list(range(len(timestamps)))
+        
         # 准备X轴数据
-        x_data = list(range(len(timestamps)))
+        x_data = list(range(len(sampled_timestamps)))
         
         if self.display_mode == "total":
             # 总负载模式 - 将所有区域的负载相加
-            total_load = np.zeros(len(timestamps)) if timestamps else []
+            total_load = np.zeros(len(sampled_timestamps)) if sampled_timestamps else []
             
             for region_id, data in regional_data.items():
                 if 'total_load' in data and data['total_load']:
-                    # 确保长度一致
+                    # 对数据进行采样
                     region_load = data['total_load']
-                    if len(region_load) <= len(total_load):
-                        total_load[:len(region_load)] += np.array(region_load)
+                    if len(region_load) > max_points:
+                        sampled_load = [region_load[i] for i in sampled_indices if i < len(region_load)]
+                    else:
+                        sampled_load = region_load
+                    
+                    # 确保长度一致
+                    if len(sampled_load) <= len(total_load):
+                        total_load[:len(sampled_load)] += np.array(sampled_load)
             
             # 绘制总负载曲线
             if len(total_load) > 0:
@@ -338,7 +371,9 @@ class RegionalLoadChart(QWidget):
                     pen=pen, 
                     name="总负载",
                     symbolBrush=(31, 119, 180),
-                    symbolSize=8
+                    symbolSize=6,  # 减小符号大小
+                    symbolPen=None,  # 移除符号边框
+                    skipFiniteCheck=True  # 提高性能
                 )
         
         elif self.display_mode == "single" and self.selected_region:
@@ -346,31 +381,68 @@ class RegionalLoadChart(QWidget):
             if self.selected_region in regional_data:
                 data = regional_data[self.selected_region]
                 if 'total_load' in data and data['total_load']:
+                    # 对数据进行采样
+                    region_load = data['total_load']
+                    if len(region_load) > max_points:
+                        sampled_load = [region_load[i] for i in sampled_indices if i < len(region_load)]
+                    else:
+                        sampled_load = region_load
+                    
                     pen = pg.mkPen(color=(31, 119, 180), width=3)
                     self.plot_widget.plot(
-                        x_data[:len(data['total_load'])], data['total_load'], 
+                        x_data[:len(sampled_load)], sampled_load, 
                         pen=pen, 
                         name=self.selected_region,
                         symbolBrush=(31, 119, 180),
-                        symbolSize=8
+                        symbolSize=6,  # 减小符号大小
+                        symbolPen=None  # 移除符号边框
                     )
         
         else:  # "all" 模式 - 显示所有区域，但使用更细的线条
             for i, (region_id, data) in enumerate(regional_data.items()):
                 if 'total_load' in data and data['total_load']:
+                    # 对数据进行采样
+                    region_load = data['total_load']
+                    if len(region_load) > max_points:
+                        sampled_load = [region_load[i] for i in sampled_indices if i < len(region_load)]
+                    else:
+                        sampled_load = region_load
+                    
                     color = self.colors[i % len(self.colors)]
-                    pen = pg.mkPen(color=color, width=1.5)  # 线条更细
+                    pen = pg.mkPen(color=color, width=2)  # 稍微加粗线条
                     
                     self.plot_widget.plot(
-                        x_data[:len(data['total_load'])], data['total_load'], 
+                        x_data[:len(sampled_load)], sampled_load, 
                         pen=pen, 
                         name=region_id,
                         symbolBrush=color,
-                        symbolSize=4,  # 符号更小
+                        symbolSize=3,  # 进一步减小符号
                         symbol='o',  # 使用圆形符号
                         symbolPen=None,  # 无边框
                         skipFiniteCheck=True  # 跳过有限检查以提高性能
                     )
+        
+        # 设置X轴标签为时间
+        if sampled_timestamps:
+            # 生成时间标签，最多显示10个
+            label_step = max(1, len(sampled_timestamps) // 10)
+            x_ticks = []
+            for i in range(0, len(sampled_timestamps), label_step):
+                if i < len(sampled_timestamps):
+                    try:
+                        # 从时间戳中提取时间
+                        ts = sampled_timestamps[i]
+                        if isinstance(ts, str):
+                            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                            time_str = dt.strftime('%H:%M')
+                        else:
+                            time_str = str(i)
+                        x_ticks.append((i, time_str))
+                    except:
+                        x_ticks.append((i, str(i)))
+            
+            if x_ticks:
+                self.plot_widget.getAxis('bottom').setTicks([x_ticks])
     
     def _renderTextMode(self, regional_data):
         """文本显示模式下的渲染"""
@@ -384,19 +456,19 @@ class RegionalLoadChart(QWidget):
                 if 'total_load' in data and data['total_load']:
                     total_current_load += data['total_load'][-1] if data['total_load'] else 0
             
-            text = "区域总负载: {:.2f} MW".format(total_current_load)
+            text = "区域总负载: {:.2f} MW\n数据点已优化显示，避免过度密集".format(total_current_load)
             
         elif self.display_mode == "single" and self.selected_region:
             # 单区域模式
             if self.selected_region in regional_data:
                 data = regional_data[self.selected_region]
                 current_load = data['total_load'][-1] if 'total_load' in data and data['total_load'] else 0
-                text = "区域 '{0}' 负载: {1:.2f} MW".format(self.selected_region, current_load)
+                text = "区域 '{0}' 负载: {1:.2f} MW\n数据点已优化显示".format(self.selected_region, current_load)
             else:
                 text = "没有选中区域的数据"
         
         else:  # "all" 模式
-            text = "区域负载数据:\n\n"
+            text = "区域负载数据（已优化显示）:\n\n"
             for region_id, data in regional_data.items():
                 if 'total_load' in data and data['total_load']:
                     current_load = data['total_load'][-1] if data['total_load'] else 0
@@ -847,25 +919,49 @@ class MapWidget(QWidget):
         lat = geo_pos.get('lat', 0)
         lng = geo_pos.get('lng', 0)
         
+        # 根据缩放级别调整地图边界
+        center_lat = (self.map_bounds['lat_max'] + self.map_bounds['lat_min']) / 2
+        center_lng = (self.map_bounds['lng_max'] + self.map_bounds['lng_min']) / 2
+        
+        lat_range = (self.map_bounds['lat_max'] - self.map_bounds['lat_min']) / self.zoom_level
+        lng_range = (self.map_bounds['lng_max'] - self.map_bounds['lng_min']) / self.zoom_level
+        
+        # 计算当前显示的地图边界
+        current_lat_min = center_lat - lat_range / 2
+        current_lat_max = center_lat + lat_range / 2
+        current_lng_min = center_lng - lng_range / 2
+        current_lng_max = center_lng + lng_range / 2
+        
         # 标准化到[0,1]
-        x_norm = (lng - self.map_bounds['lng_min']) / (self.map_bounds['lng_max'] - self.map_bounds['lng_min'])
-        y_norm = (lat - self.map_bounds['lat_min']) / (self.map_bounds['lat_max'] - self.map_bounds['lat_min'])
+        x_norm = (lng - current_lng_min) / lng_range
+        y_norm = (lat - current_lat_min) / lat_range
         
         # 转换为像素坐标
-        x = x_norm * self.width() / self.zoom_level
-        y = (1 - y_norm) * self.height() / self.zoom_level  # Y轴翻转
+        x = x_norm * self.width()
+        y = (1 - y_norm) * self.height()  # Y轴翻转
         
         return x, y
     
     def _screenToGeo(self, screen_pos):
         """屏幕坐标转地理坐标"""
-        # 考虑缩放和偏移
-        x = (screen_pos.x() - self.offset_x) / self.zoom_level
-        y = (screen_pos.y() - self.offset_y) / self.zoom_level
+        # 考虑偏移但不考虑缩放（因为缩放已经在_geoToPixel中处理）
+        x = screen_pos.x() - self.offset_x
+        y = screen_pos.y() - self.offset_y
+        
+        # 根据缩放级别调整地图边界
+        center_lat = (self.map_bounds['lat_max'] + self.map_bounds['lat_min']) / 2
+        center_lng = (self.map_bounds['lng_max'] + self.map_bounds['lng_min']) / 2
+        
+        lat_range = (self.map_bounds['lat_max'] - self.map_bounds['lat_min']) / self.zoom_level
+        lng_range = (self.map_bounds['lng_max'] - self.map_bounds['lng_min']) / self.zoom_level
+        
+        # 计算当前显示的地图边界
+        current_lat_min = center_lat - lat_range / 2
+        current_lng_min = center_lng - lng_range / 2
         
         # 转换为地理坐标
-        lng = self.map_bounds['lng_min'] + (x / self.width()) * (self.map_bounds['lng_max'] - self.map_bounds['lng_min'])
-        lat = self.map_bounds['lat_max'] - (y / self.height()) * (self.map_bounds['lat_max'] - self.map_bounds['lat_min'])
+        lng = current_lng_min + (x / self.width()) * lng_range
+        lat = current_lat_min + ((self.height() - y) / self.height()) * lat_range
         
         return {'lat': lat, 'lng': lng}
     
@@ -963,20 +1059,18 @@ class MapWidget(QWidget):
         # 计算缩放
         delta = event.angleDelta().y()
         zoom_factor = 1.1 if delta > 0 else 0.9
+        old_zoom = self.zoom_level
         
         self.zoom_level *= zoom_factor
         self.zoom_level = max(0.5, min(5.0, self.zoom_level))
         
-        # 缩放后的地理坐标
-        geo_after = self._screenToGeo(mouse_pos.toPoint())
+        # 缩放后的像素坐标
+        pixel_after = self._geoToPixel(geo_before)
+        pixel_before = [mouse_pos.x() - self.offset_x, mouse_pos.y() - self.offset_y]
         
         # 调整偏移以保持鼠标位置不变
-        if geo_before and geo_after:
-            pixel_before = self._geoToPixel(geo_before)
-            pixel_after = self._geoToPixel(geo_after)
-            
-            self.offset_x += (pixel_after[0] - pixel_before[0]) * self.zoom_level
-            self.offset_y += (pixel_after[1] - pixel_before[1]) * self.zoom_level
+        self.offset_x += pixel_before[0] - pixel_after[0]
+        self.offset_y += pixel_before[1] - pixel_after[1]
         
         self.update()
 
@@ -1019,15 +1113,60 @@ class SimulationWorker(QThread):
                 # 获取当前状态
                 current_state = self.environment.get_current_state()
                 
-                # 调度决策 - 优先使用手动决策
+                # 调度决策 - 分离手动决策和算法决策
+                manual_decisions = None
                 if hasattr(self, 'manual_decisions') and self.manual_decisions:
-                    decisions = self.manual_decisions.copy()
+                    manual_decisions = self.manual_decisions.copy()
                     self.manual_decisions.clear()  # 清除已使用的手动决策
-                    logger.info(f"应用手动决策: {decisions}")
-                else:
-                    decisions = self.scheduler.make_scheduling_decision(current_state)
-                # 执行一步仿真
-                rewards, next_state, done = self.environment.step(decisions)
+                    logger.info(f"应用手动决策: {manual_decisions}")
+                    # 记录到专用日志文件
+                    manual_decision_logger.info(f"=== 仿真步骤中应用手动决策 ===")
+                    manual_decision_logger.info(f"当前仿真时间: {current_state.get('current_time', 'unknown')}")
+                    manual_decision_logger.info(f"手动决策内容: {manual_decisions}")
+                    for user_id, charger_id in manual_decisions.items():
+                        manual_decision_logger.info(f"  用户 {user_id} -> 充电桩 {charger_id}")
+                
+                # 获取算法决策
+                decisions = self.scheduler.make_scheduling_decision(current_state, manual_decisions)
+                
+                # 执行一步仿真，传递手动决策
+                rewards, next_state, done = self.environment.step(decisions, manual_decisions)
+                
+                # 记录手动决策执行结果
+                if manual_decisions:
+                    manual_decision_logger.info(f"=== 手动决策执行结果 ===")
+                    # 获取用户列表并转换为字典格式以便查找
+                    users_list = next_state.get('users', [])
+                    users_dict = {user.get('user_id'): user for user in users_list if isinstance(user, dict) and 'user_id' in user}
+                    
+                    manual_decision_logger.info(f"状态中包含 {len(users_list)} 个用户，转换为字典后有 {len(users_dict)} 个用户")
+                    
+                    # 调试信息：显示用户对象的实际结构
+                    if users_list and len(users_dict) == 0:
+                        sample_user = users_list[0] if users_list else {}
+                        manual_decision_logger.info(f"用户对象示例结构: {list(sample_user.keys()) if isinstance(sample_user, dict) else type(sample_user)}")
+                    
+                    for user_id, charger_id in manual_decisions.items():
+                        if user_id in users_dict:
+                            user_state = users_dict[user_id]
+                            manual_decision_logger.info(f"用户 {user_id}:")
+                            manual_decision_logger.info(f"  目标充电桩: {charger_id}")
+                            manual_decision_logger.info(f"  当前状态: {user_state.get('status', 'unknown')}")
+                            manual_decision_logger.info(f"  当前SOC: {user_state.get('soc', 0):.1f}%")
+                            manual_decision_logger.info(f"  分配的充电桩: {user_state.get('target_charger', 'none')}")
+                            if user_state.get('target_charger') == charger_id:
+                                manual_decision_logger.info(f"  ✓ 手动决策成功执行")
+                            else:
+                                manual_decision_logger.warning(f"  ✗ 手动决策执行失败，实际分配: {user_state.get('target_charger', 'none')}")
+                        else:
+                            manual_decision_logger.error(f"用户 {user_id} 在执行结果中不存在")
+                            # 调试信息：显示前几个用户的ID
+                            if users_list:
+                                sample_user_ids = [user.get('user_id', 'no_user_id') for user in users_list[:5] if isinstance(user, dict)]
+                                manual_decision_logger.error(f"  可用用户ID示例: {sample_user_ids}")
+                            else:
+                                manual_decision_logger.error(f"  用户列表为空")
+                    manual_decision_logger.info(f"=== 手动决策执行结果结束 ===")
                 
                 # 发送状态更新信号
                 self.statusUpdated.emit({
@@ -1847,6 +1986,14 @@ class MainWindow(QMainWindow):
         """处理充电决策事件"""
         logger.info(f"用户 {user_id} 选择在 {station_id} 充电，参数: {charging_params}")
         
+        # 记录详细的手动决策信息到专用日志文件
+        manual_decision_logger.info(f"=== 手动决策开始 ===")
+        manual_decision_logger.info(f"用户ID: {user_id}")
+        manual_decision_logger.info(f"目标充电站: {station_id}")
+        manual_decision_logger.info(f"目标SOC: {charging_params.get('target_soc', 80)}%")
+        manual_decision_logger.info(f"充电类型: {charging_params.get('charging_type', '快充')}")
+        manual_decision_logger.info(f"决策时间: {datetime.now().isoformat()}")
+        
         # 应用用户决策到仿真环境
         if self.simulation_worker and hasattr(self.simulation_worker, 'environment'):
             # 创建人工决策
@@ -1856,18 +2003,32 @@ class MainWindow(QMainWindow):
             target_soc = charging_params.get('target_soc', 80)
             users = self.simulation_worker.environment.users
             if user_id in users:
-                users[user_id]['target_soc'] = target_soc
-                users[user_id]['manual_decision'] = True
-                users[user_id]['manual_charging_params'] = charging_params
+                user_data = users[user_id]
+                # 记录用户当前状态
+                manual_decision_logger.info(f"用户当前状态: {user_data.get('status', 'unknown')}")
+                manual_decision_logger.info(f"用户当前SOC: {user_data.get('soc', 0):.1f}%")
+                manual_decision_logger.info(f"用户当前位置: {user_data.get('position', {})}")
+                
+                user_data['target_soc'] = target_soc
+                user_data['manual_decision'] = True
+                user_data['manual_charging_params'] = charging_params
+                
+                manual_decision_logger.info(f"用户数据已更新: target_soc={target_soc}, manual_decision=True")
+            else:
+                manual_decision_logger.error(f"用户 {user_id} 在仿真环境中不存在")
             
             # 存储人工决策供调度器使用
             self.simulation_worker.manual_decisions = manual_decision
+            manual_decision_logger.info(f"手动决策已存储到仿真工作线程: {manual_decision}")
             
             # 显示确认消息
             QMessageBox.information(self, "决策应用", 
                 f"已为用户 {user_id} 安排在充电站 {station_id} 充电\n"
                 f"目标电量: {target_soc}%\n"
                 f"充电类型: {charging_params.get('charging_type', '快充')}")
+            
+            manual_decision_logger.info(f"手动决策处理完成")
+            manual_decision_logger.info(f"=== 手动决策结束 ===")
             
             # 继续仿真
             self.user_panel_active = False
@@ -2411,6 +2572,7 @@ class MainWindow(QMainWindow):
 
     def onStatusUpdated(self, status_data):
         """处理状态更新"""
+        import random  # 确保random模块可用
         try:
             state = status_data.get('state', {})
             rewards = status_data.get('rewards', {})
@@ -2542,7 +2704,52 @@ class MainWindow(QMainWindow):
             # 更新区域热力图
             if hasattr(self, 'regional_heatmap'):
                 logger.info("Updating regional heatmap with test data")
-                self.regional_heatmap.updateData(self.time_series_collector)
+                # 为充电桩分配区域并计算负载
+                region_loads = {'Region_1': 0, 'Region_2': 0, 'Region_3': 0}
+                
+                for i, charger in enumerate(chargers):
+                    # 根据充电桩索引分配区域
+                    region_id = f"Region_{(i % 3) + 1}"
+                    charger['region_id'] = region_id
+                    
+                    # 计算充电桩当前负载
+                    if charger.get('status') == 'occupied':
+                        # 充电中的负载 = 充电功率
+                        current_load = charger.get('max_power', 60) * 0.8  # 80%功率
+                    elif charger.get('status') == 'available':
+                        # 空闲时的基础负载
+                        current_load = charger.get('max_power', 60) * 0.1  # 10%待机功率
+                    else:
+                        current_load = 0
+                    
+                    region_loads[region_id] += current_load
+                
+                # 添加基础电网负载
+                import random
+                base_loads = {'Region_1': 800, 'Region_2': 1000, 'Region_3': 600}
+                for region in region_loads:
+                    # 添加随机的基础负载变化
+                    base_variation = random.uniform(0.8, 1.2)
+                    region_loads[region] += base_loads[region] * base_variation
+                
+                # 构造热力图需要的grid_status格式
+                grid_status = {
+                    'regional_current_state': {
+                        'Region_1': {
+                            'current_total_load': region_loads['Region_1'],
+                            'base_load': 1000
+                        },
+                        'Region_2': {
+                            'current_total_load': region_loads['Region_2'],
+                            'base_load': 1200
+                        },
+                        'Region_3': {
+                            'current_total_load': region_loads['Region_3'],
+                            'base_load': 800
+                        }
+                    }
+                }
+                self.regional_heatmap.updateData(grid_status)
             
             # 更新等待时间分布
             if hasattr(self, 'wait_time_plot'):

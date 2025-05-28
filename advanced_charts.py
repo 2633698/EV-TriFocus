@@ -32,177 +32,125 @@ except ImportError:
 
 
 class RegionalLoadHeatmap(QWidget):
-    """区域负载热力图"""
+    """区域负载显示"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.regions = []
-        self.time_data = []
-        self.load_matrix = np.array([])
+        self.current_loads = {}  # 当前各区域负载
+        self.region_widgets = {}  # 区域显示组件
         
         self.setupUI()
         
     def setupUI(self):
         layout = QVBoxLayout(self)
         
-        # 标题和控制
-        header_layout = QHBoxLayout()
-        
-        title = QLabel("区域负载热力图")
+        # 标题
+        title = QLabel("区域负载状态")
         title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        header_layout.addWidget(title)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
         
-        header_layout.addStretch()
+        # 区域显示容器
+        self.regions_container = QHBoxLayout()
+        self.regions_container.setSpacing(20)
+        layout.addLayout(self.regions_container)
         
-        # 时间范围选择
-        self.time_range_combo = QComboBox()
-        self.time_range_combo.addItems(["最近1小时", "最近6小时", "最近24小时", "全部"])
-        self.time_range_combo.currentTextChanged.connect(self.updateTimeRange)
-        header_layout.addWidget(QLabel("时间范围:"))
-        header_layout.addWidget(self.time_range_combo)
+        # 添加说明
+        legend_layout = QHBoxLayout()
+        legend_layout.addStretch()
         
-        layout.addLayout(header_layout)
+        legend_label = QLabel("负载水平: ")
+        legend_layout.addWidget(legend_label)
         
-        if HAS_PYQTGRAPH:
-            # 创建图形布局
-            self.graphics_layout = GraphicsLayoutWidget()
-            self.plot_item = self.graphics_layout.addPlot()
+        # 颜色图例
+        colors = [("低", "#90EE90"), ("中", "#FFD700"), ("高", "#FF6B6B")]
+        for level, color in colors:
+            color_box = QLabel()
+            color_box.setFixedSize(20, 20)
+            color_box.setStyleSheet(f"background-color: {color}; border: 1px solid #ccc;")
+            legend_layout.addWidget(color_box)
+            legend_layout.addWidget(QLabel(level))
+            legend_layout.addSpacing(10)
+        
+        legend_layout.addStretch()
+        layout.addLayout(legend_layout)
+        
+        layout.addStretch()
+    
+    def updateData(self, grid_status):
+        """更新区域负载显示"""
+        if not grid_status or 'regional_current_state' not in grid_status:
+            return
+        
+        regional_data = grid_status['regional_current_state']
+        
+        # 更新当前负载数据
+        for region_id, data in regional_data.items():
+            current_load = data.get('current_total_load', 0)
+            base_load = data.get('base_load', 1000)  # 默认基础负载
             
-            # 设置热力图
-            self.heatmap = pg.ImageItem()
-            self.plot_item.addItem(self.heatmap)
-            
-            # 设置颜色条
-            self.colorbar = pg.ColorBarItem(
-                values=(0, 100),
-                colorMap=pg.colormap.get('CET-L9'),
-                width=15,
-                interactive=False
-            )
-            self.colorbar.setImageItem(self.heatmap)
-            self.graphics_layout.addItem(self.colorbar)
-            
-            layout.addWidget(self.graphics_layout)
+            # 计算负载率
+            load_rate = (current_load / base_load * 100) if base_load > 0 else 0
+            self.current_loads[region_id] = {
+                'load': current_load,
+                'rate': load_rate,
+                'base': base_load
+            }
+        
+        self._updateDisplay()
+    
+    def _updateDisplay(self):
+        """更新显示"""
+        # 清除现有区域显示
+        for i in reversed(range(self.regions_container.count())):
+            child = self.regions_container.takeAt(i)
+            if child.widget():
+                child.widget().deleteLater()
+        
+        # 创建新的区域显示
+        for region_id, load_data in self.current_loads.items():
+            region_widget = self._createRegionWidget(region_id, load_data)
+            self.regions_container.addWidget(region_widget)
+    
+    def _createRegionWidget(self, region_id, load_data):
+        """创建区域显示组件"""
+        widget = QFrame()
+        widget.setFrameStyle(QFrame.Shape.Box)
+        widget.setFixedSize(120, 100)
+        
+        layout = QVBoxLayout(widget)
+        
+        # 区域名称
+        name_label = QLabel(region_id)
+        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        name_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        layout.addWidget(name_label)
+        
+        # 负载值
+        load_value = load_data['load'] / 1000  # 转换为MW
+        load_label = QLabel(f"{load_value:.1f} MW")
+        load_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(load_label)
+        
+        # 负载率
+        rate = load_data['rate']
+        rate_label = QLabel(f"{rate:.1f}%")
+        rate_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(rate_label)
+        
+        # 根据负载率设置背景颜色
+        if rate > 80:
+            color = "#FF6B6B"  # 红色
+        elif rate > 60:
+            color = "#FFD700"  # 黄色
         else:
-            # 简单的表格显示
-            self.table_widget = QTableWidget()
-            layout.addWidget(self.table_widget)
+            color = "#90EE90"  # 绿色
+        
+        widget.setStyleSheet(f"QFrame {{ background-color: {color}; border-radius: 5px; }}")
+        
+        return widget
     
-    def updateData(self, time_series_data):
-        """更新热力图数据"""
-        if not time_series_data or 'regional_data' not in time_series_data:
-            return
-        
-        regional_data = time_series_data['regional_data']
-        timestamps = time_series_data.get('timestamps', [])
-        
-        if not regional_data or not timestamps:
-            return
-        
-        # 获取当前时间范围
-        current_range = self.time_range_combo.currentText()
-        max_points = {
-            "最近1小时": 4,    # 假设15分钟一个时间步，1小时 = 4个时间步
-            "最近6小时": 24,   # 6小时 = 24个时间步
-            "最近24小时": 96,  # 24小时 = 96个时间步
-            "全部": None       # 全部数据
-        }.get(current_range, 4)  # 默认显示最近1小时
-        
-        # 构建数据矩阵
-        regions = list(regional_data.keys())
-        self.regions = regions
-        
-        # 获取负载数据 - 只取最新的N个时间点
-        load_matrix = []
-        for region_id in regions:
-            region_loads = regional_data[region_id].get('total_load', [])
-            if region_loads:
-                # 只取最新的数据点
-                if max_points and len(region_loads) > max_points:
-                    region_loads = region_loads[-max_points:]
-                load_matrix.append(region_loads)
-        
-        if load_matrix:
-            # 确保所有区域的数据长度一致
-            max_len = max(len(row) for row in load_matrix)
-            for i in range(len(load_matrix)):
-                if len(load_matrix[i]) < max_len:
-                    # 用前一个值或零填充
-                    padding = [load_matrix[i][0] if load_matrix[i] else 0] * (max_len - len(load_matrix[i]))
-                    load_matrix[i] = padding + load_matrix[i]
-            
-            self.load_matrix = np.array(load_matrix)
-            
-            if HAS_PYQTGRAPH and hasattr(self, 'heatmap'):
-                # 更新热力图 - 只显示当前时间范围的数据
-                self.heatmap.setImage(self.load_matrix, autoLevels=True)
-                
-                # 设置坐标轴标签
-                self.plot_item.setLabel('left', '区域')
-                self.plot_item.setLabel('bottom', '时间')
-                
-                # 设置刻度 - 只显示当前时间范围
-                y_ticks = [(i, region) for i, region in enumerate(regions)]
-                
-                # 计算要显示的时间点
-                display_timestamps = timestamps
-                if max_points and len(timestamps) > max_points:
-                    display_timestamps = timestamps[-max_points:]
-                
-                # 生成X轴刻度，最多显示10个时间点
-                step = max(1, len(display_timestamps) // 10)
-                x_ticks = []
-                for i in range(0, len(display_timestamps), step):
-                    if i < len(display_timestamps):
-                        # 从时间戳中提取时间
-                        ts = display_timestamps[i]
-                        try:
-                            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-                            time_str = dt.strftime('%H:%M')
-                        except:
-                            time_str = str(i)
-                        x_ticks.append((i, time_str))
-                
-                self.plot_item.getAxis('left').setTicks([y_ticks])
-                self.plot_item.getAxis('bottom').setTicks([x_ticks])
-            else:
-                # 表格显示
-                self._updateTable(regions, display_timestamps if 'display_timestamps' in locals() else timestamps, self.load_matrix)
-    
-    def _updateTable(self, regions, timestamps, load_matrix):
-        """更新表格显示"""
-        if not hasattr(self, 'table_widget'):
-            return
-        
-        self.table_widget.setRowCount(len(regions))
-        self.table_widget.setColumnCount(min(len(timestamps), 20))  # 限制列数
-        
-        # 设置表头
-        self.table_widget.setVerticalHeaderLabels(regions)
-        column_headers = [timestamps[i] if i < len(timestamps) else str(i) 
-                         for i in range(min(len(timestamps), 20))]
-        self.table_widget.setHorizontalHeaderLabels(column_headers)
-        
-        # 填充数据
-        for i, region in enumerate(regions):
-            for j in range(min(load_matrix.shape[1], 20)):
-                value = load_matrix[i, j] if j < load_matrix.shape[1] else 0
-                item = QTableWidgetItem(f"{value:.1f}")
-                
-                # 根据数值设置颜色
-                if value > 80:
-                    item.setBackground(QColor(255, 200, 200))  # 红色
-                elif value > 60:
-                    item.setBackground(QColor(255, 255, 200))  # 黄色
-                else:
-                    item.setBackground(QColor(200, 255, 200))  # 绿色
-                
-                self.table_widget.setItem(i, j, item)
-    
-    def updateTimeRange(self, range_text):
-        """更新时间范围"""
-        # 这里可以实现时间范围过滤逻辑
-        pass
+
 
 
 class MultiMetricsChart(QWidget):
@@ -567,11 +515,11 @@ class RealTimeDataTable(QWidget):
                 soc_item = table.item(row, 2)
                 soc_item.setText(f"{soc:.1f}")
                 if soc < 20:
-                    soc_item.setBackground(QColor(255, 200, 200))
+                    soc_item.setBackground(QColor(255, 220, 220))
                 elif soc < 50:
-                    soc_item.setBackground(QColor(255, 255, 200))
+                    soc_item.setBackground(QColor(255, 255, 220))
                 else:
-                    soc_item.setBackground(QColor(255, 255, 255))
+                    soc_item.setBackground(QColor(240, 255, 240))
                 
                 # 位置（简化显示）
                 if not table.item(row, 3):
@@ -585,17 +533,55 @@ class RealTimeDataTable(QWidget):
                 target = user.get('target_charger', '')
                 table.item(row, 4).setText(target if target else '-')
                 
-                # 其他列（简化）
-                for col in range(5, 8):
-                    if not table.item(row, col):
-                        table.setItem(row, col, QTableWidgetItem())
-                    table.item(row, col).setText('-')
+                # 等待时间
+                if not table.item(row, 5):
+                    table.setItem(row, 5, QTableWidgetItem())
+                # 计算等待时间
+                wait_time = 0
+                if status == 'waiting' and 'arrival_time_at_charger' in user:
+                    # 简化计算：根据队列长度估算等待时间
+                    queue_length = user.get('queue_position', 0)
+                    wait_time = queue_length * 15  # 每个用户平均15分钟
+                elif 'wait_time' in user:
+                    wait_time = user['wait_time']
+                table.item(row, 5).setText(f"{wait_time:.1f}分钟" if wait_time > 0 else '-')
+                
+                # 充电时间
+                if not table.item(row, 6):
+                    table.setItem(row, 6, QTableWidgetItem())
+                # 计算充电时间
+                charge_time = 0
+                if status == 'charging':
+                    # 根据SOC和目标SOC计算充电时间
+                    current_soc = user.get('soc', 0)
+                    target_soc = user.get('target_soc', 80)
+                    battery_capacity = user.get('battery_capacity', 60)  # 默认60kWh
+                    charging_power = user.get('charging_power', 30)  # 默认30kW
+                    if charging_power > 0:
+                        energy_needed = (target_soc - current_soc) / 100 * battery_capacity
+                        charge_time = energy_needed / charging_power * 60  # 转换为分钟
+                elif 'charge_time' in user:
+                    charge_time = user['charge_time']
+                table.item(row, 6).setText(f"{charge_time:.1f}分钟" if charge_time > 0 else '-')
+                
+                # 费用
+                if not table.item(row, 7):
+                    table.setItem(row, 7, QTableWidgetItem())
+                # 计算费用
+                current_soc = user.get('soc', 0)
+                initial_soc = user.get('initial_soc')
+                if initial_soc is None:
+                    initial_soc = max(0, current_soc - 20)  # 估算初始SOC，确保不为负
+                battery_capacity = user.get('battery_capacity', 60)
+                energy_charged = (current_soc - initial_soc) / 100 * battery_capacity
+                price_per_kwh = user.get('price_per_kwh', 1.2)  # 默认1.2元/kWh
+                cost = energy_charged * price_per_kwh
+                table.item(row, 7).setText(f"¥{cost:.2f}" if cost > 0 else '-')
             
             # 显示总数信息
-            if len(users_data) > len(display_data):
-                self.statusBar().showMessage(
-                    f"显示 {len(display_data)}/{len(users_data)} 条用户数据"
-                )
+                if len(users_data) > len(display_data):
+                    # 记录显示的数据统计信息
+                    pass
                 
         finally:
             # 重新启用排序和更新
@@ -643,7 +629,11 @@ class RealTimeDataTable(QWidget):
                         elif key == 'max_power':
                             text = f"{charger.get(key, 0):.1f}"
                         elif key == 'utilization_rate':
-                            text = f"{charger.get(key, 0):.1f}"
+                            util_rate = charger.get(key, 0)
+                            if util_rate == 0:
+                                # 计算利用率：当前用户存在时为100%，否则为0%
+                                util_rate = 100.0 if charger.get('current_user') else 0.0
+                            text = f"{util_rate:.1f}%"
                         elif key == 'daily_revenue':
                             text = f"¥{charger.get(key, 0):.2f}"
                         else:
@@ -685,11 +675,11 @@ class RealTimeDataTable(QWidget):
                     load_item = table.item(row, 7)
                     load_item.setText(f"{load_percentage:.1f}")
                     if load_percentage > 90:
-                        load_item.setBackground(QColor(255, 200, 200))
+                        load_item.setBackground(QColor(255, 220, 220))
                     elif load_percentage > 70:
-                        load_item.setBackground(QColor(255, 255, 200))
+                        load_item.setBackground(QColor(255, 255, 220))
                     else:
-                        load_item.setBackground(QColor(255, 255, 255))
+                        load_item.setBackground(QColor(240, 255, 240))
                     
                     table.item(row, 8).setText(f"{data.get('carbon_intensity', 0):.1f}")
                     
@@ -708,13 +698,13 @@ class RealTimeDataTable(QWidget):
         return status_map.get(status, status)
     
     def _getStatusColor(self, status):
-        """获取用户状态颜色"""
+        """获取状态颜色"""
         color_map = {
-            'idle': QColor(220, 220, 220),
-            'traveling': QColor(173, 216, 230),
-            'waiting': QColor(255, 255, 200),
-            'charging': QColor(200, 255, 200),
-            'post_charge': QColor(230, 230, 250)
+            'idle': QColor(240, 240, 240),
+            'traveling': QColor(220, 240, 255),
+            'waiting': QColor(255, 245, 220),
+            'charging': QColor(220, 255, 220),
+            'post_charge': QColor(245, 245, 255)
         }
         return color_map.get(status, QColor(255, 255, 255))
     
@@ -731,10 +721,10 @@ class RealTimeDataTable(QWidget):
     def _getChargerStatusColor(self, status):
         """获取充电桩状态颜色"""
         color_map = {
-            'available': QColor(200, 255, 200),
-            'occupied': QColor(255, 255, 200),
-            'failure': QColor(255, 200, 200),
-            'maintenance': QColor(220, 220, 220)
+            'available': QColor(220, 255, 220),
+            'occupied': QColor(255, 245, 220),
+            'failure': QColor(255, 220, 220),
+            'maintenance': QColor(240, 240, 240)
         }
         return color_map.get(status, QColor(255, 255, 255))
 

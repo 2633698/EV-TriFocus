@@ -317,7 +317,7 @@ class ModernStyle:
         QTableWidget {{
             gridline-color: {cls.COLORS['gray_300']};
             background: {cls.COLORS['white']};
-            alternate-background-color: {cls.COLORS['gray_100']};
+            alternate-background-color: {cls.COLORS['gray_200']};
             selection-background-color: {cls.COLORS['primary_light']};
             border: 1px solid {cls.COLORS['gray_300']};
             border-radius: 6px;

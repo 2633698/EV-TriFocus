@@ -31,11 +31,17 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
         if is_manual_decision:
             # 手动决策用户减少随机行为，更确定地执行决策
             if user_status == "traveling" and user.get("target_charger"):
-                # 加速到达目标（模拟用户更积极的驾驶）
-                travel_speed = user.get("travel_speed", 45) * 1.2  # 提高20%速度
+                # 大幅加速到达目标（模拟用户更积极的驾驶）
+                travel_speed = user.get("travel_speed", 45) * 2.0  # 提高100%速度
                 user["travel_speed"] = travel_speed
                 
-                logger.debug(f"Manual decision user {user_id} traveling faster to target charger")
+                # 强制减少剩余时间，确保快速到达
+                current_time_to_dest = user.get("time_to_destination", 0)
+                if current_time_to_dest > 5:  # 如果剩余时间超过5分钟
+                    user["time_to_destination"] = max(1, current_time_to_dest * 0.3)  # 大幅减少剩余时间
+                    logger.debug(f"Manual decision user {user_id} accelerated travel: time reduced to {user['time_to_destination']:.1f} minutes")
+                
+                logger.debug(f"Manual decision user {user_id} traveling at enhanced speed: {travel_speed:.1f} km/h")
             
             # 手动决策用户不会改变充电需求
             user["needs_charge_decision"] = False
@@ -48,8 +54,15 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
             if user["post_charge_timer"] > 0:
                 user["post_charge_timer"] -= 1
             else:
-                # 清除手动决策标记
+                # 清除所有手动决策相关标记
+                if user.get("manual_decision"):
+                    logger.info(f"=== MANUAL DECISION CLEARED (Post-charge timer expired) ===")
+                    logger.info(f"User {user_id} manual decision cleared after charging completion")
+                    logger.info(f"Final SOC: {user.get('soc', 0):.1f}%")
+                    logger.info(f"User {user_id} now eligible for normal scheduling")
                 user["manual_decision"] = False
+                user["manual_decision_locked"] = False
+                user["manual_decision_override"] = False
                 user["manual_charging_params"] = None
                 
                 logger.debug(f"User {user_id} post-charge timer expired.")
@@ -201,10 +214,14 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
                     user["destination"] = None
                     user["arrival_time_at_charger"] = current_time
                     
-                    # 如果是手动决策用户，记录到达时间
+                    # 如果是手动决策用户，记录到达时间并强制锁定到目标充电桩
                     if is_manual_decision:
                         user["manual_decision_arrival_time"] = current_time.isoformat()
-                        logger.info(f"Manual decision user {user_id} arrived at target charger")
+                        user["force_target_charger"] = True  # 强制锁定到目标充电桩
+                        user["manual_decision_locked"] = True  # 防止被重新分配
+                        logger.info(f"=== MANUAL DECISION USER LOCKED TO TARGET CHARGER ===")
+                        logger.info(f"Manual decision user {user_id} arrived and LOCKED to charger {target_charger_id}")
+                        logger.info(f"User will ONLY charge at this specific charger, ignoring system allocation")
                         
                 elif last_dest_type == "charger":
                     logger.warning(f"User {user_id} arrived at charger destination, but target_charger ID is None. Setting WAITING.")
@@ -217,6 +234,10 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
                     user["destination"] = None
                     user["target_charger"] = None
                     # 清除手动决策标记
+                    if user.get("manual_decision"):
+                        logger.info(f"=== MANUAL DECISION CLEARED (Destination reached) ===")
+                        logger.info(f"User {user_id} manual decision cleared upon reaching destination")
+                        logger.info(f"Current SOC: {user.get('soc', 0):.1f}%")
                     user["manual_decision"] = False
                     if user["soc"] < 70: user["needs_charge_decision"] = True
 
@@ -428,11 +449,26 @@ def update_user_position_along_route(user, distance_km, map_bounds):
 
 
 def has_reached_destination(user):
-    """检查用户是否已到达目的地（基于剩余时间）"""
+    """检查用户是否已到达目的地（基于剩余时间和距离）"""
     if not user or user.get("time_to_destination") is None:
         return False
+    
     # 检查剩余时间是否为0或非常小
-    return user["time_to_destination"] <= 0.1
+    if user["time_to_destination"] <= 0.1:
+        return True
+    
+    # 额外检查：如果用户位置非常接近目的地，也认为已到达
+    current_pos = user.get("current_position")
+    destination = user.get("destination")
+    if current_pos and destination:
+        from .utils import calculate_distance
+        distance_to_dest = calculate_distance(current_pos, destination)
+        # 如果距离小于100米，认为已到达
+        if distance_to_dest < 0.1:  # 0.1km = 100m
+            logger.debug(f"User {user.get('user_id')} reached destination by distance check: {distance_to_dest:.3f}km")
+            return True
+    
+    return False
 class UserDecisionManager:
     """用户决策管理器 - 处理用户手动决策的验证和应用"""
     

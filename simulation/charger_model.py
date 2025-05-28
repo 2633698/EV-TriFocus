@@ -42,8 +42,19 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                     preferred_type = user.get("preferred_charging_type", "快充")
                     if preferred_type == "快充" and charger_type in ["fast", "superfast"]:
                         # 提高充电效率
+                        old_efficiency = base_efficiency
                         base_efficiency = min(0.95, base_efficiency * 1.03)
-                        logger.debug(f"Manual decision user {current_user_id} getting optimized charging")
+                        logger.info(f"=== MANUAL DECISION CHARGING OPTIMIZATION ===")
+                        logger.info(f"User {current_user_id} getting optimized charging at charger {charger_id}")
+                        logger.info(f"Preferred type: {preferred_type}, Charger type: {charger_type}")
+                        logger.info(f"Efficiency optimized: {old_efficiency:.3f} -> {base_efficiency:.3f}")
+                        logger.info(f"Current SOC: {current_soc:.1f}%, Target SOC: {target_soc}%")
+                    else:
+                        logger.info(f"=== MANUAL DECISION CHARGING STARTED ===")
+                        logger.info(f"User {current_user_id} charging at charger {charger_id}")
+                        logger.info(f"Preferred type: {preferred_type}, Charger type: {charger_type}")
+                        logger.info(f"Current SOC: {current_soc:.1f}%, Target SOC: {target_soc}%")
+                        logger.debug(f"Manual decision user {current_user_id} getting standard charging")
 
                 soc_factor = 1.0
                 if current_soc < 20: soc_factor = 1.0
@@ -93,7 +104,12 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                         reason = "target_reached" if new_soc >= target_soc - 0.5 else "time_limit_exceeded"
                         
                         if is_manual_decision:
-                            logger.info(f"Manual decision user {current_user_id} finished charging at {charger_id} ({reason}). Final SOC: {new_soc:.1f}%")
+                            logger.info(f"=== MANUAL DECISION CHARGING COMPLETED ===")
+                            logger.info(f"User {current_user_id} finished charging at charger {charger_id}")
+                            logger.info(f"Completion reason: {reason}")
+                            logger.info(f"SOC progress: {initial_soc:.1f}% -> {new_soc:.1f}% (target: {target_soc}%)")
+                            logger.info(f"Charging duration: {charging_duration_minutes:.1f} minutes")
+                            logger.info(f"Preferred charging type: {user.get('preferred_charging_type', 'N/A')}")
                         else:
                             logger.info(f"User {current_user_id} finished charging at {charger_id} ({reason}). Final SOC: {new_soc:.1f}%")
 
@@ -159,6 +175,17 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                         else:
                             logger.info(f"Starting charging for user {next_user_id} at {charger_id}")
 
+                        # 检查手动决策用户是否被锁定到特定充电桩
+                        if is_manual and next_user.get("manual_decision_locked"):
+                            target_charger = next_user.get("target_charger")
+                            if target_charger != charger_id:
+                                logger.warning(f"=== MANUAL DECISION VIOLATION PREVENTED ===")
+                                logger.warning(f"Manual user {next_user_id} locked to {target_charger}, cannot charge at {charger_id}")
+                                logger.warning(f"Removing user from wrong charger queue")
+                                # 从错误的充电桩队列中移除
+                                charger["queue"].pop(0)
+                                continue
+                        
                         # 更新充电桩状态
                         charger["status"] = "occupied"
                         charger["current_user"] = next_user_id
@@ -168,6 +195,12 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
 
                         # 更新用户状态
                         next_user["status"] = "charging"
+                        
+                        # 为手动决策用户记录成功分配
+                        if is_manual:
+                            logger.info(f"=== MANUAL DECISION SUCCESSFULLY EXECUTED ===")
+                            logger.info(f"Manual user {next_user_id} successfully assigned to target charger {charger_id}")
+                            logger.info(f"Manual decision fulfilled as requested")
                         
                         # 使用手动设置的目标SOC或默认值
                         if is_manual and 'manual_charging_params' in next_user:
