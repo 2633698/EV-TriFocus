@@ -22,6 +22,12 @@ from PyQt6.QtWidgets import (
     QSplitter, QDialog, QDialogButtonBox, QFormLayout,
     QMessageBox, QLineEdit
 )
+
+# 导入预约系统组件
+from reservation_system import (
+    ReservationDialog, ReservationListWidget, ReservationManager,
+    reservation_manager, ReservationStatus
+)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QSize, QRect
 from PyQt6.QtGui import (
     QFont, QPainter, QPen, QBrush, QColor, QPixmap, QIcon,
@@ -666,8 +672,9 @@ class StationDetailsPanel(QGroupBox):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         
-        self.reserve_btn = QPushButton("立即预约/充电")
-        self.reserve_btn.setStyleSheet("""
+        # 立即充电按钮
+        self.charge_now_btn = QPushButton("立即充电")
+        self.charge_now_btn.setStyleSheet("""
             QPushButton {
                 background: #28a745;
                 color: white;
@@ -681,7 +688,26 @@ class StationDetailsPanel(QGroupBox):
                 background: #218838;
             }
         """)
-        self.reserve_btn.clicked.connect(self.onChargingRequested)
+        self.charge_now_btn.clicked.connect(self.onChargingRequested)
+        button_layout.addWidget(self.charge_now_btn)
+        
+        # 预约充电按钮
+        self.reserve_btn = QPushButton("预约充电")
+        self.reserve_btn.setStyleSheet("""
+            QPushButton {
+                background: #007bff;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #0056b3;
+            }
+        """)
+        self.reserve_btn.clicked.connect(self.onReservationRequested)
         button_layout.addWidget(self.reserve_btn)
         
         layout.addLayout(button_layout)
@@ -756,7 +782,7 @@ class StationDetailsPanel(QGroupBox):
         self.rating_count_label.setText(f"({review_count}条评价)")
     
     def onChargingRequested(self):
-        """处理充电请求"""
+        """处理立即充电请求"""
         if not self.current_station:
             return
         
@@ -766,6 +792,45 @@ class StationDetailsPanel(QGroupBox):
             charging_params = dialog.getChargingParams()
             station_id = self.current_station.get('station_id')
             self.chargingRequested.emit(station_id, charging_params)
+            
+    def onReservationRequested(self):
+        """处理预约充电请求"""
+        if not self.current_station:
+            return
+            
+        # 获取当前用户数据（需要从父组件传递）
+        user_data = getattr(self, 'current_user_data', {})
+        
+        # 弹出预约对话框，传递仿真时间
+        simulation_time = getattr(self.parent(), 'current_simulation_time', None)
+        dialog = ReservationDialog(self.current_station, user_data, self, simulation_time=simulation_time)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            reservation_data = dialog.getReservationData()
+            if reservation_data:
+                # 创建预约
+                user_id = user_data.get('user_id', 'unknown')
+                station_id = self.current_station.get('station_id')
+                charger_id = station_id  # 直接使用station_id作为charger_id
+                
+                reservation = reservation_manager.createReservation(
+                    user_id, station_id, charger_id, reservation_data
+                )
+                
+                QMessageBox.information(
+                    self, "预约成功", 
+                    f"预约已创建！\n"
+                    f"预约编号: {reservation.reservation_id}\n"
+                    f"预约时间: {reservation.start_time.strftime('%m-%d %H:%M')}\n"
+                    f"预估费用: ¥{reservation.estimated_cost:.2f}"
+                )
+                
+                # 发送预约信号（如果需要）
+                if hasattr(self, 'reservationCreated'):
+                    self.reservationCreated.emit(reservation.reservation_id)
+    
+    def setCurrentUserData(self, user_data):
+        """设置当前用户数据"""
+        self.current_user_data = user_data
 
 
 class ChargingConfirmDialog(QDialog):
@@ -882,6 +947,7 @@ class UserControlPanel(QWidget):
     userSelected = pyqtSignal(str)  # 用户选择信号
     simulationStepChanged = pyqtSignal(int)  # 仿真步骤改变信号
     chargingDecisionMade = pyqtSignal(str, str, dict)  # 充电决策信号 (user_id, station_id, params)
+    decisionAppliedAndContinue = pyqtSignal()  # 应用决策并继续仿真信号
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -890,6 +956,9 @@ class UserControlPanel(QWidget):
         self.max_step = 0
         self.simulation_data = {}
         self.is_paused = False
+        # 初始化仿真时间为当日零点
+        from datetime import datetime
+        self.current_simulation_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         self.setupUI()
     
     def setupUI(self):
@@ -1049,6 +1118,11 @@ class UserControlPanel(QWidget):
         self.details_panel.chargingRequested.connect(self.onChargingRequested)
         tab_widget.addTab(self.details_panel, "充电站详情")
         
+        # 预约管理选项卡
+        self.reservation_panel = ReservationListWidget()
+        self.reservation_panel.reservationCancelled.connect(self.onReservationCancelled)
+        tab_widget.addTab(self.reservation_panel, "我的预约")
+        
         return tab_widget
     
     def updateSimulationData(self, step, max_step, simulation_data):
@@ -1056,6 +1130,17 @@ class UserControlPanel(QWidget):
         self.current_step = step
         self.max_step = max_step
         self.simulation_data = simulation_data
+        
+        # 提取仿真时间信息
+        timestamp_str = simulation_data.get('timestamp')
+        if timestamp_str:
+            try:
+                from datetime import datetime
+                self.current_simulation_time = datetime.fromisoformat(timestamp_str)
+            except (ValueError, TypeError):
+                self.current_simulation_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            self.current_simulation_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
         # 更新步骤显示
         self.step_slider.setMaximum(max_step)
@@ -1141,6 +1226,13 @@ class UserControlPanel(QWidget):
         # 更新各个面板
         self.user_info_panel.updateUserInfo(current_user)
         self.history_panel.updateHistory(current_user.get('charging_history', []))
+        
+        # 更新充电站详情面板的用户数据
+        self.details_panel.setCurrentUserData(current_user)
+        
+        # 更新预约面板
+        user_reservations = reservation_manager.getUserReservations(self.current_user_id)
+        self.reservation_panel.updateReservations(user_reservations)
     
     def updateRecommendations(self):
         """更新充电站推荐"""
@@ -1326,6 +1418,24 @@ class UserControlPanel(QWidget):
         if self.current_user_id:
             self.chargingDecisionMade.emit(self.current_user_id, station_id, charging_params)
             QMessageBox.information(self, "充电请求", f"已为用户 {self.current_user_id} 请求在 {station_id} 充电")
+            
+    def onReservationCancelled(self, reservation_id):
+        """处理预约取消"""
+        reply = QMessageBox.question(
+            self, "确认取消", 
+            f"确定要取消预约 {reservation_id} 吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            if reservation_manager.cancelReservation(reservation_id):
+                QMessageBox.information(self, "取消成功", "预约已成功取消")
+                # 刷新预约列表
+                if self.current_user_id:
+                    user_reservations = reservation_manager.getUserReservations(self.current_user_id)
+                    self.reservation_panel.updateReservations(user_reservations)
+            else:
+                QMessageBox.warning(self, "取消失败", "预约取消失败，请稍后重试")
     
     def onStepChanged(self, step):
         """处理步骤改变"""
@@ -1354,6 +1464,7 @@ class UserControlPanel(QWidget):
     def applyDecisionAndContinue(self):
         """应用决策并继续仿真"""
         if self.current_user_id:
-            # 这里可以触发仿真继续
+            # 发射信号通知主GUI继续仿真
+            self.decisionAppliedAndContinue.emit()
             QMessageBox.information(self, "决策应用", "用户决策已应用，仿真将继续")
             self.apply_btn.setEnabled(False)

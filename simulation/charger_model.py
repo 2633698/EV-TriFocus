@@ -129,6 +129,15 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                         if "charging_history" not in user: user["charging_history"] = []
                         user["charging_history"].append(charging_session)
 
+                        # 处理预约完成
+                        if user.get('reservation_id'):
+                            from reservation_system import reservation_manager
+                            reservation_id = user.get('reservation_id')
+                            if reservation_manager.completeReservation(reservation_id):
+                                logger.info(f"预约 {reservation_id} 已完成 - 用户 {current_user_id} 充电结束")
+                            user['reservation_id'] = None
+                            user['is_reservation_user'] = False
+
                         # 重置状态
                         charger["status"] = "available"
                         charger["current_user"] = None

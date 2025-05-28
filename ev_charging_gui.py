@@ -1944,6 +1944,7 @@ class MainWindow(QMainWindow):
         self.user_control_panel.userSelected.connect(self.onUserSelected)
         self.user_control_panel.simulationStepChanged.connect(self.onSimulationStepChanged)
         self.user_control_panel.chargingDecisionMade.connect(self.onChargingDecisionMade)
+        self.user_control_panel.decisionAppliedAndContinue.connect(self.onDecisionAppliedAndContinue)
         
         return self.user_control_panel
 
@@ -2034,6 +2035,32 @@ class MainWindow(QMainWindow):
             self.user_panel_active = False
             if self.simulation_paused:
                 self.pauseSimulation()  # 取消暂停
+    
+    def onDecisionAppliedAndContinue(self):
+        """处理应用决策并继续仿真事件"""
+        logger.info("收到应用决策并继续仿真信号")
+        manual_decision_logger.info("用户面板请求继续仿真")
+        
+        # 退出用户交互模式
+        self.user_panel_active = False
+        
+        # 如果仿真被暂停，则恢复仿真
+        if self.simulation_paused:
+            self.pauseSimulation()  # 取消暂停
+            manual_decision_logger.info("仿真已恢复运行")
+        
+        # 更新状态显示
+        self.status_label.setText("运行中")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                background: #d5f4e6;
+                border: 1px solid #27ae60;
+                border-radius: 6px;
+                padding: 8px;
+                font-weight: bold;
+                color: #27ae60;
+            }
+        """)
 
     def _createChartsTab(self):
         """创建图表选项卡"""
@@ -2909,8 +2936,16 @@ class MainWindow(QMainWindow):
     
     def updateCurrentTime(self):
         """更新当前时间显示"""
-        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        self.current_time_label.setText(current_time)
+        # 优先显示模拟时间，如果没有则显示系统时间
+        if hasattr(self, 'user_control_panel') and hasattr(self.user_control_panel, 'current_simulation_time'):
+            sim_time = self.user_control_panel.current_simulation_time
+            if sim_time:
+                time_text = f"模拟时间: {sim_time.strftime('%Y-%m-%d %H:%M:%S')}"
+            else:
+                time_text = f"系统时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        else:
+            time_text = f"系统时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        self.current_time_label.setText(time_text)
     
     def openConfig(self):
         """打开配置文件"""

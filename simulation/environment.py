@@ -71,14 +71,20 @@ class ChargingEnvironment:
         """重置环境到初始状态"""
         logger.info("Resetting ChargingEnvironment...")
         # ---> 设置 current_time 和 start_time <---
-        # 使用固定或可配置的起始时间点，而不是 datetime.now()，保证可重复性
-        # 可以从 config 读取，或使用一个固定的日期
-        start_dt_str = self.env_config.get("simulation_start_datetime", "2025-01-01T00:00:00")
-        try:
-            base_start_time = datetime.fromisoformat(start_dt_str)
-        except ValueError:
-            logger.warning(f"Invalid simulation_start_datetime format '{start_dt_str}'. Using default.")
-            base_start_time = datetime(2025, 1, 1, 0, 0, 0)
+        # 使用当日零点作为起始时间，保证与预约系统时间一致
+        start_dt_str = self.env_config.get("simulation_start_datetime", None)
+        if start_dt_str:
+            try:
+                base_start_time = datetime.fromisoformat(start_dt_str)
+                logger.info(f"Using configured simulation start time: {base_start_time}")
+            except ValueError:
+                logger.warning(f"Invalid simulation_start_datetime format '{start_dt_str}'. Using today's midnight.")
+                base_start_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            # 默认使用当日零点作为起始时间
+            base_start_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            logger.info(f"Using today's midnight as simulation start time: {base_start_time}")
+        
         self.current_time = base_start_time
         self.start_time = base_start_time # <--- 记录仿真的实际开始时间
 
@@ -288,17 +294,36 @@ class ChargingEnvironment:
         logger.debug(f"--- Step Start: {self.current_time} ---")
         step_start_time = time.time()
 
-        # 1. 合并手动决策和算法决策
+        # 0. 检查并处理预约
+        from reservation_system import reservation_manager
+        processed_reservations = reservation_manager.checkAndProcessReservations(
+            self.current_time, self.users, self.chargers
+        )
+        
+        # 将预约决策添加到最终决策中（预约优先级最高）
+        reservation_decisions = {}
+        for res_data in processed_reservations:
+            user_id = res_data['user_id']
+            charger_id = res_data['charger_id']
+            reservation_decisions[user_id] = charger_id
+            logger.info(f"预约决策: 用户 {user_id} -> 充电桩 {charger_id} (预约ID: {res_data['reservation_id']})")
+        
+        # 1. 合并预约决策、手动决策和算法决策（按优先级）
         final_decisions = {}
+        
+        # 首先添加算法决策（最低优先级）
+        if decisions and isinstance(decisions, dict):
+            final_decisions.update(decisions)
+        
+        # 然后添加手动决策（覆盖算法决策）
         if manual_decisions and isinstance(manual_decisions, dict):
             final_decisions.update(manual_decisions)
             logger.info(f"Applied {len(manual_decisions)} manual decisions")
         
-        if decisions and isinstance(decisions, dict):
-            # 添加不与手动决策冲突的算法决策
-            for user_id, charger_id in decisions.items():
-                if user_id not in final_decisions:
-                    final_decisions[user_id] = charger_id
+        # 最后添加预约决策（最高优先级，覆盖所有其他决策）
+        if reservation_decisions:
+            final_decisions.update(reservation_decisions)
+            logger.info(f"Applied {len(reservation_decisions)} reservation decisions")
         
         # 2. 应用决策: 设置用户目标充电桩并规划初始路线
         users_routed = 0
@@ -356,6 +381,39 @@ class ChargingEnvironment:
                             else:
                                 logger.warning(f"User {user_id} status '{user.get('status')}' not suitable for immediate travel")
                         
+                        # 如果是预约决策，设置特殊标记和参数（类似手动决策的强制执行）
+                        elif reservation_decisions and user_id in reservation_decisions:
+                            user['reservation_decision'] = True
+                            user['reservation_decision_time'] = self.current_time.isoformat()
+                            
+                            # 专门为预约决策用户启用详细日志
+                            logger.info(f"=== RESERVATION DECISION TRIGGERED for User {user_id} ===")
+                            logger.info(f"Decision time: {self.current_time.isoformat()}")
+                            logger.info(f"Target charger: {charger_id}")
+                            logger.info(f"User current status: {user.get('status')}")
+                            logger.info(f"User current SOC: {user.get('soc', 0):.1f}%")
+                            logger.info(f"User current position: {user.get('current_position')}")
+                            
+                            # 应用预约设置的目标SOC（已在checkAndProcessReservations中设置）
+                            logger.info(f"Reservation charging params:")
+                            logger.info(f"  - Target SOC: {user.get('target_soc', 80)}%")
+                            logger.info(f"  - Charging type: {user.get('preferred_charging_type', '快充')}")
+                            logger.info(f"  - Reservation ID: {user.get('reservation_id', 'unknown')}")
+                            
+                            # 立即强制用户开始前往充电桩（覆盖当前状态）
+                            if user.get('status') in ['idle', 'traveling']:
+                                old_status = user.get('status')
+                                user['status'] = 'traveling'
+                                user['needs_charge_decision'] = False
+                                # 清除之前的路径，强制重新规划
+                                user['waypoints'] = []
+                                user['_current_segment_index'] = 0
+                                logger.info(f"Reservation decision status change: {old_status} -> traveling")
+                                logger.info(f"Cleared previous waypoints, forcing route replanning")
+                                logger.info(f"User {user_id} immediately starts traveling to charger {charger_id} for reservation")
+                            else:
+                                logger.warning(f"User {user_id} status '{user.get('status')}' not suitable for immediate travel")
+                        
                         if plan_route_to_charger(user, charger_pos, self.map_bounds):
                             user['status'] = 'traveling'
                             # 确保手动决策用户正确设置目的地
@@ -369,6 +427,15 @@ class ChargingEnvironment:
                                 logger.info(f"User status confirmed: {user.get('status')}")
                                 logger.info(f"Destination set to: {user.get('destination')}")
                                 logger.info(f"Time to destination: {user.get('time_to_destination', 0):.1f} minutes")
+                            # 为预约决策用户添加专门的路径规划成功日志
+                            elif user.get('reservation_decision'):
+                                logger.info(f"=== RESERVATION DECISION ROUTE PLANNING SUCCESS ===")
+                                logger.info(f"User {user_id} successfully routed to charger {charger_id}")
+                                logger.info(f"Route waypoints count: {len(user.get('waypoints', []))}")
+                                logger.info(f"User status confirmed: {user.get('status')}")
+                                logger.info(f"Destination set to: {user.get('destination')}")
+                                logger.info(f"Time to destination: {user.get('time_to_destination', 0):.1f} minutes")
+                                logger.info(f"Reservation ID: {user.get('reservation_id', 'unknown')}")
                             else:
                                 logger.info(f"Routed user {user_id} to charger {charger_id}")
                         else:
@@ -379,10 +446,20 @@ class ChargingEnvironment:
                                 logger.error(f"User position: {user.get('current_position')}")
                                 logger.error(f"Charger position: {charger_pos}")
                                 logger.error(f"Clearing manual decision due to routing failure")
+                                user['manual_decision'] = False
+                            # 为预约决策用户添加专门的路径规划失败日志
+                            elif user.get('reservation_decision'):
+                                logger.error(f"=== RESERVATION DECISION ROUTE PLANNING FAILED ===")
+                                logger.error(f"Failed to plan route for RESERVATION user {user_id} to charger {charger_id}")
+                                logger.error(f"User position: {user.get('current_position')}")
+                                logger.error(f"Charger position: {charger_pos}")
+                                logger.error(f"Reservation ID: {user.get('reservation_id', 'unknown')}")
+                                logger.error(f"Clearing reservation decision due to routing failure")
+                                user['reservation_decision'] = False
+                                user['is_reservation_user'] = False
                             else:
                                 logger.warning(f"Failed to plan route for user {user_id} to charger {charger_id}")
                             user['target_charger'] = None
-                            user['manual_decision'] = False
                     else:
                         logger.warning(f"Charger {charger_id} has no position data.")
 
