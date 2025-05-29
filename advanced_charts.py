@@ -87,14 +87,15 @@ class RegionalLoadHeatmap(QWidget):
         # 更新当前负载数据
         for region_id, data in regional_data.items():
             current_load = data.get('current_total_load', 0)
-            base_load = data.get('base_load', 1000)  # 默认基础负载
+            # 使用系统容量而不是基础负载来计算负载率，与数据详情页保持一致
+            system_capacity = data.get('system_capacity', 80000)  # 默认系统容量
             
-            # 计算负载率
-            load_rate = (current_load / base_load * 100) if base_load > 0 else 0
+            # 计算负载率 - 与grid_model_enhanced.py中的计算方式一致
+            load_rate = data.get('grid_load_percentage', 0)
             self.current_loads[region_id] = {
                 'load': current_load,
                 'rate': load_rate,
-                'base': base_load
+                'base': system_capacity
             }
         
         self._updateDisplay()

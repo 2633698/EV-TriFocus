@@ -46,6 +46,7 @@ try:
     from simulation.grid_model_enhanced import EnhancedGridModel
     from simulation.metrics import calculate_rewards
     from user_panel import UserControlPanel
+    from operator_panel import OperatorControlPanel
 except ImportError as e:
     print(f"警告：无法导入仿真模块: {e}")
     print("请确保simulation包在Python路径中")
@@ -359,22 +360,24 @@ class RegionalLoadChart(QWidget):
                     else:
                         sampled_load = region_load
                     
-                    # 确保长度一致
+                    # 确保长度一致并转换为MW单位
                     if len(sampled_load) <= len(total_load):
-                        total_load[:len(sampled_load)] += np.array(sampled_load)
+                        # 转换为MW单位显示
+                        sampled_load_mw = [load / 1000 for load in sampled_load]
+                        total_load[:len(sampled_load)] += np.array(sampled_load_mw)
             
             # 绘制总负载曲线
-            if len(total_load) > 0:
+            if len(total_load) > 0 and np.any(total_load > 0):
                 pen = pg.mkPen(color=(31, 119, 180), width=3)
                 self.plot_widget.plot(
-                    x_data[:len(total_load)], total_load, 
-                    pen=pen, 
-                    name="总负载",
-                    symbolBrush=(31, 119, 180),
-                    symbolSize=6,  # 减小符号大小
-                    symbolPen=None,  # 移除符号边框
-                    skipFiniteCheck=True  # 提高性能
-                )
+                            x_data[:len(total_load)], total_load, 
+                            pen=pen, 
+                            name="总负载",
+                            symbolBrush=(31, 119, 180),
+                            symbolSize=4,  # 减小符号大小
+                            symbolPen=None,  # 移除符号边框
+                            skipFiniteCheck=True  # 提高性能
+                        )
         
         elif self.display_mode == "single" and self.selected_region:
             # 单区域模式 - 只显示选中的区域
@@ -388,15 +391,20 @@ class RegionalLoadChart(QWidget):
                     else:
                         sampled_load = region_load
                     
-                    pen = pg.mkPen(color=(31, 119, 180), width=3)
-                    self.plot_widget.plot(
-                        x_data[:len(sampled_load)], sampled_load, 
-                        pen=pen, 
-                        name=self.selected_region,
-                        symbolBrush=(31, 119, 180),
-                        symbolSize=6,  # 减小符号大小
-                        symbolPen=None  # 移除符号边框
-                    )
+                    # 转换为MW单位显示
+                    sampled_load_mw = [load / 1000 for load in sampled_load]
+                    
+                    # 检查是否有有效数据
+                    if any(load > 0 for load in sampled_load_mw):
+                        pen = pg.mkPen(color=(31, 119, 180), width=3)
+                        self.plot_widget.plot(
+                             x_data[:len(sampled_load_mw)], sampled_load_mw, 
+                             pen=pen, 
+                             name=self.selected_region,
+                             symbolBrush=(31, 119, 180),
+                             symbolSize=4,  # 减小符号大小
+                             symbolPen=None  # 移除符号边框
+                         )
         
         else:  # "all" 模式 - 显示所有区域，但使用更细的线条
             for i, (region_id, data) in enumerate(regional_data.items()):
@@ -408,19 +416,23 @@ class RegionalLoadChart(QWidget):
                     else:
                         sampled_load = region_load
                     
-                    color = self.colors[i % len(self.colors)]
-                    pen = pg.mkPen(color=color, width=2)  # 稍微加粗线条
+                    # 转换为MW单位显示
+                    sampled_load_mw = [load / 1000 for load in sampled_load]
                     
-                    self.plot_widget.plot(
-                        x_data[:len(sampled_load)], sampled_load, 
-                        pen=pen, 
-                        name=region_id,
-                        symbolBrush=color,
-                        symbolSize=3,  # 进一步减小符号
-                        symbol='o',  # 使用圆形符号
-                        symbolPen=None,  # 无边框
-                        skipFiniteCheck=True  # 跳过有限检查以提高性能
-                    )
+                    # 检查是否有有效数据
+                    if any(load > 0 for load in sampled_load_mw):
+                        color = self.colors[i % len(self.colors)]
+                        pen = pg.mkPen(color=color, width=2)  # 稍微加粗线条
+                        
+                        self.plot_widget.plot(
+                             x_data[:len(sampled_load_mw)], sampled_load_mw, 
+                             pen=pen, 
+                             name=region_id,
+                             symbolBrush=color,
+                             symbolSize=3,  # 进一步减小符号
+                             symbolPen=None,  # 无边框
+                             skipFiniteCheck=True  # 跳过有限检查以提高性能
+                         )
         
         # 设置X轴标签为时间
         if sampled_timestamps:
@@ -1935,6 +1947,9 @@ class MainWindow(QMainWindow):
         # 新增：用户面板选项卡
         user_panel_tab = self._createUserPanelTab()
         tab_widget.addTab(user_panel_tab, "👤 用户面板")
+        # 新增：运营商面板选项卡
+        operator_panel_tab = self._createOperatorPanelTab()
+        tab_widget.addTab(operator_panel_tab, "💼 运营商面板")
 
         layout = QVBoxLayout(panel)
         layout.addWidget(tab_widget)
@@ -2065,6 +2080,52 @@ class MainWindow(QMainWindow):
                 color: #27ae60;
             }
         """)
+# 添加创建方法：
+    def _createOperatorPanelTab(self):
+        """创建运营商面板选项卡"""
+        self.operator_control_panel = OperatorControlPanel()
+        
+        # 连接信号
+        self.operator_control_panel.pricingStrategyChanged.connect(self.onPricingStrategyChanged)
+        self.operator_control_panel.maintenanceRequested.connect(self.onMaintenanceRequested)
+        
+        return self.operator_control_panel
+
+        # 添加事件处理方法：
+    def onPricingStrategyChanged(self, strategy):
+        """处理定价策略变化"""
+        logger.info(f"收到定价策略更新: {strategy}")
+        
+        # 应用到仿真环境
+        if self.simulation_worker and hasattr(self.simulation_worker, 'environment'):
+            environment = self.simulation_worker.environment
+            config = environment.config
+            
+            # 更新配置
+            config['grid']['normal_price'] = strategy['base_price']
+            config['grid']['peak_price'] = strategy['base_price'] * strategy['peak_factor']
+            config['grid']['valley_price'] = strategy['base_price'] * strategy['valley_factor']
+            
+            # 更新充电桩定价
+            for charger_id, charger in environment.chargers.items():
+                charger['price_multiplier'] = 1.0
+                
+                # 应用会员优惠
+                if strategy.get('member_discount'):
+                    charger['member_discount'] = 0.9  # 9折优惠
+                    
+            logger.info("定价策略已应用到仿真环境")
+
+    def onMaintenanceRequested(self, charger_id):
+        """处理维护请求"""
+        logger.info(f"收到充电桩 {charger_id} 的维护请求")
+        
+        # 在仿真中标记充电桩为维护状态
+        if self.simulation_worker and hasattr(self.simulation_worker, 'environment'):
+            environment = self.simulation_worker.environment
+            if charger_id in environment.chargers:
+                environment.chargers[charger_id]['status'] = 'maintenance'
+                logger.info(f"充电桩 {charger_id} 已设置为维护状态")
 
     def _createChartsTab(self):
         """创建图表选项卡"""
@@ -2623,6 +2684,7 @@ class MainWindow(QMainWindow):
                 self.user_control_panel.updateSimulationData(
                     current_step, len(self.simulation_history) - 1, state
                 )
+
             # 更新时间显示
             if timestamp:
                 dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
@@ -2643,167 +2705,99 @@ class MainWindow(QMainWindow):
             # 调试输出，查看grid_status内容
             logger.info(f"Grid status data received: {grid_status.keys() if isinstance(grid_status, dict) else 'Not a dict'}")
             
-            # 创建测试数据（无论是否有真实数据）
-            # 构建时间序列数据
-            if not hasattr(self, 'time_series_collector'):
-                self.time_series_collector = {
-                    'timestamps': [],
-                    'regional_data': {}
-                }
-            
-            # 添加新的时间戳
-            self.time_series_collector['timestamps'].append(timestamp if timestamp else datetime.now().isoformat())
-            
-            # 限制历史数据长度
-            max_points = 288  # 72小时，15分钟间隔
-            if len(self.time_series_collector['timestamps']) > max_points:
-                self.time_series_collector['timestamps'] = self.time_series_collector['timestamps'][-max_points:]
-            
-            # 创建测试区域数据
-            test_regions = ['region_1', 'region_2', 'region_3']
-            for region_id in test_regions:
-                if region_id not in self.time_series_collector['regional_data']:
-                    self.time_series_collector['regional_data'][region_id] = {
-                        'total_load': [],
-                        'base_load': [],
-                        'ev_load': [],
-                        'renewable_ratio': [],
-                        'grid_load_percentage': []
-                    }
+            # 使用电网模型的真实数据，而不是测试数据
+            if hasattr(self, 'environment') and hasattr(self.environment, 'grid_simulator'):
+                # 从电网模拟器获取真实的时间序列数据
+                real_time_series = self.environment.grid_simulator.get_time_series_data()
                 
-                # 生成随机测试数据
-                region_collector = self.time_series_collector['regional_data'][region_id]
-                region_collector['total_load'].append(random.uniform(800, 1200))
-                region_collector['base_load'].append(random.uniform(700, 900))
-                region_collector['ev_load'].append(random.uniform(50, 300))
-                region_collector['renewable_ratio'].append(random.uniform(10, 40))
-                region_collector['grid_load_percentage'].append(random.uniform(60, 90))
+                # 使用真实的时间序列数据
+                if real_time_series and real_time_series.get('timestamps'):
+                    self.time_series_collector = real_time_series
+                    logger.info(f"Using real grid data with {len(real_time_series['timestamps'])} time points")
+                else:
+                    # 如果没有时间序列数据，初始化空的收集器
+                    if not hasattr(self, 'time_series_collector'):
+                        self.time_series_collector = {
+                            'timestamps': [],
+                            'regional_data': {}
+                        }
+                    logger.warning("No real time series data available, using empty collector")
                 
-                # 限制长度
-                for key in region_collector:
-                    if len(region_collector[key]) > max_points:
-                        region_collector[key] = region_collector[key][-max_points:]
+                # 获取真实的电网状态数据
+                real_grid_status = self.environment.grid_simulator.get_status()
+                if real_grid_status:
+                    # 使用真实的电网状态数据
+                    grid_status = real_grid_status
+                    state['grid_status'] = grid_status
+                    logger.info("Using real grid status data from simulation")
+                else:
+                    logger.warning("No real grid status available")
+            else:
+                logger.warning("Grid simulator not available, cannot use real data")
+                # 如果没有电网模拟器，保持原有的grid_status
+                if not grid_status:
+                    logger.error("No grid data available from any source")
             
-            # 创建区域当前状态数据用于数据表
-            regional_current_state = {}
-            for region_id, region_data in self.time_series_collector['regional_data'].items():
-                if region_data['total_load']:
-                    # 取最新的数据点
-                    regional_current_state[region_id] = {
-                        'current_total_load': region_data['total_load'][-1] * 1000,  # 转换为kW
-                        'current_base_load': region_data['base_load'][-1] * 1000 if region_data['base_load'] else 0,
-                        'current_ev_load': region_data['ev_load'][-1] * 1000 if region_data['ev_load'] else 0,
-                        'current_solar_gen': random.uniform(50, 200) * 1000,  # 模拟太阳能数据
-                        'current_wind_gen': random.uniform(20, 150) * 1000,  # 模拟风能数据
-                        'renewable_ratio': region_data['renewable_ratio'][-1] if region_data['renewable_ratio'] else 0,
-                        'grid_load_percentage': region_data['grid_load_percentage'][-1] if region_data['grid_load_percentage'] else 0,
-                        'carbon_intensity': random.uniform(200, 500)  # 模拟碳强度数据
-                    }
-            
-            # 将区域数据添加到state中
-            if regional_current_state:
-                # 创建电网状态对象
-                grid_status = {
-                    'regional_current_state': regional_current_state,
-                    'aggregated_metrics': {
-                        'total_load': sum(data['current_total_load'] for data in regional_current_state.values()),
-                        'total_base_load': sum(data['current_base_load'] for data in regional_current_state.values()),
-                        'total_ev_load': sum(data['current_ev_load'] for data in regional_current_state.values()),
-                        'weighted_renewable_ratio': sum(data['renewable_ratio'] * data['current_total_load'] 
-                                                    for data in regional_current_state.values()) / 
-                                                sum(data['current_total_load'] for data in regional_current_state.values()) 
-                                                if sum(data['current_total_load'] for data in regional_current_state.values()) > 0 else 0,
-                        'overall_load_percentage': sum(data['grid_load_percentage'] * data['current_total_load'] 
-                                                    for data in regional_current_state.values()) / 
-                                                sum(data['current_total_load'] for data in regional_current_state.values())
-                                                if sum(data['current_total_load'] for data in regional_current_state.values()) > 0 else 0
-                    }
-                }
-                
-                # 更新state中的grid_status
-                state['grid_status'] = grid_status
-                
-                # 更新数据表
-                if hasattr(self, 'data_table_widget'):
-                    logger.info("Updating data table with grid status")
-                    self.data_table_widget.updateData(state)
+            # 更新数据表
+            if hasattr(self, 'data_table_widget'):
+                logger.info("Updating data table with grid status")
+                self.data_table_widget.updateData(state)
             
             # 更新区域负载图表
             if hasattr(self, 'regional_load_chart'):
-                logger.info("Updating regional load chart with test data")
+                logger.info("Updating regional load chart with real grid data")
                 self.regional_load_chart.updateData(self.time_series_collector)
             
             # 更新区域热力图
             if hasattr(self, 'regional_heatmap'):
-                logger.info("Updating regional heatmap with test data")
-                # 为充电桩分配区域并计算负载
-                region_loads = {'Region_1': 0, 'Region_2': 0, 'Region_3': 0}
-                
-                for i, charger in enumerate(chargers):
-                    # 根据充电桩索引分配区域
-                    region_id = f"Region_{(i % 3) + 1}"
-                    charger['region_id'] = region_id
-                    
-                    # 计算充电桩当前负载
-                    if charger.get('status') == 'occupied':
-                        # 充电中的负载 = 充电功率
-                        current_load = charger.get('max_power', 60) * 0.8  # 80%功率
-                    elif charger.get('status') == 'available':
-                        # 空闲时的基础负载
-                        current_load = charger.get('max_power', 60) * 0.1  # 10%待机功率
-                    else:
-                        current_load = 0
-                    
-                    region_loads[region_id] += current_load
-                
-                # 添加基础电网负载
-                import random
-                base_loads = {'Region_1': 800, 'Region_2': 1000, 'Region_3': 600}
-                for region in region_loads:
-                    # 添加随机的基础负载变化
-                    base_variation = random.uniform(0.8, 1.2)
-                    region_loads[region] += base_loads[region] * base_variation
-                
-                # 构造热力图需要的grid_status格式
-                grid_status = {
-                    'regional_current_state': {
-                        'Region_1': {
-                            'current_total_load': region_loads['Region_1'],
-                            'base_load': 1000
-                        },
-                        'Region_2': {
-                            'current_total_load': region_loads['Region_2'],
-                            'base_load': 1200
-                        },
-                        'Region_3': {
-                            'current_total_load': region_loads['Region_3'],
-                            'base_load': 800
-                        }
-                    }
-                }
-                self.regional_heatmap.updateData(grid_status)
+                logger.info("Updating regional heatmap with real grid data")
+                # 使用真实的电网状态数据更新热力图
+                if grid_status and 'regional_current_state' in grid_status:
+                    self.regional_heatmap.updateData(grid_status)
+                    logger.info("Regional heatmap updated with real grid status data")
+                else:
+                    logger.warning("No regional current state data available for heatmap update")
             
             # 更新等待时间分布
             if hasattr(self, 'wait_time_plot'):
-                self._updateWaitTimeChart(users)
-                
+                self._updateWaitTimeChart(users, state)
+                        # 更新运营商面板
+            if hasattr(self, 'operator_control_panel'):
+                self.operator_control_panel.updateSimulationData(state)
         except Exception as e:
             logger.error(f"状态更新错误: {e}")
             logger.error(traceback.format_exc())
 
 
-    def _updateWaitTimeChart(self, users):
+    def _updateWaitTimeChart(self, users, state=None):
         """更新等待时间分布图"""
         if not hasattr(self, 'wait_time_plot') or not HAS_PYQTGRAPH:
             return
         
         # 统计等待时间分布
         wait_times = []
+        if state:
+            current_time = state.get('current_time', datetime.now())
+        else:
+            current_time = datetime.now()
+        
         for user in users:
             if isinstance(user, dict) and user.get('status') == 'waiting' and 'arrival_time_at_charger' in user:
-                # 计算等待时间（这里简化处理）
-                wait_time = random.uniform(0, 60)  # 实际应该根据arrival_time计算
-                wait_times.append(wait_time)
+                # 计算真实的等待时间
+                try:
+                    arrival_time = user['arrival_time_at_charger']
+                    if isinstance(arrival_time, str):
+                        arrival_time = datetime.fromisoformat(arrival_time)
+                    elif not isinstance(arrival_time, datetime):
+                        continue  # 跳过无效的时间数据
+                    
+                    # 计算等待时间（分钟）
+                    wait_time = (current_time - arrival_time).total_seconds() / 60
+                    if wait_time >= 0:  # 只统计有效的等待时间
+                        wait_times.append(wait_time)
+                except (ValueError, TypeError, KeyError) as e:
+                    logger.warning(f"Failed to calculate wait time for user: {e}")
+                    continue
         
         if wait_times:
             # 创建直方图数据
@@ -2894,9 +2888,13 @@ class MainWindow(QMainWindow):
     
     def onEnvironmentReady(self, environment):
         """处理仿真环境准备就绪"""
+        self.environment = environment
         # 设置用户面板的仿真环境
         if hasattr(self, 'user_control_panel') and self.user_control_panel:
             self.user_control_panel.setSimulationEnvironment(environment)
+        # 设置运营商面板的仿真环境
+        if hasattr(self, 'operator_control_panel') and self.operator_control_panel:
+            self.operator_control_panel.setSimulationEnvironment(environment)
     
     def showConfig(self):
         """显示配置对话框"""

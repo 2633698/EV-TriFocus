@@ -1613,7 +1613,7 @@ class UserControlPanel(QWidget):
                 available_chargers=1 if charger.get('status') == 'available' else 0,
                 total_chargers=1,
                 queue_length=len(charger.get('queue', [])),
-                wait_time_minutes=len(charger.get('queue', [])) * 15,
+                wait_time_minutes=self._calculate_wait_time(charger),
                 max_power=charger.get('max_power', 60),
                 current_price=round(predicted_price, 2),
                 rating=round(personalized_rating, 1),
@@ -1913,7 +1913,7 @@ class UserControlPanel(QWidget):
             'available_chargers': 1 if charger.get('status') == 'available' else 0,
             'total_chargers': 1,
             'queue_length': len(charger.get('queue', [])),
-            'wait_time_minutes': len(charger.get('queue', [])) * 15,
+            'wait_time_minutes': self._calculate_wait_time(charger),
             'current_price': charger.get('price_multiplier', 1.0) * 0.85,
             'charger_types': [charger.get('type', 'normal')],
             'interfaces': ['国标'],
@@ -2009,3 +2009,28 @@ class UserControlPanel(QWidget):
         # 转发充电决策信号到主窗口
         self.chargingDecisionMade.emit(user_id, station_id, charging_params)
         logger.info(f"已转发充电决策信号到主窗口")
+    
+    def _calculate_wait_time(self, charger):
+        """计算等待时间（分钟）"""
+        try:
+            queue = charger.get('queue', [])
+            if not queue:
+                return 0
+            
+            # 简化等待时间计算：队列长度乘以平均充电时间
+            charger_type = charger.get('type', 'normal')
+            
+            # 根据充电桩类型设定平均充电时间
+            if charger_type == 'superfast':
+                avg_charging_time = 30  # 超快充30分钟
+            elif charger_type == 'fast':
+                avg_charging_time = 45  # 快充45分钟
+            else:
+                avg_charging_time = 60  # 普通充电60分钟
+            
+            # 队列长度乘以平均充电时间
+            return len(queue) * avg_charging_time
+            
+        except Exception as e:
+            print(f"计算等待时间时出错: {e}")
+            return len(charger.get('queue', [])) * 45  # 默认45分钟

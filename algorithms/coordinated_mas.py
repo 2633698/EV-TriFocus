@@ -124,11 +124,15 @@ class CoordinatedUserSatisfactionAgent:
             travel_time = distance * 2 # Simple estimate: 2 min/km
 
             queue_length = len(charger.get("queue", []))
-            # Estimate wait time based on type and queue
-            base_wait_per_user = 10 if charger.get("type") == "fast" else 20
-            wait_time = queue_length * base_wait_per_user
-            if charger.get("status") == "occupied":
-                wait_time += base_wait_per_user / 2 # Add partial wait for current user
+            # 简化等待时间计算：队列长度乘以平均充电时间
+            if charger.get("type") == "superfast":
+                avg_charge_time = 30  # 超快充30分钟
+            elif charger.get("type") == "fast":
+                avg_charge_time = 45  # 快充45分钟
+            else:
+                avg_charge_time = 60  # 普通充电60分钟
+            
+            wait_time = queue_length * avg_charge_time
 
             # Estimate charging cost (simplified)
             charge_needed = user.get("battery_capacity", 60) * (1 - user.get("soc", 50)/100)

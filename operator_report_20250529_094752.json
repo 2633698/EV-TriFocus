@@ -1,0 +1,53 @@
+{
+  "timestamp": "2025-05-29T09:47:52.365181",
+  "summary": {
+    "total_chargers": "200",
+    "available_chargers": "88",
+    "charging_users": "112",
+    "today_revenue": "¥511,999.49"
+  },
+  "revenue_data": {
+    "total_revenue": 511999.49250347447,
+    "total_cost": 323223.122274723,
+    "total_energy": 538705.2037912051,
+    "chargers": [
+      {
+        "charger_id": "charger_1",
+        "location": "充电站1",
+        "type": "superfast",
+        "max_power": 397.4,
+        "position": {
+          "lat": 30.71570943054433,
+          "lng": 114.21517881782745
+        },
+        "status": "available",
+        "current_user": null,
+        "queue": [],
+        "queue_capacity": 5,
+        "daily_revenue": 9036.92933941335,
+        "daily_energy": 8997.028799606569,
+        "price_multiplier": 1.0,
+        "region": "Region_4",
+        "charging_start_time": null,
+        "_prev_energy": 8997.028799606569,
+        "_prev_revenue": 9036.92933941335,
+        "member_discount": 0.9
+      },
+      {
+        "charger_id": "charger_2",
+        "location": "充电站1",
+        "type": "normal",
+        "max_power": 16.5,
+        "position": {
+          "lat": 30.71872997970439,
+          "lng": 114.21326773344342
+        },
+        "status": "occupied",
+        "current_user": "user_268",
+        "queue": [],
+        "queue_capacity": 5,
+        "daily_revenue": 1065.3897094640206,
+        "daily_energy": 1255.7342507294911,
+        "price_multiplier": 1.0,
+        "region": "Region_2",
+        "charging_start_time": 
