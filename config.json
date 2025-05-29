@@ -139,5 +139,121 @@
     },
     "visualization": {
         "output_dir": "output"
+    },
+    "user_panel": {
+        "enabled": true,
+        "max_recommendations": 10,
+        "update_interval_ms": 1000,
+        "decision_timeout_minutes": 30
+    },
+    "trip_info_panel": {
+        "enabled": true,
+        "update_interval_ms": 2000,
+        "route_visualization": {
+            "show_charging_stations": true,
+            "show_traffic": true
+        },
+        "recommendations": {
+            "max_charging_stops": 5,
+            "max_route_optimizations": 3
+        }
+    },
+    "operator_panel": {
+        "enabled": true,
+        "update_interval_ms": 5000,
+        "alert_check_interval_ms": 30000,
+        "financial_analysis": {
+            "default_period_days": 7
+        },
+        "demand_forecast": {
+            "default_forecast_days": 7
+        }
+    },
+    "reservation_system": {
+        "enabled": true,
+        "max_reservation_days_ahead": 7,
+        "default_reservation_duration_minutes": 60,
+        "cancellation_policy": {
+            "free_cancellation_hours": 2,
+            "late_cancellation_fee": 10
+        }
+    },
+    "logging": {
+        "level": "INFO",
+        "debug_mode": false,
+        "log_to_file": true,
+        "log_file_path": "charging_system.log",
+        "max_log_size_mb": 10,
+        "backup_count": 5,
+        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        "modules": {
+            "reservation_system": {
+                "level": "DEBUG",
+                "file": "reservation_system.log"
+            },
+            "trip_info_debug": {
+                "level": "DEBUG",
+                "file": "trip_info_debug.log"
+            }
+        }
+    },
+    "data_storage": {
+        "database_path": "operator_data.db",
+        "backup_enabled": true,
+        "backup_interval_hours": 24,
+        "max_backup_files": 7,
+        "auto_cleanup_days": 30,
+        "connection_timeout": 30,
+        "max_connections": 10
+    },
+    "advanced_charts": {
+        "update_interval_ms": 500,
+        "max_display_rows": 100,
+        "auto_update_enabled": true,
+        "chart_themes": {
+            "default": {
+                "background_color": "white",
+                "grid_color": "lightgray",
+                "text_color": "black"
+            }
+        },
+        "performance": {
+            "enable_optimization": true,
+            "batch_update_size": 50,
+            "refresh_rate_limit_ms": 100
+        }
+    },
+    "app": {
+        "window": {
+            "title": "EV充电系统仿真平台",
+            "width": 1400,
+            "height": 900,
+            "resizable": true,
+            "center_on_screen": true
+        },
+        "theme": {
+            "style": "default",
+            "font_family": "Arial",
+            "font_size": 10
+        },
+        "performance": {
+            "enable_multithreading": true,
+            "max_worker_threads": 4,
+            "ui_update_interval_ms": 100
+        }
+    },
+    "trip_planning": {
+        "enabled": true,
+        "max_route_alternatives": 3,
+        "charging_stop_buffer_km": 5,
+        "route_optimization": {
+            "consider_traffic": true,
+            "consider_charging_time": true,
+            "consider_cost": true
+        },
+        "navigation": {
+            "update_interval_seconds": 5,
+            "recalculate_threshold_km": 1
+        }
     }
 }

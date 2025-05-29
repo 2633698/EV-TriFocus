@@ -47,6 +47,10 @@ try:
     from simulation.metrics import calculate_rewards
     from user_panel import UserControlPanel
     from operator_panel import OperatorControlPanel
+
+
+    from data_storage import operator_storage
+    
 except ImportError as e:
     print(f"警告：无法导入仿真模块: {e}")
     print("请确保simulation包在Python路径中")
@@ -1631,7 +1635,20 @@ class MainWindow(QMainWindow):
                 # 添加指标历史
                 if hasattr(self, 'metrics_history'):
                     data['metrics_history'] = self.metrics_history
-                
+                # 添加运营商数据（新增）
+                if hasattr(self, 'operator_control_panel'):
+                    # 获取最近30天的财务汇总
+                    end_date = datetime.now().strftime('%Y-%m-%d')
+                    start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+                    financial_summary = operator_storage.get_financial_summary(start_date, end_date)
+                    if not financial_summary.empty:
+                        data['operator_financial'] = financial_summary.to_dict('records')
+                    
+                    # 获取活跃告警
+                    data['active_alerts'] = operator_storage.get_active_alerts()
+
+
+
                 with open(filename, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
                 QMessageBox.information(self, "成功", "数据已导出")
@@ -2080,9 +2097,10 @@ class MainWindow(QMainWindow):
                 color: #27ae60;
             }
         """)
-# 添加创建方法：
+    # 添加创建方法：
     def _createOperatorPanelTab(self):
         """创建运营商面板选项卡"""
+        from operator_panel import OperatorControlPanel
         self.operator_control_panel = OperatorControlPanel()
         
         # 连接信号
@@ -2450,10 +2468,10 @@ class MainWindow(QMainWindow):
         """加载默认配置"""
         default_config = {
             "environment": {
-                "simulation_days": 7,
-                "user_count": 1000,
-                "station_count": 20,
-                "chargers_per_station": 10,
+                "simulation_days": 3,
+                "user_count": 100,
+                "station_count": 5,
+                "chargers_per_station": 3,
                 "time_step_minutes": 15,
                 "map_bounds": {
                     "lat_min": 30.5, "lat_max": 31.0,
@@ -2761,7 +2779,7 @@ class MainWindow(QMainWindow):
             # 更新等待时间分布
             if hasattr(self, 'wait_time_plot'):
                 self._updateWaitTimeChart(users, state)
-                        # 更新运营商面板
+            # 更新运营商面板
             if hasattr(self, 'operator_control_panel'):
                 self.operator_control_panel.updateSimulationData(state)
         except Exception as e:
