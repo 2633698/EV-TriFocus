@@ -1,10 +1,12 @@
 # EV-TriFocus: 智能电动汽车充电调度仿真平台
 
+# EV-TriFocus
+
 ## 项目概述
 
 EV-TriFocus 是一个先进的电动汽车 (EV) 充电调度仿真平台。它旨在模拟和评估在不同场景下（用户行为、电网负载、可再生能源利用率）的各种智能充电调度算法的性能。该平台提供了一个动态的环境，用于测试和比较包括基于规则、多智能体系统 (MAS) 和强化学习 (MARL) 在内的多种调度策略，目标是优化用户满意度、运营商利润和电网友好性这三个关键维度。
 
-项目提供了一个基于 Web 的用户界面，用于配置模拟参数、运行模拟、实时监控关键指标以及查看和分析历史模拟结果。此外，它还支持通过命令行界面 (CLI) 运行模拟，方便进行批量测试和集成到自动化流程中。
+项目提供了一个基于 PyQt6 的现代化桌面用户界面，包含用户面板、运营商面板和行程规划模块，支持实时仿真监控、数据可视化、预约系统和智能推荐等功能。界面设计美观，支持多区域显示和高级图表分析。
 
 ## 主要特性
 
@@ -20,15 +22,16 @@ EV-TriFocus 是一个先进的电动汽车 (EV) 充电调度仿真平台。它�
     * **协调式多智能体系统 (Coordinated MAS)**: 包含多个目标导向的智能体（用户满意度、运营商利润、电网友好性），通过协调器进行决策。
   * 易于添加新的自定义调度算法。
 * **三维目标优化**: 核心目标是平衡用户满意度、运营商利润和电网友好性。
-* **Web 用户界面**:
-  * 通过网页配置模拟参数。
-  * 启动、停止和监控模拟过程。
-  * 实时图表展示关键性能指标 (KPIs)。
-  * 查看和比较历史模拟结果。
-* **命令行界面 (CLI)**:
-  * 支持无头模式运行模拟。
-  * 通过命令行参数覆盖配置，方便批量实验。
-  * 可将模拟结果输出到 JSON 文件。
+* **PyQt6 桌面用户界面**:
+  * **用户面板**: 个人充电管理、SOC监控、行程规划、充电预约
+  * **运营商面板**: 充电站管理、收益分析、设备监控、运营报告
+  * **行程信息面板**: 智能路径规划、充电站推荐、实时导航
+  * **高级图表**: 实时数据可视化、多维度分析、历史趋势对比
+  * **预约系统**: 充电时段预约、队列管理、智能调度
+* **多区域仿真支持**:
+  * 支持8个区域的独立仿真和协调优化
+  * 区域间负载均衡和资源共享
+  * 分布式充电网络管理
 * **高度可配置**:
   * 通过 `config.json` 文件可以详细配置环境参数（用户数量、充电桩类型和数量、电网特性、行为模型等）、算法特定参数、日志记录等。
 * **详细的日志和结果输出**:
@@ -38,87 +41,58 @@ EV-TriFocus 是一个先进的电动汽车 (EV) 充电调度仿真平台。它�
 ## 项目结构
 
 ```
-Ev-trifocus/
-├── algorithms/                  # 存放不同调度算法的实现
+EV-TriFocus/
+├── algorithms/                  # 调度算法实现
 │   ├── __init__.py
-│   ├── base_scheduler.py      # 调度算法的抽象基类
-│   ├── rule_based_scheduler.py  # 基于规则的调度器
-│   ├── uncoordinated_scheduler.py # 无序充电调度器
-│   ├── marl/                    # MARL 算法包
-│   │   ├── __init__.py
-│   │   ├── agent.py             # MARL Agent 类
-│   │   ├── marl_scheduler.py    # MARL 调度器 (实现 BaseScheduler)
-│   │   ├── marl_system.py       # MARL 系统 (管理 Agents)
-│   │   └── state_action.py      # MARL 状态/动作/奖励辅助函数
-│   └── coordinated_mas/         # Coordinated MAS 算法包
-│       ├── __init__.py
-│       ├── mas_scheduler.py     # MAS 调度器 (实现 BaseScheduler)
-│       └── multi_agent_system_impl.py # MAS 系统、智能体和协调器实现
-│       # 可选: 如果 MAS 智能体过大，可以拆分到 agents/ 子目录
-│       # ├── agents/
-│       # │   ├── __init__.py
-│       # │   ├── user_agent.py
-│       # │   ├── profit_agent.py
-│       # │   └── grid_agent.py
-│       # └── coordinator.py
-├── core/                        # 存放核心业务逻辑
+│   ├── coordinated_mas.py      # 协调式多智能体系统
+│   ├── marl.py                 # 多智能体强化学习
+│   ├── rule_based.py           # 基于规则的调度
+│   └── uncoordinated.py        # 无序充电基准
+├── simulation/                  # 仿真核心模块
 │   ├── __init__.py
-│   ├── environment.py         # ChargingEnvironment 类 (重构后)
-│   ├── scheduler_manager.py   # ChargingSchedulerManager 类 (管理算法实例)
-│   ├── simulation_runner.py   # SimulationRunner 类 (管理模拟生命周期)
-│   ├── station_operations.py  # 充电站操作模拟逻辑
-│   ├── system_setup.py        # 系统初始化逻辑
-│   └── user_behavior.py       # 用户行为模拟逻辑
-│   # └── utils.py             # (可选) 核心工具函数
-├── models/                      # 存放机器学习模型文件 (包括 MARL Q-tables)
-│   └── marl/                  # (建议) MARL Q 表的子目录
-│       └── q_tables.pkl       # (示例)
-├── output/                      # 存放模拟结果 JSON 文件
-├── routes/                      # 存放 Flask API 蓝图
-│   ├── __init__.py
-│   ├── config_api.py          # 配置 API
-│   ├── data_api.py            # 数据获取 API (用户、充电桩、结果)
-│   ├── debug_api.py           # 调试 API
-│   ├── recommendation_api.py  # 用户推荐 API
-│   ├── simulation_api.py      # 模拟控制 API
-│   ├── statistics_api.py      # 统计数据 API
-│   └── ui.py                  # HTML 页面路由
-├── static/                      # 静态文件 (CSS, JS, Images) - 无需更改
-│   ├── css/
-│   │   └── style.css
-│   ├── js/
-│   │   ├── charts.js
-│   │   ├── grid-charts.js
-│   │   ├── grid.js
-│   │   ├── main.js
-│   │   ├── operator.js
-│   │   └── user.js
-│   └── templates/             # HTML 模板 - 无需更改
-│       ├── admin.html
-│       ├── grid.html
-│       ├── index.html
-│       ├── operator.html
-│       └── user.html
-├── app.py                       # Flask 应用入口 (精简后)
-├── cli.py                       # 命令行界面入口
-├── config.json                  # 配置文件 (包含更多参数)
-├── config_manager.py            # 配置加载和管理模块
-├── requirements.txt             # Python 依赖
-├── ev_model_training.py         # (保留) 深度学习模型训练脚本 (如果仍需)
-├── README.md                    # 本文件
-└── .gitignore                   # (建议添加) Git 忽略文件
+│   ├── charger_model.py        # 充电桩模型
+│   ├── environment.py          # 仿真环境
+│   ├── grid_model_enhanced.py  # 增强电网模型
+│   ├── metrics.py              # 性能指标计算
+│   ├── scheduler.py            # 调度器基类
+│   ├── user_model.py           # 用户行为模型
+│   └── utils.py                # 工具函数
+├── models/                      # 机器学习模型存储
+├── output/                      # 仿真结果输出
+│   ├── simulation_result_*.json # 仿真结果文件
+│   └── operator_report_*.json  # 运营商报告
+├── image/                       # 项目图片资源
+│   └── 作品说明书/             # 说明文档图片
+├── ev_charging_gui.py          # 主GUI应用程序
+├── user_panel.py               # 用户控制面板
+├── operator_panel.py           # 运营商控制面板
+├── trip_info_panel.py          # 行程信息面板
+├── trip_planning_module.py     # 行程规划模块
+├── reservation_system.py       # 预约系统
+├── advanced_charts.py          # 高级图表组件
+├── marl_components.py          # MARL组件
+├── data_storage.py             # 数据存储管理
+├── app_styles.py               # 应用样式定义
+├── config.json                 # 配置文件
+├── requirements.txt            # Python依赖
+├── styles.qss                  # Qt样式表
+├── CHANGELOG.md                # 版本更新日志
+├── 作品说明书.pdf              # 项目说明文档
+├── 用户面板功能指南.md         # 用户指南
+└── pyqt6_user_guide.md         # PyQt6使用指南
 ```
 
-* **`algorithms/`**: 包含所有调度算法的模块化实现。每种算法都继承自 `base_scheduler.py` 中的基类。
-* **`core/`**: 包含仿真的核心逻辑，如环境定义、模拟运行控制、用户和充电站行为模拟等。
-* **`models/`**: 用于存储训练好的机器学习模型，例如 MARL 代理的 Q 表。
-* **`output/`**: 默认的模拟结果输出目录。
-* **`routes/`**: Flask 应用的 API 路由，按功能组织在不同的蓝图文件中。
-* **`static/`**: 包含 Web 界面的所有前端资源（HTML 模板、CSS 样式表、JavaScript 文件）。
-* **`app.py`**: Flask Web 应用的主入口点，负责初始化应用和注册蓝图。
-* **`cli.py`**: 命令行界面的入口点，用于在无图形界面的情况下运行模拟。
-* **`config.json`**: JSON 格式的配置文件，用于定义模拟环境、算法参数等。
-* **`config_manager.py`**: 用于加载、合并默认配置和管理 `config.json` 的模块。
+* **`algorithms/`**: 包含所有调度算法的模块化实现，支持规则基础、MARL、协调式MAS等多种策略。
+* **`simulation/`**: 仿真核心模块，包含环境建模、用户行为、充电桩管理、电网模型等。
+* **`ev_charging_gui.py`**: 主GUI应用程序，基于PyQt6构建的现代化桌面界面。
+* **`user_panel.py`**: 用户控制面板，提供个人充电管理、SOC监控、预约功能。
+* **`operator_panel.py`**: 运营商控制面板，支持充电站管理、收益分析、设备监控。
+* **`trip_info_panel.py`**: 行程信息面板，提供路径规划、充电站推荐、导航功能。
+* **`reservation_system.py`**: 智能预约系统，支持时段预约、队列管理、冲突解决。
+* **`advanced_charts.py`**: 高级图表组件，提供实时数据可视化和多维度分析。
+* **`models/`**: 存储机器学习模型文件，包括MARL的Q表和深度学习模型。
+* **`output/`**: 仿真结果和运营报告的输出目录。
+* **`config.json`**: 系统配置文件，定义环境参数、算法设置、界面选项等。
 
 ## 安装与设置
 
@@ -153,41 +127,35 @@ Ev-trifocus/
 
 ## 运行应用
 
-### Web 用户界面
+### PyQt6 桌面应用
 
-要启动 Web 应用和用户界面，请运行：
-
-```bash
-python app.py
-```
-
-默认情况下，应用将在 `http://127.0.0.1:5000` 上可用。您可以通过浏览器访问此地址来使用 Web 界面。
-
-### 命令行界面 (CLI)
-
-要通过命令行运行模拟，请使用 `cli.py`。它支持多种参数来覆盖 `config.json` 中的设置。
-
-基本用法:
+启动主GUI应用程序：
 
 ```bash
-python cli.py
+python ev_charging_gui.py
 ```
 
-带参数的示例:
+应用程序将打开一个现代化的桌面界面，包含以下主要功能模块：
+
+- **仿真控制**: 启动/停止仿真，实时监控系统状态
+- **多区域显示**: 支持8个区域的独立管理和协调优化
+- **用户管理**: 用户行为分析、SOC监控、充电历史
+- **充电站管理**: 设备状态监控、负载均衡、故障处理
+- **数据可视化**: 实时图表、历史趋势、性能分析
+- **智能调度**: 多种算法对比、策略优化、效果评估
+
+
 
 ```bash
-python cli.py --days 3 --algorithm marl --strategy grid --output results/marl_grid_3days.json
-```
 
-可用的命令行参数:
 
-* `--days DAYS`: 模拟运行的天数。
-* `--algorithm ALGORITHM`: 要使用的调度算法 (`rule_based`, `marl`, `coordinated_mas`, `uncoordinated`)。
-* `--strategy STRATEGY`: 优化策略的名称（对应 `config.json` 中 `strategies` 部分的键，如 `balanced`, `grid`, `profit`, `user`）。这主要影响基于规则和协调式 MAS 算法的权重。
-* `--output OUTPUT_PATH`: 保存模拟结果的 JSON 文件路径。
-* `--config CONFIG_PATH`: (可选) 指定配置文件的路径 (默认为 `config.json`)。
+### 配置选项
 
-运行 `python cli.py --help` 查看所有可用选项。
+在启动前，可以通过修改 `config.json` 来自定义：
+- 仿真环境参数（用户数量、充电站配置、区域设置）
+- 调度算法参数（权重、学习率、策略选择）
+- 界面显示选项（主题、图表类型、更新频率）
+- 数据存储设置（数据库路径、日志级别、输出格式）
 
 ## 配置说明
 
@@ -200,16 +168,78 @@ python cli.py --days 3 --algorithm marl --strategy grid --output results/marl_gr
 * **策略权重 (`strategies`)**: 定义不同优化目标（用户满意度、运营商利润、电网友好性）的预设权重组合，可在 UI 或 CLI 中选择。
 * **模拟参数 (`simulation_params`)**: 如模拟速度控制相关的默认延迟。
 * **日志参数 (`logging`)**: 日志级别和日志文件名。
-* **模型训练参数 (`model_training_params`)**: 如果使用 `ev_model_training.py` 训练深度学习模型，相关参数在此定义。
+* **界面参数**: 主题设置、图表配置、更新频率等GUI相关选项。
+* **数据库参数**: SQLite数据库路径、连接池设置、数据保留策略。
 
 建议在修改配置前备份原始 `config.json` 文件。
 
-## 未来工作与贡献 (可选)
+## 技术特性
 
-* 实现更复杂的电网动态模型。
-* 集成更先进的预测模型（如负载预测、用户行为预测）。
-* 扩展 Web 界面的可视化和分析功能。
-* 添加更多样化的调度算法进行比较。
-* 完善单元测试和集成测试。
+### 界面技术
+- **PyQt6**: 现代化的跨平台GUI框架
+- **PyQtGraph**: 高性能实时数据可视化
+- **自定义样式**: QSS样式表支持主题定制
+- **响应式布局**: 支持窗口缩放和多屏显示
 
-欢迎对本项目做出贡献！请参考贡献指南 (如果提供) 或通过 Issue 进行讨论。
+### 数据处理
+- **NumPy/Pandas**: 高效的数值计算和数据分析
+- **SQLite**: 轻量级数据库存储
+- **JSON**: 配置和结果数据交换格式
+- **多线程**: 仿真计算与界面更新分离
+
+### 算法支持
+- **规则基础调度**: 可配置权重的启发式算法
+- **MARL**: 基于Q-learning的多智能体强化学习
+- **协调式MAS**: 多目标优化的智能体协调
+- **性能对比**: 多算法并行测试和效果评估
+
+## 版本历史
+
+### 最新更新 (2025-4-8)
+- 系统全面优化，充电时间和效率大幅提升
+- 充电桩类型和功率重新调整
+- 温度影响因子和充电策略优化
+- 队列管理和用户体验改进
+- 详细更新内容请查看 [CHANGELOG.md](CHANGELOG.md)
+
+## 系统要求
+
+- **操作系统**: Windows 10/11, macOS 10.14+, Linux (Ubuntu 18.04+)
+- **Python**: 3.8 或更高版本
+- **内存**: 建议 8GB 以上
+- **显卡**: 支持硬件加速的显卡（可选，用于图表渲染）
+- **存储**: 至少 2GB 可用空间
+
+## 贡献指南
+
+我们欢迎各种形式的贡献！
+
+### 如何贡献
+1. Fork 本仓库
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+### 贡献方向
+- 新的调度算法实现
+- 界面功能增强和用户体验优化
+- 性能优化和代码重构
+- 文档完善和示例添加
+- Bug 修复和测试用例
+
+### 开发规范
+- 遵循 PEP 8 代码风格
+- 添加适当的注释和文档字符串
+- 编写单元测试
+- 更新相关文档
+
+
+
+## 联系方式
+
+如有问题或建议，请通过以下方式联系：
+- 提交 Issue
+- 发起 Discussion
+- 邮件联系项目维护者
+
