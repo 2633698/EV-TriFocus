@@ -29,9 +29,18 @@
         "vehicle_types": {
             "sedan": {"battery_capacity": 60, "max_range": 400, "max_charging_power": 60},
             "suv": {"battery_capacity": 85, "max_range": 480, "max_charging_power": 90},
-            "compact": {"battery_capacity": 40, "max_range": 350, "max_charging_power": 50},
+            "compact": {"battery_capacity": 45, "max_range": 350, "max_charging_power": 50},
             "luxury": {"battery_capacity": 100, "max_range": 550, "max_charging_power": 120},
-            "truck": {"battery_capacity": 120, "max_range": 500, "max_charging_power": 150}
+            "truck": {"battery_capacity": 120, "max_range": 400, "max_charging_power": 150}
+        },
+        "user_types": {
+            "private": {"description": "个人用户", "time_sensitivity": 0.5, "price_sensitivity": 0.5, "range_anxiety": 0.3, "fast_charging_preference": 0.5},
+            "taxi": {"description": "出租车", "time_sensitivity": 0.8, "price_sensitivity": 0.3, "range_anxiety": 0.2, "fast_charging_preference": 0.8},
+            "ride_hailing": {"description": "网约车", "time_sensitivity": 0.7, "price_sensitivity": 0.4, "range_anxiety": 0.2, "fast_charging_preference": 0.7},
+            "logistics": {"description": "物流车队", "time_sensitivity": 0.6, "price_sensitivity": 0.6, "range_anxiety": 0.3, "fast_charging_preference": 0.6},
+            "commuter": {"description": "通勤用户", "time_sensitivity": 0.7, "price_sensitivity": 0.5, "range_anxiety": 0.4, "fast_charging_preference": 0.5},
+            "business": {"description": "商务用户", "time_sensitivity": 0.8, "price_sensitivity": 0.3, "range_anxiety": 0.2, "fast_charging_preference": 0.9},
+            "delivery": {"description": "配送车辆", "time_sensitivity": 0.9, "price_sensitivity": 0.4, "range_anxiety": 0.1, "fast_charging_preference": 0.8}
         },
          "charger_defaults": {
             "superfast_ratio": 0.1,

@@ -150,18 +150,53 @@ class ChargingEnvironment:
             for spot in hotspots: spot["weight"] /= total_weight
         # --- 结束热点生成 ---
 
-        vehicle_types = user_config_defaults.get("vehicle_types", {
+        # 从环境配置中获取车辆类型，如果没有则使用默认值
+        vehicle_types = self.env_config.get("vehicle_types", user_config_defaults.get("vehicle_types", {
             "sedan": {"battery_capacity": 60, "max_range": 400, "max_charging_power": 60},
             "suv": {"battery_capacity": 85, "max_range": 480, "max_charging_power": 90},
-        })
-
-        user_type_options = ["private", "taxi", "ride_hailing", "logistics"]
+            "compact": {"battery_capacity": 45, "max_range": 350, "max_charging_power": 50},
+            "luxury": {"battery_capacity": 100, "max_range": 550, "max_charging_power": 120},
+            "truck": {"battery_capacity": 120, "max_range": 400, "max_charging_power": 150},
+        }))
+        
+        # 从环境配置中获取用户类型，如果没有则使用默认值
+        user_types = self.env_config.get("user_types", {})
+        user_type_options = list(user_types.keys()) if user_types else ["private", "taxi", "ride_hailing", "logistics", "commuter", "business", "delivery"]
         user_profile_options = ["urgent", "economic", "flexible", "anxious"]
 
         for i in range(user_count):
             user_id = f"user_{i+1}"
             vehicle_type = random.choice(list(vehicle_types.keys()))
-            user_type = random.choice(user_type_options)
+            # 根据不同用户类型设置概率分布
+            user_type_weights = {
+                "private": 0.4,
+                "taxi": 0.1,
+                "ride_hailing": 0.1,
+                "logistics": 0.1,
+                "commuter": 0.15,
+                "business": 0.05,
+                "delivery": 0.1
+            }
+            
+            # 确保只使用配置中存在的用户类型
+            available_types = []
+            available_weights = []
+            for ut, weight in user_type_weights.items():
+                if ut in user_type_options:
+                    available_types.append(ut)
+                    available_weights.append(weight)
+            
+            # 如果没有可用类型，则使用所有类型并平均分配权重
+            if not available_types:
+                available_types = user_type_options
+                available_weights = [1.0/len(user_type_options)] * len(user_type_options)
+            else:
+                # 归一化权重
+                total_weight = sum(available_weights)
+                if total_weight > 0:
+                    available_weights = [w/total_weight for w in available_weights]
+            
+            user_type = random.choices(available_types, weights=available_weights, k=1)[0]
 
             # 随机SOC
             rand_soc_val = random.random(); cumulative_prob = 0; soc_range = (10, 90)
@@ -170,12 +205,23 @@ class ChargingEnvironment:
                 if rand_soc_val <= cumulative_prob: soc_range = range_val; break
             soc = random.uniform(soc_range[0], soc_range[1])
 
-            # 用户偏好 profile
-            profile_probs = [0.25] * 4 # Equal default
-            if user_type == "taxi": profile_probs = [0.5, 0.1, 0.3, 0.1]
-            elif user_type == "ride_hailing": profile_probs = [0.4, 0.2, 0.3, 0.1]
-            elif user_type == "logistics": profile_probs = [0.3, 0.4, 0.2, 0.1]
-            else: profile_probs = [0.2, 0.3, 0.3, 0.2]
+            # 用户偏好 profile - 根据用户类型设置不同的画像概率分布
+            # 画像顺序: [urgent, economic, flexible, anxious]
+            profile_probs = [0.25] * 4 # 默认平均分布
+            
+            # 根据用户类型设置不同的画像概率分布
+            profile_probs_by_type = {
+                "private": [0.2, 0.3, 0.3, 0.2],
+                "taxi": [0.5, 0.1, 0.3, 0.1],
+                "ride_hailing": [0.4, 0.2, 0.3, 0.1],
+                "logistics": [0.3, 0.4, 0.2, 0.1],
+                "commuter": [0.3, 0.2, 0.3, 0.2],
+                "business": [0.6, 0.1, 0.2, 0.1],
+                "delivery": [0.5, 0.3, 0.1, 0.1]
+            }
+            
+            # 使用用户类型对应的概率分布，如果没有则使用默认值
+            profile_probs = profile_probs_by_type.get(user_type, [0.25, 0.25, 0.25, 0.25])
             if soc < 30: profile_probs[0] += 0.2 # Increase urgent if low SOC
             total_prob = sum(profile_probs)
             if total_prob > 0: profile_probs = [p / total_prob for p in profile_probs]
@@ -224,11 +270,34 @@ class ChargingEnvironment:
                 "needs_charge_decision": False, "time_sensitivity": 0.5, "price_sensitivity": 0.5,
                 "range_anxiety": 0.0, "last_destination_type": None, "_current_segment_index": 0 # Add helper for path tracking
             }
-            # 设置敏感度
-            if user_profile == "urgent": users[user_id]["time_sensitivity"] = random.uniform(0.7, 0.9); users[user_id]["price_sensitivity"] = random.uniform(0.1, 0.3)
-            elif user_profile == "economic": users[user_id]["time_sensitivity"] = random.uniform(0.2, 0.4); users[user_id]["price_sensitivity"] = random.uniform(0.7, 0.9)
-            elif user_profile == "anxious": users[user_id]["time_sensitivity"] = random.uniform(0.5, 0.7); users[user_id]["price_sensitivity"] = random.uniform(0.3, 0.5); users[user_id]["range_anxiety"] = random.uniform(0.6, 0.9)
-            # else: flexible/default uses 0.5
+            # 设置敏感度 - 首先根据用户类型设置基础敏感度
+            user_type_config = self.env_config.get("user_types", {}).get(user_type, {})
+            base_time_sensitivity = user_type_config.get("time_sensitivity", 0.5)
+            base_price_sensitivity = user_type_config.get("price_sensitivity", 0.5)
+            base_range_anxiety = user_type_config.get("range_anxiety", 0.3)
+            base_fast_charging_preference = user_type_config.get("fast_charging_preference", 0.5)
+            
+            # 然后根据用户画像调整敏感度
+            if user_profile == "urgent": 
+                users[user_id]["time_sensitivity"] = min(1.0, base_time_sensitivity * random.uniform(1.2, 1.4))
+                users[user_id]["price_sensitivity"] = max(0.1, base_price_sensitivity * random.uniform(0.3, 0.5))
+                users[user_id]["range_anxiety"] = max(0.1, base_range_anxiety * random.uniform(0.5, 0.7))
+                users[user_id]["fast_charging_preference"] = min(1.0, base_fast_charging_preference * random.uniform(1.3, 1.5))
+            elif user_profile == "economic": 
+                users[user_id]["time_sensitivity"] = max(0.1, base_time_sensitivity * random.uniform(0.5, 0.7))
+                users[user_id]["price_sensitivity"] = min(1.0, base_price_sensitivity * random.uniform(1.2, 1.4))
+                users[user_id]["range_anxiety"] = base_range_anxiety * random.uniform(0.8, 1.2)
+                users[user_id]["fast_charging_preference"] = max(0.1, base_fast_charging_preference * random.uniform(0.4, 0.6))
+            elif user_profile == "anxious": 
+                users[user_id]["time_sensitivity"] = base_time_sensitivity * random.uniform(0.8, 1.2)
+                users[user_id]["price_sensitivity"] = max(0.1, base_price_sensitivity * random.uniform(0.6, 0.8))
+                users[user_id]["range_anxiety"] = min(1.0, base_range_anxiety * random.uniform(1.5, 2.0))
+                users[user_id]["fast_charging_preference"] = min(1.0, base_fast_charging_preference * random.uniform(1.1, 1.3))
+            else: # flexible
+                users[user_id]["time_sensitivity"] = base_time_sensitivity * random.uniform(0.9, 1.1)
+                users[user_id]["price_sensitivity"] = base_price_sensitivity * random.uniform(0.9, 1.1)
+                users[user_id]["range_anxiety"] = base_range_anxiety * random.uniform(0.9, 1.1)
+                users[user_id]["fast_charging_preference"] = base_fast_charging_preference * random.uniform(0.9, 1.1)
 
         logger.info(f"Initialized {len(users)} users.")
         return users

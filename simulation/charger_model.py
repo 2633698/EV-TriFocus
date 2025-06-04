@@ -37,24 +37,46 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                 power_limit = min(charger_max_power, vehicle_max_power)
                 base_efficiency = user.get("charging_efficiency", 0.92)
                 
+                # 根据快充偏好和手动决策优化充电效率
+                fast_charging_preference = user.get("fast_charging_preference", 0.5)
+                efficiency_boost = 0.0
+                
                 # 手动决策用户的充电功率优化
                 if is_manual_decision:
                     preferred_type = user.get("preferred_charging_type", "快充")
                     if preferred_type == "快充" and charger_type in ["fast", "superfast"]:
                         # 提高充电效率
-                        old_efficiency = base_efficiency
-                        base_efficiency = min(0.95, base_efficiency * 1.03)
+                        efficiency_boost += 0.03
                         logger.info(f"=== MANUAL DECISION CHARGING OPTIMIZATION ===")
                         logger.info(f"User {current_user_id} getting optimized charging at charger {charger_id}")
                         logger.info(f"Preferred type: {preferred_type}, Charger type: {charger_type}")
-                        logger.info(f"Efficiency optimized: {old_efficiency:.3f} -> {base_efficiency:.3f}")
                         logger.info(f"Current SOC: {current_soc:.1f}%, Target SOC: {target_soc}%")
                     else:
                         logger.info(f"=== MANUAL DECISION CHARGING STARTED ===")
                         logger.info(f"User {current_user_id} charging at charger {charger_id}")
                         logger.info(f"Preferred type: {preferred_type}, Charger type: {charger_type}")
                         logger.info(f"Current SOC: {current_soc:.1f}%, Target SOC: {target_soc}%")
-                        logger.debug(f"Manual decision user {current_user_id} getting standard charging")
+                
+                # 根据快充偏好优化充电效率
+                if charger_type in ["fast", "superfast"]:
+                    # 快充偏好高的用户在使用快充时效率更高
+                    if fast_charging_preference > 0.7:
+                        preference_boost = 0.02 * (fast_charging_preference - 0.7) / 0.3
+                        efficiency_boost += preference_boost
+                        logger.debug(f"User {current_user_id} with high fast charging preference ({fast_charging_preference:.2f}) gets +{preference_boost:.3f} efficiency boost")
+                elif charger_type == "normal" and fast_charging_preference < 0.3:
+                    # 快充偏好低的用户在使用慢充时效率更高
+                    preference_boost = 0.01 * (0.3 - fast_charging_preference) / 0.3
+                    efficiency_boost += preference_boost
+                    logger.debug(f"User {current_user_id} with low fast charging preference ({fast_charging_preference:.2f}) gets +{preference_boost:.3f} efficiency boost on normal charger")
+                
+                # 应用效率提升
+                old_efficiency = base_efficiency
+                base_efficiency = min(0.95, base_efficiency * (1 + efficiency_boost))
+                
+                if efficiency_boost > 0:
+                    logger.debug(f"Charging efficiency optimized: {old_efficiency:.3f} -> {base_efficiency:.3f} (boost: {efficiency_boost:.3f})")
+
 
                 soc_factor = 1.0
                 if current_soc < 20: soc_factor = 1.0

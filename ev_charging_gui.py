@@ -2176,42 +2176,14 @@ class MainWindow(QMainWindow):
         self.multi_metrics_chart = MultiMetricsChart()
         splitter.addWidget(self.multi_metrics_chart)
         
-        # 如果有pyqtgraph，添加等待时间分布图
-        if HAS_PYQTGRAPH:
-            self.wait_time_chart = self._createWaitTimeChart()
-            splitter.addWidget(self.wait_time_chart)
-        
         # 设置分割器比例
         splitter.setStretchFactor(0, 2)  # 给负载图表容器更多空间
         splitter.setStretchFactor(1, 1)
-        if HAS_PYQTGRAPH:
-            splitter.setStretchFactor(2, 1)
         
         layout.addWidget(splitter)
         return widget
 
-    def _createWaitTimeChart(self):
-        """创建等待时间分布图"""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        
-        # 标题
-        title = QLabel("用户等待时间分布")
-        title.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        layout.addWidget(title)
-        
-        # 图表
-        plot_widget = PlotWidget()
-        plot_widget.setBackground('w')
-        plot_widget.setLabel('left', '用户数量')
-        plot_widget.setLabel('bottom', '等待时间(分钟)')
-        plot_widget.showGrid(x=True, y=True, alpha=0.3)
-        
-        # 存储引用以便后续更新
-        self.wait_time_plot = plot_widget
-        
-        layout.addWidget(plot_widget)
-        return widget
+
 
     # 在_createMapTab方法中，添加按钮功能
 
@@ -2776,9 +2748,7 @@ class MainWindow(QMainWindow):
                 else:
                     logger.warning("No regional current state data available for heatmap update")
             
-            # 更新等待时间分布
-            if hasattr(self, 'wait_time_plot'):
-                self._updateWaitTimeChart(users, state)
+
             # 更新运营商面板
             if hasattr(self, 'operator_control_panel'):
                 self.operator_control_panel.updateSimulationData(state)
@@ -2787,53 +2757,7 @@ class MainWindow(QMainWindow):
             logger.error(traceback.format_exc())
 
 
-    def _updateWaitTimeChart(self, users, state=None):
-        """更新等待时间分布图"""
-        if not hasattr(self, 'wait_time_plot') or not HAS_PYQTGRAPH:
-            return
-        
-        # 统计等待时间分布
-        wait_times = []
-        if state:
-            current_time = state.get('current_time', datetime.now())
-        else:
-            current_time = datetime.now()
-        
-        for user in users:
-            if isinstance(user, dict) and user.get('status') == 'waiting' and 'arrival_time_at_charger' in user:
-                # 计算真实的等待时间
-                try:
-                    arrival_time = user['arrival_time_at_charger']
-                    if isinstance(arrival_time, str):
-                        arrival_time = datetime.fromisoformat(arrival_time)
-                    elif not isinstance(arrival_time, datetime):
-                        continue  # 跳过无效的时间数据
-                    
-                    # 计算等待时间（分钟）
-                    wait_time = (current_time - arrival_time).total_seconds() / 60
-                    if wait_time >= 0:  # 只统计有效的等待时间
-                        wait_times.append(wait_time)
-                except (ValueError, TypeError, KeyError) as e:
-                    logger.warning(f"Failed to calculate wait time for user: {e}")
-                    continue
-        
-        if wait_times:
-            # 创建直方图数据
-            hist, bins = np.histogram(wait_times, bins=10)
-            
-            # 清除旧数据
-            self.wait_time_plot.clear()
-            
-            # 绘制柱状图
-            bar_width = (bins[1] - bins[0]) * 0.8
-            bar_graph = pg.BarGraphItem(
-                x=bins[:-1], 
-                height=hist, 
-                width=bar_width, 
-                brush=(52, 152, 219)
-            )
-            
-            self.wait_time_plot.addItem(bar_graph)
+
     
     def onMetricsUpdated(self, metrics):
         """处理指标更新"""

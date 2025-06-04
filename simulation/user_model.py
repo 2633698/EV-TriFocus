@@ -4,6 +4,7 @@ import math
 from datetime import datetime, timedelta
 import logging
 from .utils import calculate_distance, get_random_location # 使用相对导入
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,13 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
         # 后充电状态处理
         if user_status == "post_charge":
             if user.get("post_charge_timer") is None:
-                user["post_charge_timer"] = random.randint(1, 4)
+                # 根据用户类型设置不同的停留时间
+                if user.get("user_type") == "taxi" or user.get("user_type") == "ride_hailing":
+                    user["post_charge_timer"] = random.randint(1, 2)  # 出租车和网约车停留时间短
+                elif user.get("user_type") == "logistics" or user.get("user_type") == "delivery":
+                    user["post_charge_timer"] = random.randint(1, 3)  # 物流车和配送车停留时间中等
+                else:
+                    user["post_charge_timer"] = random.randint(2, 5)  # 私家车停留时间较长
             if user["post_charge_timer"] > 0:
                 user["post_charge_timer"] -= 1
             else:
@@ -66,9 +73,11 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
                 user["manual_charging_params"] = None
                 
                 logger.debug(f"User {user_id} post-charge timer expired.")
-                new_destination = get_random_location(map_bounds)
+                
+                # 根据用户类型和时间选择目的地
+                new_destination = get_destination_by_user_type_and_time(user, current_time, map_bounds)
                 while calculate_distance(user.get("current_position", {}), new_destination) < 0.1:
-                    new_destination = get_random_location(map_bounds)
+                    new_destination = get_destination_by_user_type_and_time(user, current_time, map_bounds)
 
                 user["status"] = "traveling"
                 user["target_charger"] = None
@@ -245,6 +254,128 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
         user["current_range"] = user.get("max_range", 300) * (user["soc"] / 100)
 # --- 辅助函数 ---
 
+def get_destination_by_user_type_and_time(user, current_time, map_bounds):
+    """根据用户类型和当前时间生成合适的目的地"""
+    user_type = user.get("user_type", "private")
+    hour = current_time.hour
+    day_of_week = current_time.weekday()  # 0-6，0是周一
+    is_weekend = day_of_week >= 5  # 周六和周日
+    
+    # 定义不同区域的权重
+    weights = {
+        "residential": 0.3,  # 住宅区
+        "business": 0.2,    # 商业区
+        "industrial": 0.1,  # 工业区
+        "entertainment": 0.1,  # 娱乐区
+        "suburban": 0.1,    # 郊区
+        "random": 0.2       # 完全随机
+    }
+    
+    # 根据用户类型调整权重
+    if user_type == "private":
+        if 7 <= hour <= 9 and not is_weekend:  # 工作日早高峰
+            weights["business"] = 0.6
+            weights["residential"] = 0.1
+            weights["random"] = 0.1
+        elif 17 <= hour <= 19 and not is_weekend:  # 工作日晚高峰
+            weights["residential"] = 0.6
+            weights["business"] = 0.1
+            weights["random"] = 0.1
+        elif 22 <= hour or hour <= 5:  # 夜间
+            weights["residential"] = 0.7
+            weights["random"] = 0.1
+    elif user_type == "commuter":
+        if 7 <= hour <= 9 and not is_weekend:  # 工作日早高峰
+            weights["business"] = 0.8
+            weights["residential"] = 0.1
+            weights["random"] = 0.1
+        elif 17 <= hour <= 19 and not is_weekend:  # 工作日晚高峰
+            weights["residential"] = 0.8
+            weights["business"] = 0.1
+            weights["random"] = 0.1
+        elif 22 <= hour or hour <= 5:  # 夜间
+            weights["residential"] = 0.9
+            weights["random"] = 0.1
+    elif user_type in ["taxi", "ride_hailing"]:
+        if 7 <= hour <= 9 or 17 <= hour <= 19:  # 高峰期
+            weights["business"] = 0.4
+            weights["residential"] = 0.3
+            weights["entertainment"] = 0.2
+            weights["random"] = 0.1
+        elif 9 < hour < 17:  # 工作时间
+            weights["business"] = 0.3
+            weights["residential"] = 0.2
+            weights["random"] = 0.3
+        elif 19 < hour < 22:  # 晚间
+            weights["entertainment"] = 0.4
+            weights["residential"] = 0.3
+            weights["random"] = 0.2
+        else:  # 深夜
+            weights["residential"] = 0.4
+            weights["entertainment"] = 0.2
+            weights["random"] = 0.3
+    elif user_type in ["logistics", "delivery"]:
+        if 8 <= hour <= 18:  # 工作时间
+            weights["business"] = 0.3
+            weights["residential"] = 0.3
+            weights["industrial"] = 0.3
+            weights["random"] = 0.1
+        else:  # 非工作时间
+            weights["industrial"] = 0.5
+            weights["business"] = 0.2
+            weights["random"] = 0.3
+    elif user_type == "business":
+        if 8 <= hour <= 18 and not is_weekend:  # 工作日工作时间
+            weights["business"] = 0.7
+            weights["random"] = 0.3
+        elif is_weekend:  # 周末
+            weights["entertainment"] = 0.4
+            weights["residential"] = 0.3
+            weights["random"] = 0.3
+        else:  # 工作日非工作时间
+            weights["residential"] = 0.6
+            weights["random"] = 0.4
+    
+    # 根据权重选择区域类型
+    area_types = list(weights.keys())
+    area_weights = list(weights.values())
+    selected_area = random.choices(area_types, weights=area_weights, k=1)[0]
+    
+    # 根据区域类型生成具体坐标
+    if selected_area == "random":
+        return get_random_location(map_bounds)
+    
+    # 为不同区域定义中心点和半径
+    area_centers = {
+        "residential": {"lat": map_bounds["lat_min"] + (map_bounds["lat_max"] - map_bounds["lat_min"]) * 0.3, 
+                       "lng": map_bounds["lng_min"] + (map_bounds["lng_max"] - map_bounds["lng_min"]) * 0.3},
+        "business": {"lat": map_bounds["lat_min"] + (map_bounds["lat_max"] - map_bounds["lat_min"]) * 0.7, 
+                     "lng": map_bounds["lng_min"] + (map_bounds["lng_max"] - map_bounds["lng_min"]) * 0.7},
+        "industrial": {"lat": map_bounds["lat_min"] + (map_bounds["lat_max"] - map_bounds["lat_min"]) * 0.5, 
+                       "lng": map_bounds["lng_min"] + (map_bounds["lng_max"] - map_bounds["lng_min"]) * 0.2},
+        "entertainment": {"lat": map_bounds["lat_min"] + (map_bounds["lat_max"] - map_bounds["lat_min"]) * 0.6, 
+                          "lng": map_bounds["lng_min"] + (map_bounds["lng_max"] - map_bounds["lng_min"]) * 0.5},
+        "suburban": {"lat": map_bounds["lat_min"] + (map_bounds["lat_max"] - map_bounds["lat_min"]) * 0.2, 
+                     "lng": map_bounds["lng_min"] + (map_bounds["lng_max"] - map_bounds["lng_min"]) * 0.8}
+    }
+    
+    # 在选定区域周围生成随机位置
+    center = area_centers[selected_area]
+    radius = 0.05  # 约5公里半径
+    
+    # 生成区域内随机点
+    r = radius * math.sqrt(random.random())
+    theta = random.uniform(0, 2 * math.pi)
+    
+    lat = center["lat"] + r * math.cos(theta)
+    lng = center["lng"] + r * math.sin(theta)
+    
+    # 确保坐标在地图范围内
+    lat = min(max(lat, map_bounds["lat_min"]), map_bounds["lat_max"])
+    lng = min(max(lng, map_bounds["lng_min"]), map_bounds["lng_max"])
+    
+    return {"lat": lat, "lng": lng}
+
 def calculate_charging_probability(user, current_hour, config):
     """计算用户决定寻求充电的概率 (使用原详细逻辑)"""
     # (从原 ChargingEnvironment._calculate_charging_probability 复制逻辑)
@@ -252,6 +383,7 @@ def calculate_charging_probability(user, current_hour, config):
     user_type = user.get("user_type", "commuter")
     charging_preference = user.get("charging_preference", "flexible") # 可能没有这个字段
     profile = user.get("user_profile", "balanced") # 使用 user_profile
+    fast_charging_preference = user.get("fast_charging_preference", 0.5) # 快充偏好
 
     # 检查充电量是否太小
     estimated_charge_amount = 100 - current_soc
@@ -270,8 +402,10 @@ def calculate_charging_probability(user, current_hour, config):
     # 2. User type factor
     type_factor = 0
     if user_type == "taxi": type_factor = 0.2
-    elif user_type == "delivery": type_factor = 0.15 # Hypothetical type
-    elif user_type == "business": type_factor = 0.1 # Hypothetical type
+    elif user_type == "delivery": type_factor = 0.15
+    elif user_type == "business": type_factor = 0.1
+    elif user_type == "ride_hailing": type_factor = 0.15
+    elif user_type == "logistics": type_factor = 0.1
 
     # 3. Preference factor (simplified - time based)
     preference_factor = 0
@@ -285,18 +419,29 @@ def calculate_charging_probability(user, current_hour, config):
     # 4. Profile factor
     profile_factor = 0
     if profile == "anxious": profile_factor = 0.2
-    elif profile == "planner": # Hypothetical profile
-        if 25 <= current_soc <= 40: profile_factor = 0.15
+    elif profile == "urgent": profile_factor = 0.15
     elif profile == "economic": profile_factor = -0.1 # Discourage charging unless needed
 
-    # 5. Emergency boost
+    # 5. Fast charging preference factor
+    # 快充偏好高的用户更倾向于在SOC较高时就开始寻找充电站
+    fast_charging_factor = 0
+    if fast_charging_preference > 0.7:
+        # 高快充偏好的用户在SOC较高时就会考虑充电
+        if 40 <= current_soc <= 60:
+            fast_charging_factor = 0.1 * (fast_charging_preference - 0.7) / 0.3
+    elif fast_charging_preference < 0.3:
+        # 低快充偏好的用户会等到SOC较低时才充电
+        if current_soc > 30:
+            fast_charging_factor = -0.1 * (0.3 - fast_charging_preference) / 0.3
+
+    # 6. Emergency boost
     emergency_boost = 0
     force_charge_soc = config.get('environment',{}).get('force_charge_soc_threshold', 20.0)
     if current_soc <= force_charge_soc + 5: # Slightly above force threshold
         emergency_boost = 0.4 * (1 - (current_soc - force_charge_soc) / 5.0) if current_soc > force_charge_soc else 0.4
 
     # Combine factors
-    charging_prob = base_prob + type_factor + preference_factor + profile_factor + emergency_boost
+    charging_prob = base_prob + type_factor + preference_factor + profile_factor + fast_charging_factor + emergency_boost
     charging_prob = min(1.0, max(0.0, charging_prob)) # Clamp to [0, 1]
 
     # logger.debug(f"User {user.get('user_id')} charging prob: {charging_prob:.3f} (SOC:{current_soc:.1f})")

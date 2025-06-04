@@ -432,7 +432,10 @@ class UserInfoPanel(QGroupBox):
             'private': '个人用户',
             'taxi': '出租车',
             'ride_hailing': '网约车',
-            'logistics': '物流车队'
+            'logistics': '物流车队',
+            'commuter': '通勤用户',
+            'business': '商务用户',
+            'delivery': '配送车辆'
         }
         return type_map.get(user_type, user_type)
     
