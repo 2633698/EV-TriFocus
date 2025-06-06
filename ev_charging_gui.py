@@ -2852,6 +2852,15 @@ class MainWindow(QMainWindow):
                         logger.debug("Algorithm comparison chart updated with new metrics.")
                 else:
                     logger.warning("Comparison metrics not found in rewards data for GUI update.")
+
+                # Update Power Quality display
+                power_quality_data = rewards.get('power_quality')
+                if power_quality_data:
+                    if hasattr(self, 'power_grid_panel') and self.power_grid_panel:
+                        self.power_grid_panel.update_power_quality_display(power_quality_data)
+                        logger.debug("Power quality display updated.")
+                else:
+                    logger.warning("Power quality data not found in rewards for GUI update.")
             else:
                 logger.warning("State or config not available for calculating comparison metrics.")
 

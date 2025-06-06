@@ -582,4 +582,197 @@ def calculate_rewards(state, config):
         # - 'renewable_share': Shows % share for each. Higher is better.
         # The current `results['comparison_metrics_display']` structure aligns with this.
 
+    # --- Power Quality Metrics ---
+    # The `grid_status_dict` is already available.
+    # `coordinated_total_load_profile` is also available from algorithm comparison calculations.
+    # `state` dictionary might contain other useful info like `history` for `previous_load_profile`.
+
+    # Safely get profiles and other necessary data from the state
+    # `history` should contain previous full states if needed for `previous_load_profile`
+    history = state.get('history', [])
+    previous_total_load_profile = []
+    if history:
+        # Attempt to get the load profile from the most recent historical state
+        # This assumes 'grid_status' and 'time_series_data_snapshot' are structured similarly in historical states
+        prev_grid_time_series = history[-1].get('grid_status', {}).get('time_series_data_snapshot', {})
+        prev_regional_data = prev_grid_time_series.get('regional_data', {})
+        prev_timestamps = prev_grid_time_series.get('timestamps', [])
+        num_prev_steps = len(prev_timestamps)
+        if num_prev_steps > 0 and prev_regional_data:
+            previous_total_load_profile = [0.0] * num_prev_steps
+            for region_id, r_data in prev_regional_data.items():
+                region_load = r_data.get('total_load', [])
+                for i in range(num_prev_steps):
+                    previous_total_load_profile[i] += region_load[i] if i < len(region_load) else 0
+
+    # EV load profile - sum of EV loads if not directly available as an aggregated profile
+    # This is a simplified placeholder. A more accurate EV load profile might be needed.
+    # For now, let's assume ev_load_abs from grid_friendliness calculation is a point value,
+    # and we might not have a full ev_load_profile easily here without more data piping.
+    # Let's pass the aggregated EV load from aggregated_metrics if available.
+    current_ev_load_total = grid_status_dict.get('aggregated_metrics', {}).get('total_ev_load', 0)
+    # This is a single value, _calculate_grid_strain_metric might need a profile or adapt.
+    # For simplicity, we'll pass this single value and the function can decide how to use it.
+
+    current_scheduling_algorithm = config.get('scheduler', {}).get('scheduling_algorithm', 'uncoordinated')
+    # V2G active power - this needs to be sourced from somewhere if it's actively tracked.
+    # Assuming it's not explicitly tracked as a profile yet, default to 0.
+    v2g_active_kw_total = state.get('v2g_active_total_kw', 0) # Placeholder path
+
+    voltage_stability_metric = _calculate_voltage_stability_metric(grid_status_dict, coordinated_total_load_profile)
+    frequency_stability_metric = _calculate_frequency_stability_metric(grid_status_dict, coordinated_total_load_profile, previous_total_load_profile)
+    # For grid strain, passing the single aggregated EV load value. Function needs to handle it.
+    grid_strain_metric = _calculate_grid_strain_metric(grid_status_dict, current_ev_load_total, current_scheduling_algorithm, v2g_active_kw_total)
+
+    results['power_quality'] = {
+        'voltage_stability': voltage_stability_metric,
+        'frequency_stability': frequency_stability_metric,
+        'grid_strain': grid_strain_metric
+    }
+    logger.debug(f"Calculated Power Quality Metrics: {results['power_quality']}")
+
+    # --- Carbon Savings Calculation ---
+    # Needs: current_carbon_intensity_profile, uncoordinated_carbon_intensity_profile, load_profile_kwh
+    # current_carbon_intensity_profile can be derived from regional_data if not directly aggregated
+    # load_profile_kwh needs step duration from config.
+
+    time_step_minutes = config.get('environment', {}).get('time_step_minutes', 15)
+    step_duration_hours = time_step_minutes / 60.0
+
+    current_carbon_intensity_profile_aggregated = []
+    if num_steps > 0 and coordinated_load_profile_regional:
+        # Simple average carbon intensity across regions for each step.
+        # A load-weighted average would be more accurate if loads per region are vastly different.
+        for i in range(num_steps):
+            step_intensities = []
+            for region_id, region_data in coordinated_load_profile_regional.items():
+                carbon_intensity_list = region_data.get('carbon_intensity', [])
+                if i < len(carbon_intensity_list):
+                    step_intensities.append(carbon_intensity_list[i])
+            if step_intensities:
+                current_carbon_intensity_profile_aggregated.append(sum(step_intensities) / len(step_intensities))
+            else:
+                current_carbon_intensity_profile_aggregated.append(300) # Default if no data for a step
+    else: # Fallback if no regional data
+        current_carbon_intensity_profile_aggregated = [300] * num_steps # gCO2/kWh, placeholder
+
+    # Mock uncoordinated_carbon_intensity_profile: e.g., 20% higher than coordinated or a fixed higher value
+    uncoordinated_carbon_intensity_profile_mock = [
+        intensity * 1.2 for intensity in current_carbon_intensity_profile_aggregated
+    ]
+
+    # Calculate load_profile_kwh from coordinated_total_load_profile (which is in kW)
+    load_profile_kwh = [load_kw * step_duration_hours for load_kw in coordinated_total_load_profile]
+
+    if coordinated_total_load_profile and current_carbon_intensity_profile_aggregated and uncoordinated_carbon_intensity_profile_mock:
+        calculated_savings_kg = _calculate_carbon_savings(
+            current_carbon_intensity_profile_aggregated,
+            uncoordinated_carbon_intensity_profile_mock,
+            load_profile_kwh, # This is the load profile for the *coordinated* scenario
+            # If we want to calculate savings vs uncoordinated load having different profile:
+            # We'd also need load_profile_kwh_uncoordinated.
+            # For now, assume savings are based on applying different carbon intensities to the *same* (coordinated) load profile.
+            # This measures the impact of shifting load to times with cleaner energy.
+        )
+        results['calculated_carbon_savings_kg'] = calculated_savings_kg
+        logger.debug(f"Calculated Carbon Savings: {calculated_savings_kg:.2f} kg CO₂")
+    else:
+        results['calculated_carbon_savings_kg'] = 0.0
+        logger.warning("Insufficient data for carbon savings calculation.")
+
     return results
+
+# --- Carbon Savings Helper Function ---
+def _calculate_carbon_savings(current_carbon_intensity_profile_g_kwh: list[float],
+                             uncoordinated_carbon_intensity_profile_g_kwh: list[float],
+                             load_profile_kwh: list[float]) -> float:
+    """Calculates carbon savings in kg CO2."""
+    if not (len(current_carbon_intensity_profile_g_kwh) == len(uncoordinated_carbon_intensity_profile_g_kwh) == len(load_profile_kwh)):
+        logger.warning("Carbon intensity and load profiles have mismatched lengths. Cannot calculate savings.")
+        return 0.0
+
+    total_current_emissions_g = sum(
+        intensity * energy
+        for intensity, energy in zip(current_carbon_intensity_profile_g_kwh, load_profile_kwh)
+    )
+    total_baseline_emissions_g = sum(
+        intensity * energy
+        for intensity, energy in zip(uncoordinated_carbon_intensity_profile_g_kwh, load_profile_kwh)
+    )
+
+    savings_gCO2 = total_baseline_emissions_g - total_current_emissions_g
+    savings_kgCO2 = savings_gCO2 / 1000.0
+
+    return savings_kgCO2
+
+# --- Power Quality Helper Functions ---
+
+def _calculate_voltage_stability_metric(grid_status_dict, load_profile):
+    """Calculates a voltage stability indicator."""
+    aggregated_metrics = grid_status_dict.get('aggregated_metrics', {})
+    load_percentage = aggregated_metrics.get('overall_load_percentage', 50)
+
+    if load_percentage < 60: # Adjusted threshold
+        return {'text': '稳定', 'color': 'green'}
+    elif load_percentage < 80: # Adjusted threshold
+        return {'text': '良好', 'color': 'lightgreen'}
+    elif load_percentage < 95: # Adjusted threshold
+        return {'text': '波动风险', 'color': 'orange'}
+    else:
+        return {'text': '不稳定', 'color': 'red'}
+
+def _calculate_frequency_stability_metric(grid_status_dict, current_load_profile, previous_load_profile):
+    """Calculates a frequency stability indicator based on load changes."""
+    if not current_load_profile or not previous_load_profile:
+        logger.debug("Frequency stability: Insufficient data for ramp rate calculation. Using load percentage fallback.")
+        # Fallback to load percentage if profile data is missing
+        aggregated_metrics = grid_status_dict.get('aggregated_metrics', {})
+        load_percentage = aggregated_metrics.get('overall_load_percentage', 50)
+        if load_percentage < 75: # Adjusted threshold
+             return {'text': '稳定', 'color': 'green'}
+        else:
+             return {'text': '轻微波动', 'color': 'orange'}
+
+    # Use the last point of each profile for a simple ramp calculation
+    # This assumes profiles are time-aligned or represent consecutive states
+    if not current_load_profile or not previous_load_profile: # Ensure they are not empty
+        return {'text': '数据不足', 'color': 'grey'}
+
+    current_final_load = current_load_profile[-1]
+    previous_final_load = previous_load_profile[-1]
+    load_diff = abs(current_final_load - previous_final_load)
+
+    total_capacity = grid_status_dict.get('aggregated_metrics', {}).get('total_capacity', 0)
+    if total_capacity == 0 and current_final_load > 0 : # Estimate capacity if not available
+        total_capacity = current_final_load / (grid_status_dict.get('aggregated_metrics', {}).get('overall_load_percentage', 50) / 100.0)
+    if total_capacity == 0: # Still zero, cannot calculate meaningful ramp rate
+         logger.warning("Frequency stability: Total capacity is zero, cannot calculate ramp rate.")
+         return {'text': '稳定 (低负荷)', 'color': 'green'}
+
+
+    ramp_rate_percentage = (load_diff / total_capacity) * 100 if total_capacity > 0 else 0
+
+    if ramp_rate_percentage < 2:  # Stricter threshold: <2% capacity change between full profile steps
+        return {'text': '稳定', 'color': 'green'}
+    elif ramp_rate_percentage < 5: # 2-5% change
+        return {'text': '轻微波动', 'color': 'orange'}
+    else: # More than 5% change
+        return {'text': '较大波动', 'color': 'red'}
+
+def _calculate_grid_strain_metric(grid_status_dict, current_total_ev_load, current_strategy, v2g_active_total_kw=0):
+    """Calculates a grid strain indicator."""
+    aggregated_metrics = grid_status_dict.get('aggregated_metrics', {})
+    total_load = aggregated_metrics.get('total_load', 0)
+    # current_total_ev_load is passed directly as a single value
+
+    ev_load_ratio = (current_total_ev_load / total_load) * 100 if total_load > 0 else 0
+
+    # Referencing PowerGridPanel strategy names for V2G check
+    if current_strategy == "v2g_active" or v2g_active_total_kw > 0 :
+        return {'text': '可变(双向)', 'color': '#F39C12'} # Orange/Amber for V2G active
+    elif ev_load_ratio > 30: # Adjusted threshold: High EV penetration causing strain
+        return {'text': '升高', 'color': 'red'}
+    elif ev_load_ratio > 15: # Adjusted threshold: Moderate EV load
+        return {'text': '中等', 'color': 'orange'}
+    else: # Low EV load
+        return {'text': '正常', 'color': 'green'}
