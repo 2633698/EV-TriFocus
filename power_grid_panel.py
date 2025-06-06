@@ -305,10 +305,32 @@ class PowerGridPanel(QWidget):
 
     def _create_carbon_analysis_section(self):
         # ... (Existing code - unchanged)
-        group_box = QGroupBox("碳排放足迹");group_box.setFont(QFont("Arial",12,QFont.Weight.Bold));layout=QVBoxLayout(group_box);layout.setSpacing(10);metrics_layout=QHBoxLayout()
-        self.carbon_intensity_label=QLabel("实时碳强度: N/A gCO₂/kWh");self.carbon_intensity_label.setFont(QFont("Arial",10));metrics_layout.addWidget(self.carbon_intensity_label);metrics_layout.addStretch()
-        self.carbon_savings_label=QLabel("优化充电节省: N/A kg CO₂");self.carbon_savings_label.setFont(QFont("Arial",10));metrics_layout.addWidget(self.carbon_savings_label);metrics_layout.addStretch()
-        layout.addLayout(metrics_layout);return group_box
+        group_box = QGroupBox("碳排放足迹");group_box.setFont(QFont("Arial",12,QFont.Weight.Bold))
+        main_section_layout = QVBoxLayout(group_box) # Main layout for this section
+        main_section_layout.setSpacing(10)
+
+        # Layout for intensity and actual savings
+        actual_metrics_layout=QHBoxLayout()
+        self.carbon_intensity_label=QLabel("实时碳强度: N/A gCO₂/kWh");self.carbon_intensity_label.setFont(QFont("Arial",10));actual_metrics_layout.addWidget(self.carbon_intensity_label);actual_metrics_layout.addStretch()
+        self.carbon_savings_label=QLabel("优化充电节省: N/A kg CO₂");self.carbon_savings_label.setFont(QFont("Arial",10));actual_metrics_layout.addWidget(self.carbon_savings_label);actual_metrics_layout.addStretch()
+        main_section_layout.addLayout(actual_metrics_layout)
+
+        # Layout for estimated/hypothetical savings (related to strategy choice)
+        estimated_savings_layout = QFormLayout() # QFormLayout might be nice here
+        estimated_savings_layout.setSpacing(8)
+
+        self.smart_savings_label=QLabel("预计节省 (智能): N/A"); self.smart_savings_label.setFont(QFont("Arial",10))
+        self.v2g_savings_label=QLabel("预计节省 (V2G): N/A"); self.v2g_savings_label.setFont(QFont("Arial",10))
+
+        # Adding them to a horizontal layout first to group them, then add to form or directly
+        estimates_hbox = QHBoxLayout()
+        estimates_hbox.addWidget(self.smart_savings_label)
+        estimates_hbox.addStretch()
+        estimates_hbox.addWidget(self.v2g_savings_label)
+        estimates_hbox.addStretch()
+        main_section_layout.addLayout(estimates_hbox) # Add this hbox to the main vertical layout of the groupbox
+
+        return group_box
 
     def _create_regional_comparison_section(self):
         # ... (Existing code - unchanged)
