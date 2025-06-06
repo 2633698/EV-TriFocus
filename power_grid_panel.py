@@ -29,16 +29,16 @@ class PowerGridPanel(QWidget):
         self.main_window = main_window
         self.current_region_key = "region_0"
 
-        self.predicted_load_curve_item = None
+        # self.predicted_load_curve_item = None # Removed
         self.solar_gen_curve_item = None
         self.wind_gen_curve_item = None
         self.last_plotted_timestamp_count = 0
         self._last_grid_status_data = None
-        self.decision_impact_plot = None # Initialize plot attribute
-        self.pre_decision_load_curve = None
-        self.post_decision_load_curve = None
-        self.pre_decision_load_data = None # For Decision Impact Analysis
-        self.decision_pending = False      # Flag for Decision Impact Analysis
+        # self.decision_impact_plot = None # REMOVE
+        # self.pre_decision_load_curve = None # REMOVE
+        # self.post_decision_load_curve = None # REMOVE
+        # self.pre_decision_load_data = None # REMOVE
+        # self.decision_pending = False      # REMOVE
         self.algorithm_comparison_plot = None
         self.bar_items = {} # To store bar graph items for algorithm comparison
         self.metric_categories = ["峰值降低 (%)", "负载均衡提升 (StdDev)", "新能源占比 (%)"]
@@ -68,8 +68,8 @@ class PowerGridPanel(QWidget):
         dispatch_control_group = self._create_grid_dispatch_control_section()
         main_layout.addWidget(dispatch_control_group)
 
-        decision_impact_group = self._create_decision_impact_section() # New section
-        main_layout.addWidget(decision_impact_group)                   # Add to layout
+        # decision_impact_group = self._create_decision_impact_section() # REMOVE
+        # main_layout.addWidget(decision_impact_group)                   # REMOVE
 
         algorithm_comparison_group = self._create_algorithm_comparison_section() # New algo comparison section
         main_layout.addWidget(algorithm_comparison_group)                      # Add to layout
@@ -100,8 +100,8 @@ class PowerGridPanel(QWidget):
         if hasattr(self, 'max_ev_load_spinbox'):
             self._on_apply_max_ev_load_limit()
 
-        if HAS_PYQTGRAPH and self.decision_impact_plot: # Test call for the new chart
-            self.update_decision_impact_chart([100, 120, 110, 130, 125], [90, 100, 95, 110, 105])
+        # if HAS_PYQTGRAPH and self.decision_impact_plot: # REMOVE Test call
+        #     self.update_decision_impact_chart([100, 120, 110, 130, 125], [90, 100, 95, 110, 105]) # REMOVE
 
         if HAS_PYQTGRAPH and self.algorithm_comparison_plot: # Test call for algo comparison chart
             dummy_comp_data = {
@@ -325,20 +325,19 @@ class PowerGridPanel(QWidget):
         self.carbon_savings_label=QLabel("优化充电节省: N/A kg CO₂");self.carbon_savings_label.setFont(QFont("Arial",10));actual_metrics_layout.addWidget(self.carbon_savings_label);actual_metrics_layout.addStretch()
         main_section_layout.addLayout(actual_metrics_layout)
 
-        # Layout for estimated/hypothetical savings (related to strategy choice)
-        estimated_savings_layout = QFormLayout() # QFormLayout might be nice here
-        estimated_savings_layout.setSpacing(8)
+        # Layout for estimated/hypothetical savings (related to strategy choice) - REMOVED
+        # estimated_savings_layout = QFormLayout()
+        # estimated_savings_layout.setSpacing(8)
 
-        self.smart_savings_label=QLabel("预计节省 (智能): N/A"); self.smart_savings_label.setFont(QFont("Arial",10))
-        self.v2g_savings_label=QLabel("预计节省 (V2G): N/A"); self.v2g_savings_label.setFont(QFont("Arial",10))
+        # self.smart_savings_label=QLabel("预计节省 (智能): N/A"); self.smart_savings_label.setFont(QFont("Arial",10)) # REMOVED
+        # self.v2g_savings_label=QLabel("预计节省 (V2G): N/A"); self.v2g_savings_label.setFont(QFont("Arial",10)) # REMOVED
 
-        # Adding them to a horizontal layout first to group them, then add to form or directly
-        estimates_hbox = QHBoxLayout()
-        estimates_hbox.addWidget(self.smart_savings_label)
-        estimates_hbox.addStretch()
-        estimates_hbox.addWidget(self.v2g_savings_label)
-        estimates_hbox.addStretch()
-        main_section_layout.addLayout(estimates_hbox) # Add this hbox to the main vertical layout of the groupbox
+        # estimates_hbox = QHBoxLayout() # REMOVED
+        # estimates_hbox.addWidget(self.smart_savings_label) # REMOVED
+        # estimates_hbox.addStretch() # REMOVED
+        # estimates_hbox.addWidget(self.v2g_savings_label) # REMOVED
+        # estimates_hbox.addStretch() # REMOVED
+        # main_section_layout.addLayout(estimates_hbox) # REMOVED
 
         return group_box
 
@@ -393,19 +392,19 @@ class PowerGridPanel(QWidget):
 
     def _on_charging_priority_changed(self, priority_text):
         logger.info(f"Grid Charging Priority changed to: {priority_text}")
-        self._capture_pre_decision_load_data()
+        # self._capture_pre_decision_load_data() # REMOVE
         self.gridPreferenceChanged.emit("charging_priority", priority_text)
 
     def _on_apply_max_ev_load_limit(self):
         value = self.max_ev_load_spinbox.value()
         logger.info(f"Max EV Fleet Load limit applied: {value} MW")
-        self._capture_pre_decision_load_data()
+        # self._capture_pre_decision_load_data() # REMOVE
         self.gridPreferenceChanged.emit("max_ev_fleet_load_mw", value)
 
     def _on_activate_v2g_discharge(self):
         value = self.v2g_request_spinbox.value()
         logger.info(f"V2G Discharge requested: {value} MW")
-        self._capture_pre_decision_load_data()
+        # self._capture_pre_decision_load_data() # REMOVE
         self.v2gDischargeRequested.emit(value)
         # Optionally reset spinbox after activation or provide feedback
         # self.v2g_request_spinbox.setValue(0)
@@ -451,38 +450,17 @@ class PowerGridPanel(QWidget):
         self.grid_strain_label.setStyleSheet(f"color: {strain_info['color']}; font-weight: bold;")
         logger.info(f"Power quality display updated: V:{voltage_info['text']}, F:{frequency_info['text']}, S:{strain_info['text']}")
 
-    def _update_carbon_savings_display(self, calculated_savings_kg=None, smart_savings_estimate=None, v2g_savings_estimate=None):
-        if not hasattr(self, 'carbon_savings_label'): return
+    def _update_carbon_savings_display(self, calculated_savings_kg=None): # Removed smart_savings_estimate, v2g_savings_estimate params
+        if not hasattr(self, 'carbon_savings_label'):
+            logger.warning("carbon_savings_label not found in _update_carbon_savings_display")
+            return
 
         if calculated_savings_kg is not None:
             self.carbon_savings_label.setText(f"优化充电节省: {calculated_savings_kg:.1f} kg CO₂")
         else:
             self.carbon_savings_label.setText("优化充电节省: 计算中...")
 
-        # The smart_savings_label and v2g_savings_label can remain as they are if they are
-        # meant to be hypothetical estimates based on strategy selection, or they too could be
-        # replaced by more concrete metrics if available from the backend.
-        # For now, let's assume they show estimates as before, or could be updated if such specific metrics are calculated.
-        # If `smart_savings_estimate` and `v2g_savings_estimate` are passed, use them.
-
-        current_strategy_text = ""
-        if hasattr(self, 'strategy_combo'):
-            current_strategy_text = self.strategy_combo.currentText()
-
-        if smart_savings_estimate is not None and (not current_strategy_text or "智能充电" in current_strategy_text):
-             self.smart_savings_label.setText(f"预计节省 (智能): {smart_savings_estimate:.1f} kg CO₂")
-        elif "智能充电" in current_strategy_text: # Fallback to random if specific estimate not provided
-            self.smart_savings_label.setText(f"预计节省 (智能): {random.uniform(5,15):.1f} kg CO₂")
-        else:
-            self.smart_savings_label.setText("预计节省 (智能): N/A")
-
-        if v2g_savings_estimate is not None and (not current_strategy_text or "V2G激活" in current_strategy_text):
-            self.v2g_savings_label.setText(f"预计节省 (V2G): {v2g_savings_estimate:.1f} kg CO₂")
-        elif "V2G激活" in current_strategy_text: # Fallback to random if specific estimate not provided
-            self.v2g_savings_label.setText(f"预计节省 (V2G): {random.uniform(10,30):.1f} kg CO₂")
-        else:
-            self.v2g_savings_label.setText("预计节省 (V2G): N/A")
-
+        # Logic for self.smart_savings_label and self.v2g_savings_label REMOVED as labels are removed.
 
     def _on_region_changed(self, region_text):
         # ... (Existing code - unchanged)
@@ -543,25 +521,13 @@ class PowerGridPanel(QWidget):
         else:self.renewable_share_label.setText("可再生能源充电占比: N/A %");self.v1g_potential_label.setText("V1G 调度潜力: N/A MW");self.carbon_intensity_label.setText("实时碳强度: N/A")
 
         # Carbon savings updated via handle_status_update now, not directly here based on strategy text.
-        # self._update_carbon_savings_display() # Call will be made from handle_status_update
 
-        if total_load_series:
-            # Simple prediction: current load series slightly varied for a few future steps
-            # This will be a short-term prediction, e.g., for next 6 hours (24 steps of 15 min)
-            num_prediction_steps = min(24, len(total_load_series))
-            if num_prediction_steps > 0:
-                # Use a segment of the end of total_load_series to base the prediction on
-                base_for_prediction = total_load_series[-num_prediction_steps:]
-                simple_predictions_kw = [
-                    max(0, load_kw + random.uniform(-load_kw * 0.05, load_kw * 0.05))
-                    for load_kw in base_for_prediction
-                ]
-                simple_predictions_mw = [val / 1000.0 for val in simple_predictions_kw]
-                self.update_prediction_data(simple_predictions_mw)
-            else:
-                self.update_prediction_data([]) # Clear prediction if no base data
-        else:
-            self.update_prediction_data([]) # Clear prediction if no load series
+        # REMOVED Predicted load curve logic
+        # if total_load_series:
+        #     ...
+        #     self.update_prediction_data(simple_predictions_mw)
+        # else:
+        #     self.update_prediction_data([])
 
         self.regional_comparison_table.setRowCount(0)
         if regional_comparison_data and'regions'in regional_comparison_data and'metrics'in regional_comparison_data:
@@ -593,25 +559,21 @@ class PowerGridPanel(QWidget):
             self.predicted_load_curve_item = None
         if not prediction_values_mw:
             # If you want to hide the legend item when there's no data:
-            if hasattr(self, '_prediction_legend_item_placeholder'): # Custom attribute to manage legend item
+            if hasattr(self, '_prediction_legend_item_placeholder'):
                  self.load_curves_plot.legend.removeItem(self._prediction_legend_item_placeholder.name)
                  del self._prediction_legend_item_placeholder
-            return
+            return # Prediction curve and its update logic removed
 
-        start_x = self.last_plotted_timestamp_count # This should align with the end of the actual load data
-        prediction_x_values = list(range(start_x, start_x + len(prediction_values_mw)))
-
-        self.predicted_load_curve_item = self.load_curves_plot.plot(
-            prediction_x_values,
-            prediction_values_mw,
-            pen=pg.mkPen(color=(100,100,255,150), width=2, style=Qt.PenStyle.DashLine), # Slightly more transparent
-            name="预测负荷 (演示)" # Updated name
-        )
-        # If legend item was removed, re-add it (or manage it via a placeholder)
-        # This part is tricky with pyqtgraph's legend handling on clear/re-add.
-        # A simple way is to let it add if not present, but this might duplicate if not handled well.
-        # A placeholder item that's shown/hidden or whose label is changed can be more robust.
-        # For now, rely on pyqtgraph's default behavior or manual legend management if issues arise.
+        # start_x = self.last_plotted_timestamp_count
+        # prediction_x_values = list(range(start_x, start_x + len(prediction_values_mw)))
+        #
+        # self.predicted_load_curve_item = self.load_curves_plot.plot(
+        #     prediction_x_values,
+        #     prediction_values_mw,
+        #     pen=pg.mkPen(color=(100,100,255,150), width=2, style=Qt.PenStyle.DashLine),
+        #     name="预测负荷 (演示)"
+        # )
+    # Method update_prediction_data REMOVED
 
 
     def handle_status_update(self, status_data_signal):
@@ -666,25 +628,25 @@ class PowerGridPanel(QWidget):
             if current_time_series_data.get('timestamps'): # Check if there's actual data
                 self.update_load_data(combined_data) # This updates the main load chart and other UI elements
 
-                # Now, handle decision impact chart update
-                if self.decision_pending and self.pre_decision_load_data:
-                    timestamps = current_time_series_data.get('timestamps', [])
-                    num_timestamps = len(timestamps)
-                    if num_timestamps > 0:
-                        post_decision_load_series_kw = self._get_regional_data_series(current_time_series_data, 'total_load', num_timestamps)
-                        post_decision_load_data_mw = [val / 1000.0 for val in post_decision_load_series_kw[-48:]] # Match length (last 48 points)
-
-                        # Plot if we have both sets of data
-                        if post_decision_load_data_mw:
-                             self.update_decision_impact_chart(self.pre_decision_load_data, post_decision_load_data_mw)
-                             logger.info(f"Updated decision impact chart with pre ({len(self.pre_decision_load_data)}pts) and post ({len(post_decision_load_data_mw)}pts) data.")
-                        else:
-                            logger.warning("Post-decision load data could not be extracted for impact chart.")
-                    else:
-                        logger.warning("No timestamps in current_time_series_data for post-decision data.")
-
-                    self.decision_pending = False # Reset flag
-                    self.pre_decision_load_data = None # Clear old data
+                # Now, handle decision impact chart update - REMOVED
+                # if self.decision_pending and self.pre_decision_load_data:
+                #     timestamps = current_time_series_data.get('timestamps', [])
+                #     num_timestamps = len(timestamps)
+                #     if num_timestamps > 0:
+                #         post_decision_load_series_kw = self._get_regional_data_series(current_time_series_data, 'total_load', num_timestamps)
+                #         post_decision_load_data_mw = [val / 1000.0 for val in post_decision_load_series_kw[-48:]] # Match length (last 48 points)
+                #
+                #         # Plot if we have both sets of data
+                #         if post_decision_load_data_mw:
+                #              self.update_decision_impact_chart(self.pre_decision_load_data, post_decision_load_data_mw)
+                #              logger.info(f"Updated decision impact chart with pre ({len(self.pre_decision_load_data)}pts) and post ({len(post_decision_load_data_mw)}pts) data.")
+                #         else:
+                #             logger.warning("Post-decision load data could not be extracted for impact chart.")
+                #     else:
+                #         logger.warning("No timestamps in current_time_series_data for post-decision data.")
+                #
+                #     self.decision_pending = False # Reset flag
+                #     self.pre_decision_load_data = None # Clear old data
             else:
                 logger.warning("Failed to extract current_time_series_data from grid_simulator for handle_status_update.")
                 self.update_load_data({}) # Reset UI
@@ -710,8 +672,9 @@ if __name__ == '__main__':
     class DummySimulationWorker:__init__=lambda self:setattr(self,'environment',DummyEnvironment())
     class DummyMainWindow(QMainWindow):__init__=lambda self:(super().__init__(),setattr(self,'simulation_worker',DummySimulationWorker()))
 
-    # Method _create_decision_impact_section MOVED INTO PowerGridPanel CLASS
-    # Method update_decision_impact_chart MOVED INTO PowerGridPanel CLASS
+    # Method _create_decision_impact_section REMOVED
+    # Method update_decision_impact_chart REMOVED
+    # Method _capture_pre_decision_load_data REMOVED
 
     app=QApplication(sys.argv)
     dummy_main=DummyMainWindow()
