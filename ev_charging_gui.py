@@ -50,7 +50,8 @@ try:
 
 
     from data_storage import operator_storage
-    
+    from power_grid_panel import PowerGridPanel
+
 except ImportError as e:
     print(f"警告：无法导入仿真模块: {e}")
     print("请确保simulation包在Python路径中")
@@ -1108,6 +1109,8 @@ class SimulationWorker(QThread):
         self.environment = None
         self.scheduler = None
         self.mutex = QMutex()
+        self.grid_preferences = {}
+        self.pending_v2g_request = None
         
     def run(self):
         """运行仿真"""
@@ -1147,10 +1150,23 @@ class SimulationWorker(QThread):
                         manual_decision_logger.info(f"  用户 {user_id} -> 充电桩 {charger_id}")
                 
                 # 获取算法决策
-                decisions = self.scheduler.make_scheduling_decision(current_state, manual_decisions)
+                decisions = self.scheduler.make_scheduling_decision(
+                    current_state,
+                    manual_decisions,
+                    self.grid_preferences # Pass grid preferences
+                )
                 
-                # 执行一步仿真，传递手动决策
-                rewards, next_state, done = self.environment.step(decisions, manual_decisions)
+                # 执行一步仿真，传递手动决策和 V2G request
+                v2g_request_to_pass = self.pending_v2g_request # Read before reset
+                if v2g_request_to_pass is not None:
+                    logger.info(f"SimulationWorker: Passing V2G request of {v2g_request_to_pass} MW to environment.")
+                self.pending_v2g_request = None # Reset after fetching for this step
+
+                rewards, next_state, done = self.environment.step(
+                    decisions,
+                    manual_decisions,
+                    v2g_request_to_pass # Pass V2G request to environment
+                )
                 
                 # 记录手动决策执行结果
                 if manual_decisions:
@@ -1226,6 +1242,16 @@ class SimulationWorker(QThread):
         """停止仿真"""
         with QMutexLocker(self.mutex):
             self.running = False
+
+    def set_grid_preference(self, preference_name, value):
+        with QMutexLocker(self.mutex):
+            self.grid_preferences[preference_name] = value
+        logger.info(f"SimulationWorker: Grid preference '{preference_name}' set to '{value}'.")
+
+    def request_v2g_discharge(self, amount_mw):
+        with QMutexLocker(self.mutex):
+            self.pending_v2g_request = amount_mw
+        logger.info(f"SimulationWorker: V2G discharge of {amount_mw} MW requested.")
 
 
 class ConfigDialog(QDialog):
@@ -1968,6 +1994,16 @@ class MainWindow(QMainWindow):
         operator_panel_tab = self._createOperatorPanelTab()
         tab_widget.addTab(operator_panel_tab, "💼 运营商面板")
 
+        # 新增：电网面板选项卡
+        self.power_grid_panel = PowerGridPanel(self) # Store as attribute
+        tab_widget.addTab(self.power_grid_panel, "⚡️ Power Grid Panel")
+
+        # Connect signals from PowerGridPanel
+        if hasattr(self.power_grid_panel, 'gridPreferenceChanged'):
+            self.power_grid_panel.gridPreferenceChanged.connect(self.handle_grid_preference_changed)
+        if hasattr(self.power_grid_panel, 'v2gDischargeRequested'):
+            self.power_grid_panel.v2gDischargeRequested.connect(self.handle_v2g_discharge_requested)
+
         layout = QVBoxLayout(panel)
         layout.addWidget(tab_widget)
         
@@ -2505,6 +2541,10 @@ class MainWindow(QMainWindow):
             self.simulation_worker.errorOccurred.connect(self.onErrorOccurred)
             self.simulation_worker.simulationFinished.connect(self.onSimulationFinished)
             self.simulation_worker.environmentReady.connect(self.onEnvironmentReady)
+
+            # Connect PowerGridPanel to status updates
+            if hasattr(self, 'power_grid_panel') and self.power_grid_panel:
+                self.simulation_worker.statusUpdated.connect(self.power_grid_panel.handle_status_update)
             
             # 启动线程
             self.simulation_worker.start()
@@ -2844,6 +2884,24 @@ class MainWindow(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.config = dialog.getConfig()
             self.updateConfigUI()
+
+    def handle_grid_preference_changed(self, preference_name, value):
+        """Handles grid preference changes from the PowerGridPanel."""
+        logger.info(f"MainWindow: Grid preference changed - {preference_name}: {value}")
+        if self.simulation_worker and self.simulation_running: # Check if sim is running
+            self.simulation_worker.set_grid_preference(preference_name, value)
+        else:
+            # Optionally, store it and apply when simulation starts, or just log
+            logger.warning("Simulation not running or worker not available. Grid preference change not passed to worker yet.")
+            # Example: self.config.setdefault('initial_grid_preferences', {})[preference_name] = value
+
+    def handle_v2g_discharge_requested(self, amount_mw):
+        """Handles V2G discharge requests from the PowerGridPanel."""
+        logger.info(f"MainWindow: V2G discharge requested: {amount_mw} MW")
+        if self.simulation_worker and self.simulation_running: # Check if sim is running
+            self.simulation_worker.request_v2g_discharge(amount_mw)
+        else:
+            logger.warning("Simulation not running or worker not available. V2G request not passed to worker.")
     
     def updateConfig(self):
         """更新配置"""

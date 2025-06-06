@@ -354,8 +354,8 @@ class ChargingEnvironment:
         logger.info(f"Initialized {self.charger_count} chargers across {self.station_count} stations.")
         return chargers
 
-    def step(self, decisions, manual_decisions=None):
-        """执行一个仿真时间步，支持手动决策"""
+    def step(self, decisions, manual_decisions=None, v2g_request_mw=None):
+        """执行一个仿真时间步，支持手动决策和V2G请求"""
         if self.start_time is None:
             logger.error("Simulation start time not set! Resetting environment.")
             self.reset()
@@ -604,6 +604,15 @@ class ChargingEnvironment:
             self.chargers, self.users, self.current_time, self.time_step_minutes, current_grid_status
         )
         self.completed_charging_sessions.extend(completed_sessions_this_step)
+
+        # Apply V2G discharge request to the grid model before updating the step
+        if v2g_request_mw is not None and self.grid_simulator:
+            logger.info(f"Environment: Applying V2G discharge of {v2g_request_mw} MW to grid model.")
+            if hasattr(self.grid_simulator, 'apply_v2g_discharge'): # Check if method exists
+                self.grid_simulator.apply_v2g_discharge(v2g_request_mw)
+            else:
+                logger.warning("Grid simulator does not have method 'apply_v2g_discharge'.")
+
 
         # 更新电网状态
         self.grid_simulator.update_step(self.current_time, total_ev_load)

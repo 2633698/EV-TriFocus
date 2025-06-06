@@ -392,3 +392,76 @@ class EnhancedGridModel:
             logger.info(f"Time series data exported to {filepath}")
         except Exception as e:
             logger.error(f"Failed to export time series data: {e}")
+
+    def apply_v2g_discharge(self, amount_mw):
+        """
+        Applies V2G discharge to the grid.
+        This will reduce the 'current_ev_load' in regional and aggregated metrics.
+        """
+        if amount_mw is None or amount_mw <= 0:
+            return
+
+        logger.info(f"GridModel: Applying V2G discharge of {amount_mw:.2f} MW.")
+        ev_load_reduction_kw = amount_mw * 1000
+
+        # Reduce aggregated EV load
+        if 'aggregated_metrics' in self.grid_status and \
+           'total_ev_load' in self.grid_status['aggregated_metrics']:
+            current_total_ev_load_kw = self.grid_status['aggregated_metrics']['total_ev_load']
+            self.grid_status['aggregated_metrics']['total_ev_load'] = max(0, current_total_ev_load_kw - ev_load_reduction_kw)
+            logger.debug(f"Aggregated EV load reduced from {current_total_ev_load_kw:.2f} kW to {self.grid_status['aggregated_metrics']['total_ev_load']:.2f} kW.")
+        else:
+            logger.warning("Could not apply V2G to aggregated_metrics: 'total_ev_load' not found.")
+
+        # Distribute reduction proportionally to regional EV loads
+        # This requires knowing the EV load distribution *before* this V2G discharge for the current step.
+        # For simplicity, if we don't have pre-V2G regional EV loads, we might distribute based on capacity or equally.
+        # However, EV load is updated in `update_step` based on `simulate_chargers_step`.
+        # `apply_v2g_discharge` should ideally be called *before* `update_step` calculates the new `total_ev_load`
+        # or `update_step` needs to be aware of V2G discharge.
+        # For now, let's assume it directly reduces the most recent 'current_ev_load' for each region.
+
+        # Calculate total current EV load across regions to find proportions
+        # This sum might be different from aggregated_metrics.total_ev_load if it was already reduced.
+        # To avoid double counting reduction if this method is called multiple times in a step,
+        # this needs careful state management or should only reduce a "demand" value that then feeds into total_load.
+
+        # Simplification for now: Reduce the current_ev_load in each region.
+        # This will be reflected when get_status() is called next or if update_step re-reads these.
+        # A more robust solution would be to have a separate 'v2g_discharge_kw' field per region
+        # that `update_step` then subtracts from the calculated EV charging load.
+
+        num_regions = len(self.region_ids)
+        if num_regions == 0:
+            logger.warning("No regions to apply V2G discharge to.")
+            return
+
+        # Attempt to distribute reduction proportionally to current EV load in regions
+        # This is tricky because current_ev_load might already reflect previous V2G or charging.
+        # A simpler, though less accurate, initial approach is to distribute equally or based on capacity.
+        # Let's distribute equally for now as a placeholder.
+        reduction_per_region_kw = ev_load_reduction_kw / num_regions
+
+        for region_id in self.region_ids:
+            if region_id in self.grid_status['regional_current_state']:
+                regional_state = self.grid_status['regional_current_state'][region_id]
+                current_regional_ev_load_kw = regional_state.get('current_ev_load', 0)
+
+                new_regional_ev_load_kw = max(0, current_regional_ev_load_kw - reduction_per_region_kw)
+                actual_reduction_this_region = current_regional_ev_load_kw - new_regional_ev_load_kw
+
+                regional_state['current_ev_load'] = new_regional_ev_load_kw
+                # Total load will also need to be re-calculated or adjusted based on this.
+                # For now, assume update_step will pick up the new current_ev_load.
+                # To be more accurate, total load should be adjusted here.
+                regional_state['current_total_load'] = max(0, regional_state.get('current_total_load',0) - actual_reduction_this_region)
+
+
+                logger.debug(f"Region {region_id}: EV load reduced by {actual_reduction_this_region:.2f} kW to {new_regional_ev_load_kw:.2f} kW due to V2G.")
+            else:
+                logger.warning(f"Region {region_id} not found in regional_current_state for V2G discharge.")
+
+        # Note: This simplified V2G application directly modifies current loads.
+        # A full simulation would integrate this into the energy balance calculation within update_step.
+        # The impact on grid_load_percentage, renewable_ratio etc. will be reflected
+        # when these are recalculated based on the new total_load in the next call to _update_regional_state or get_status.

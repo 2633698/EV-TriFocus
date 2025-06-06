@@ -92,10 +92,19 @@ class ChargingScheduler:
                 self.algorithm = "rule_based"
                 logger.warning("Falling back to rule_based.")
 
-    def make_scheduling_decision(self, state, manual_decisions=None):
-        """根据配置的算法进行调度决策，支持手动决策优先"""
+    def make_scheduling_decision(self, state, manual_decisions=None, grid_preferences=None):
+        """根据配置的算法进行调度决策，支持手动决策优先和电网偏好"""
         decisions = {}
         logger.debug(f"Making decision using algorithm: {self.algorithm}")
+
+        if grid_preferences is None:
+            grid_preferences = {}
+
+        logger.info(f"Scheduler received grid_preferences: {grid_preferences}")
+        priority = grid_preferences.get("charging_priority", "Balanced")
+        max_ev_load = grid_preferences.get("max_ev_fleet_load_mw", float('inf'))
+        logger.info(f"Extracted charging_priority: {priority}, max_ev_fleet_load_mw: {max_ev_load}")
+        # Actual use of these preferences will be in the specific algorithm logic
 
         if not state or not isinstance(state, dict):
             logger.error("Scheduler received invalid state")
