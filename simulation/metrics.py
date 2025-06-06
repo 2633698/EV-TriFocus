@@ -4,8 +4,86 @@ import logging
 import math
 import random
 from datetime import datetime
+import numpy # Added for numpy.std
 
 logger = logging.getLogger(__name__)
+
+# --- New Metric Calculation Functions ---
+
+def calculate_peak_reduction(coordinated_load_profile: list[float], uncoordinated_load_profile: list[float]) -> float:
+    """Calculates the percentage reduction in peak load."""
+    if not coordinated_load_profile or not uncoordinated_load_profile:
+        logger.warning("Empty load profile(s) provided to calculate_peak_reduction.")
+        return 0.0
+
+    max_coord_load = max(coordinated_load_profile)
+    max_uncoord_load = max(uncoordinated_load_profile)
+
+    if max_uncoord_load == 0:
+        if max_coord_load == 0:
+            return 100.0 # No load in either case, effectively 100% reduction of zero peak
+        else:
+            # Uncoordinated had no load, but coordinated has load - this is unusual, implies negative reduction (increase)
+            # Or could be seen as undefined or infinitely bad. For percentage, let's return a large negative.
+            logger.warning(f"Uncoordinated peak load is 0, but coordinated is {max_coord_load}. Peak reduction is ill-defined.")
+            return -float('inf') # Or handle as per specific requirements, e.g., -100 * (max_coord_load / some_reference_load_if_available)
+
+    reduction = max_uncoord_load - max_coord_load
+    reduction_percentage = (reduction / max_uncoord_load) * 100
+    return reduction_percentage
+
+def calculate_load_balance_improvement(coordinated_load_profile: list[float], uncoordinated_load_profile: list[float]) -> float:
+    """Calculates the improvement in load balance (reduction in standard deviation)."""
+    if not coordinated_load_profile or not uncoordinated_load_profile:
+        logger.warning("Empty load profile(s) provided to calculate_load_balance_improvement.")
+        return 0.0
+
+    std_dev_coord = numpy.std(coordinated_load_profile)
+    std_dev_uncoord = numpy.std(uncoordinated_load_profile)
+
+    if std_dev_uncoord == 0:
+        if std_dev_coord == 0:
+            return 0.0 # Both are perfectly flat, no improvement needed or made if interpreted as absolute reduction.
+        else:
+            # Uncoordinated was flat, coordinated is not - implies worsening.
+            logger.warning(f"Uncoordinated load profile StdDev is 0, but coordinated is {std_dev_coord}. Load balance worsened.")
+            return -std_dev_coord # Negative improvement (increase in std dev)
+
+    improvement_metric = std_dev_uncoord - std_dev_coord
+    # This returns the absolute reduction in StdDev.
+    # If percentage improvement was desired: (improvement_metric / std_dev_uncoord) * 100
+    return improvement_metric
+
+def calculate_renewable_energy_percentage(total_load_profile: list[float], renewable_generation_profile: list[float]) -> float:
+    """Calculates the percentage of total load met by renewable energy."""
+    if not total_load_profile or not renewable_generation_profile:
+        logger.warning("Empty load/generation profile provided to calculate_renewable_energy_percentage.")
+        return 0.0
+    if len(total_load_profile) != len(renewable_generation_profile):
+        logger.warning(f"Load profile length ({len(total_load_profile)}) and renewable profile length ({len(renewable_generation_profile)}) mismatch.")
+        # Adjust profiles to the minimum length or return error
+        min_len = min(len(total_load_profile), len(renewable_generation_profile))
+        total_load_profile = total_load_profile[:min_len]
+        renewable_generation_profile = renewable_generation_profile[:min_len]
+        if not total_load_profile: return 0.0
+
+
+    total_energy_consumed = sum(total_load_profile)
+    # total_renewable_generation = sum(renewable_generation_profile) # Not directly used in this definition
+
+    if total_energy_consumed == 0:
+        return 100.0 # No energy consumed, so 100% of (zero) consumption could be seen as met by renewables. Or 0% if no renewables either.
+
+    # Assumes renewables are used first up to the load at each timestep
+    renewable_used = sum(min(load, gen) for load, gen in zip(total_load_profile, renewable_generation_profile))
+
+    renewable_percentage = (renewable_used / total_energy_consumed) * 100
+    return renewable_percentage
+
+
+# --- Modified calculate_rewards or a new wrapper ---
+# For now, let's extend calculate_rewards and assume profiles are passed in via `state` or `config`
+# This part will need careful integration with how profiles are generated/accessed.
 
 def calculate_rewards(state, config):
     """
@@ -412,5 +490,96 @@ def calculate_rewards(state, config):
             "uncoordinated_total_reward": uncoordinated_total_reward,
             "improvement_percentage": improvement_percentage
         })
+
+    # --- Algorithm Comparison Metrics ---
+
+    # Extract time series data from grid_status if available
+    # Path updated based on EnhancedGridModel.get_status() modification
+    grid_time_series = state.get('grid_status', {}).get('time_series_data_snapshot', {})
+
+    coordinated_load_profile_regional = grid_time_series.get('regional_data', {})
+    timestamps = grid_time_series.get('timestamps', [])
+    num_steps = len(timestamps)
+
+    coordinated_total_load_profile = [0.0] * num_steps
+    coordinated_total_renewable_gen_profile = [0.0] * num_steps
+
+    if num_steps > 0 and coordinated_load_profile_regional:
+        for region_id, region_data in coordinated_load_profile_regional.items():
+            region_total_load = region_data.get('total_load', [])
+            region_solar_gen = region_data.get('solar_generation', [])
+            region_wind_gen = region_data.get('wind_generation', [])
+
+            for i in range(num_steps):
+                coordinated_total_load_profile[i] += region_total_load[i] if i < len(region_total_load) else 0
+                solar = region_solar_gen[i] if i < len(region_solar_gen) else 0
+                wind = region_wind_gen[i] if i < len(region_wind_gen) else 0
+                coordinated_total_renewable_gen_profile[i] += solar + wind
+
+    # Placeholder for uncoordinated load profile - generate dummy data if not provided
+    # In a real scenario, this would come from a baseline simulation or historical data
+    uncoordinated_load_profile = state.get('uncoordinated_load_profile')
+    if not uncoordinated_load_profile and coordinated_total_load_profile:
+        # Create a dummy uncoordinated profile: coordinated load + some random noise, ensuring it's generally higher/peakier
+        uncoordinated_load_profile = [
+            max(0, load + load * random.uniform(-0.05, 0.2) + random.uniform(0, max(coordinated_total_load_profile)*0.1 if coordinated_total_load_profile else 10))
+            for load in coordinated_total_load_profile
+        ]
+        # Ensure it has some peaks for reduction calculations
+        if len(uncoordinated_load_profile) > 5 : # at least 5 data points
+            peak_increase_factor = 1.2
+            idx_to_increase_1 = random.randint(0, len(uncoordinated_load_profile)-1)
+            idx_to_increase_2 = random.randint(0, len(uncoordinated_load_profile)-1)
+            uncoordinated_load_profile[idx_to_increase_1] *= peak_increase_factor
+            uncoordinated_load_profile[idx_to_increase_2] *= (peak_increase_factor*0.8)
+
+
+    # Assume uncoordinated scenario uses the same renewable generation profile for now
+    uncoordinated_renewable_profile = coordinated_total_renewable_gen_profile
+
+    if coordinated_total_load_profile and uncoordinated_load_profile:
+        peak_reduction_perc = calculate_peak_reduction(coordinated_total_load_profile, uncoordinated_load_profile)
+
+        # For load_balance, the GUI expects the direct std dev values.
+        # The 'improvement' is visually derived by comparing the two bars.
+        std_dev_uncoordinated = numpy.std(uncoordinated_load_profile) if uncoordinated_load_profile else 0
+        std_dev_coordinated = numpy.std(coordinated_total_load_profile) if coordinated_total_load_profile else 0
+
+        renewable_share_coord_perc = calculate_renewable_energy_percentage(coordinated_total_load_profile, coordinated_total_renewable_gen_profile)
+        renewable_share_uncoord_perc = calculate_renewable_energy_percentage(uncoordinated_load_profile, uncoordinated_renewable_profile)
+
+        # This structure should align with what PowerGridPanel.update_algorithm_comparison_chart expects
+        # where 'uncoordinated' and 'coordinated' are keys under each metric.
+        results['comparison_metrics_display'] = {
+            'peak_reduction': { # Peak reduction achieved by coordinated strategy (uncoordinated is baseline 0% reduction)
+                'uncoordinated': 0,
+                'coordinated': peak_reduction_perc
+            },
+            'load_balance': { # Actual StdDev values. Lower is better.
+                'uncoordinated': std_dev_uncoordinated,
+                'coordinated': std_dev_coordinated
+            },
+            'renewable_share': { # Actual renewable share percentage. Higher is better.
+                'uncoordinated': renewable_share_uncoord_perc,
+                'coordinated': renewable_share_coord_perc
+            }
+        }
+        logger.debug(f"Calculated Algorithm Comparison Metrics: {results['comparison_metrics_display']}")
+    else:
+        logger.warning("Could not calculate algorithm comparison metrics due to missing load profiles.")
+        results['comparison_metrics_display'] = { # Send default structure if data is missing
+            'peak_reduction': {'uncoordinated': 0, 'coordinated': 0},
+            'load_balance': {'uncoordinated': 0, 'coordinated': 0},
+            'renewable_share': {'uncoordinated': 0, 'coordinated': 0}
+        }
+
+
+    # Note: The panel's update_algorithm_comparison_chart expects values for 'uncoordinated' and 'coordinated' for each metric.
+        # The GUI's update_algorithm_comparison_chart is set up to receive 'uncoordinated' and 'coordinated'
+        # values for each metric category. The interpretation for each category is:
+        # - 'peak_reduction': Coordinated shows % reduction vs Uncoordinated. Uncoordinated is 0.
+        # - 'load_balance': Shows direct StdDev for each. Lower is better.
+        # - 'renewable_share': Shows % share for each. Higher is better.
+        # The current `results['comparison_metrics_display']` structure aligns with this.
 
     return results

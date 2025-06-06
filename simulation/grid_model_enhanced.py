@@ -13,6 +13,7 @@ class EnhancedGridModel:
         self.environment_config = config.get('environment', {})
         self.grid_status = {}
         self.region_ids = []
+        self.region_geometries = {} # To store loaded geometries
         
         # 新增：时间-区域历史数据存储
         self.time_series_data = {
@@ -33,14 +34,37 @@ class EnhancedGridModel:
         # 新增：区域间连接关系
         self.regional_connections = {}
         
+        self._load_region_geometries() # Load geometries during initialization
         self.reset()
+
+    def _load_region_geometries(self):
+        """Loads region geometry data from the grid configuration."""
+        self.region_geometries = self.grid_config.get("region_geometries", {})
+        if not self.region_geometries:
+            logger.warning("No region geometries found in grid configuration.")
+        else:
+            logger.info(f"Loaded geometries for regions: {list(self.region_geometries.keys())}")
 
     def reset(self):
         """重置电网状态到初始值，支持区域化配置"""
         logger.info("Resetting Enhanced GridModel for regional setup...")
 
         # 确定区域ID
-        base_load_regional_data = self.grid_config.get("base_load", {})
+        # If region_ids are defined by geometries, prioritize those.
+        if self.region_geometries and isinstance(self.region_geometries, dict) and self.region_geometries.keys():
+             # Ensure consistency if both base_load and geometries define regions
+            geom_region_ids = list(self.region_geometries.keys())
+            base_load_regional_data = self.grid_config.get("base_load", {})
+            if isinstance(base_load_regional_data, dict) and base_load_regional_data.keys():
+                base_load_region_ids = list(base_load_regional_data.keys())
+                if set(geom_region_ids) != set(base_load_region_ids):
+                    logger.warning(f"Region IDs from geometries {geom_region_ids} and base_load {base_load_region_ids} differ. Using geometry IDs.")
+                self.region_ids = geom_region_ids
+            else:
+                self.region_ids = geom_region_ids
+            logger.info(f"Region IDs derived from 'grid.region_geometries' keys: {self.region_ids}")
+        else:
+            base_load_regional_data = self.grid_config.get("base_load", {})
         if isinstance(base_load_regional_data, dict) and base_load_regional_data.keys():
             self.region_ids = list(base_load_regional_data.keys())
             logger.info(f"Region IDs derived from 'grid.base_load' keys: {self.region_ids}")
@@ -380,7 +404,17 @@ class EnhancedGridModel:
         # 添加区域对比
         status['regional_comparison'] = self.get_regional_comparison()
         
+        # 添加时间序列数据快照，供 metrics 使用
+        status['time_series_data_snapshot'] = self.get_time_series_data() # Calling with no args gets all data
+
+        # 添加区域地理信息
+        status['region_geometries'] = self.get_region_geometries()
+
         return status
+
+    def get_region_geometries(self):
+        """Returns the loaded region geometry data."""
+        return self.region_geometries
 
     def export_time_series_data(self, filepath):
         """导出时间序列数据到文件"""

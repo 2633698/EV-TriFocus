@@ -512,6 +512,7 @@ class MapWidget(QWidget):
         self.show_user_paths = True
         self.show_charger_queues = True
         self.show_grid_overlay = False
+        self.grid_regions = None # To store region geometry data
         
         self.setMinimumSize(800, 600)
         self.setMouseTracking(True)
@@ -525,10 +526,11 @@ class MapWidget(QWidget):
         # 创建右键菜单
         self.createContextMenu()
     
-    def updateData(self, users, chargers):
+    def updateData(self, users, chargers, grid_regions=None):
         """更新地图数据"""
         self.users = users or []
         self.chargers = chargers or []
+        self.grid_regions = grid_regions # Store region data
         self.update()  # 触发重绘
     
     def createContextMenu(self):
@@ -564,7 +566,7 @@ class MapWidget(QWidget):
     
     def toggleGridOverlay(self):
         self.show_grid_overlay = self.show_grid_action.isChecked()
-        self.update()
+        self.update() # Ensure map repaints when toggling overlay
     
     def contextMenuEvent(self, event):
         """显示右键菜单"""
@@ -583,7 +585,7 @@ class MapWidget(QWidget):
         self._drawBackground(painter)
         
         # 绘制电网分区（如果启用）
-        if self.show_grid_overlay:
+        if self.show_grid_overlay and self.grid_regions:
             self._drawGridRegions(painter)
         
         # 绘制用户路径（如果启用）
@@ -766,23 +768,54 @@ class MapWidget(QWidget):
     
     def _drawGridRegions(self, painter):
         """绘制电网分区"""
-        # 假设有3个区域
-        regions = [
-            {'name': 'Region_1', 'color': QColor(255, 0, 0, 50), 'bounds': (0, 0, 0.33, 1)},
-            {'name': 'Region_2', 'color': QColor(0, 255, 0, 50), 'bounds': (0.33, 0, 0.67, 1)},
-            {'name': 'Region_3', 'color': QColor(0, 0, 255, 50), 'bounds': (0.67, 0, 1, 1)}
-        ]
-        
-        for region in regions:
-            x1, y1, x2, y2 = region['bounds']
-            x1 = x1 * self.width() / self.zoom_level
-            y1 = y1 * self.height() / self.zoom_level
-            x2 = x2 * self.width() / self.zoom_level
-            y2 = y2 * self.height() / self.zoom_level
+        if not self.grid_regions:
+            return
+
+        for region_id, region_info in self.grid_regions.items():
+            polygon_geo = region_info.get("polygon")
+            color_rgba = region_info.get("color", [128, 128, 128, 30]) # Default gray, semi-transparent
+            region_name = region_info.get("name", region_id)
+
+            if not polygon_geo or not isinstance(polygon_geo, list) or len(polygon_geo) < 3:
+                logger.warning(f"Region {region_id} has invalid polygon data: {polygon_geo}")
+                continue
+
+            pixel_points = []
+            for geo_point in polygon_geo:
+                if isinstance(geo_point, list) and len(geo_point) == 2:
+                    # Assuming geo_point is [lng, lat]
+                    px, py = self._geoToPixel({'lng': geo_point[0], 'lat': geo_point[1]})
+                    pixel_points.append(QPointF(px, py))
+                else:
+                    logger.warning(f"Invalid point in polygon for region {region_id}: {geo_point}")
+                    pixel_points.clear() # Invalidate polygon if a point is bad
+                    break
             
-            painter.fillRect(int(x1), int(y1), int(x2-x1), int(y2-y1), region['color'])
-            painter.setPen(QPen(Qt.GlobalColor.black, 1))
-            painter.drawText(int(x1+10), int(y1+20), region['name'])
+            if not pixel_points:
+                continue
+
+            q_polygon_f = QPolygonF(pixel_points)
+
+            try:
+                brush_color = QColor(color_rgba[0], color_rgba[1], color_rgba[2], color_rgba[3])
+            except (IndexError, TypeError):
+                logger.warning(f"Invalid color format for region {region_id}: {color_rgba}. Using default.")
+                brush_color = QColor(128, 128, 128, 30)
+
+            painter.setBrush(QBrush(brush_color))
+            painter.setPen(QPen(QColor(color_rgba[0],color_rgba[1],color_rgba[2],150), 1)) # Darker border for the region color
+            painter.drawPolygon(q_polygon_f)
+
+            # Draw region name (optional, simple centroid calculation)
+            if region_name:
+                centroid_x = sum(p.x() for p in pixel_points) / len(pixel_points)
+                centroid_y = sum(p.y() for p in pixel_points) / len(pixel_points)
+                painter.setPen(QColor(0,0,0, 180)) # Semi-transparent black for text
+                painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+                # Adjust text position slightly if needed
+                metrics = QFontMetrics(painter.font())
+                text_width = metrics.horizontalAdvance(region_name)
+                painter.drawText(int(centroid_x - text_width / 2), int(centroid_y), region_name)
     
     def _drawUserDetails(self, painter, user):
         """绘制用户详细信息"""
@@ -2723,7 +2756,8 @@ class MainWindow(QMainWindow):
             # 更新地图
             users = state.get('users', [])
             chargers = state.get('chargers', [])
-            self.map_widget.updateData(users, chargers)
+            region_geometries_data = state.get('grid_status', {}).get('region_geometries', {})
+            self.map_widget.updateData(users, chargers, grid_regions=region_geometries_data)
             
             # 更新数据表
             if hasattr(self, 'data_table_widget'):
@@ -2792,6 +2826,35 @@ class MainWindow(QMainWindow):
             # 更新运营商面板
             if hasattr(self, 'operator_control_panel'):
                 self.operator_control_panel.updateSimulationData(state)
+
+            # --- Update Algorithm Comparison Chart ---
+            # The 'state' here already contains grid_status with time_series_data_snapshot
+            # due to how SimulationWorker and ChargingEnvironment are structured.
+            # calculate_rewards will use this internally.
+            if state and self.config: # Ensure state and config are available
+                # Note: calculate_rewards might be computationally intensive.
+                # If GUI becomes sluggish, consider moving this to SimulationWorker
+                # or a separate QThread that emits a signal with comparison_metrics.
+                # For now, direct call for simplicity.
+
+                # The 'rewards' dict from status_data is the primary output of calculate_rewards.
+                # If comparison_metrics_display is now part of this 'rewards' dict, use it directly.
+                # Otherwise, if calculate_rewards needs to be called again with more complete state:
+                # all_metrics_and_comparisons = calculate_rewards(state, self.config)
+
+                # Assuming `status_data.get('rewards', {})` already contains `comparison_metrics_display`
+                # as it's calculated within the same `calculate_rewards` call in `metrics.py`.
+                comparison_data_for_gui = rewards.get('comparison_metrics_display')
+
+                if comparison_data_for_gui:
+                    if hasattr(self, 'power_grid_panel') and self.power_grid_panel:
+                        self.power_grid_panel.update_algorithm_comparison_chart(comparison_data_for_gui)
+                        logger.debug("Algorithm comparison chart updated with new metrics.")
+                else:
+                    logger.warning("Comparison metrics not found in rewards data for GUI update.")
+            else:
+                logger.warning("State or config not available for calculating comparison metrics.")
+
         except Exception as e:
             logger.error(f"状态更新错误: {e}")
             logger.error(traceback.format_exc())

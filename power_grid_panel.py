@@ -5,7 +5,7 @@ from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
     QTableWidgetItem, QHeaderView, QComboBox, QGroupBox, QGridLayout,
-    QFormLayout, QPushButton, QDoubleSpinBox # Added missing imports
+    QFormLayout, QPushButton, QDoubleSpinBox, QScrollArea # Added missing imports
 )
 from PyQt6.QtGui import QFont, QColor
 from PyQt6.QtCore import Qt, pyqtSignal # Added pyqtSignal
@@ -34,8 +34,17 @@ class PowerGridPanel(QWidget):
         self.wind_gen_curve_item = None
         self.last_plotted_timestamp_count = 0
         self._last_grid_status_data = None
+        self.decision_impact_plot = None # Initialize plot attribute
+        self.pre_decision_load_curve = None
+        self.post_decision_load_curve = None
+        self.algorithm_comparison_plot = None
+        self.bar_items = {} # To store bar graph items for algorithm comparison
+        self.metric_categories = ["峰值降低 (%)", "负载均衡提升 (StdDev)", "新能源占比 (%)"]
 
-        main_layout = QVBoxLayout(self)
+
+        # Create a content widget and a layout for it
+        scroll_content_widget = QWidget()
+        main_layout = QVBoxLayout(scroll_content_widget) # This layout will hold all group boxes
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(15)
 
@@ -57,6 +66,26 @@ class PowerGridPanel(QWidget):
         dispatch_control_group = self._create_grid_dispatch_control_section()
         main_layout.addWidget(dispatch_control_group)
 
+        decision_impact_group = self._create_decision_impact_section() # New section
+        main_layout.addWidget(decision_impact_group)                   # Add to layout
+
+        algorithm_comparison_group = self._create_algorithm_comparison_section() # New algo comparison section
+        main_layout.addWidget(algorithm_comparison_group)                      # Add to layout
+
+        main_layout.addStretch() # Add stretch to the content layout
+
+        # Create scroll area and set the content widget
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(scroll_content_widget)
+
+        # Set up the main layout for the PowerGridPanel itself
+        panel_main_layout = QVBoxLayout(self)
+        panel_main_layout.setContentsMargins(0,0,0,0) # Optional: remove margins if scroll area handles padding
+        panel_main_layout.addWidget(scroll_area)
+        self.setLayout(panel_main_layout)
+
+
         # Initialize UI elements that depend on other UI elements
         if hasattr(self, 'strategy_combo'):
              self._on_strategy_changed(self.strategy_combo.currentText())
@@ -69,72 +98,200 @@ class PowerGridPanel(QWidget):
         if hasattr(self, 'max_ev_load_spinbox'):
             self._on_apply_max_ev_load_limit()
 
+        if HAS_PYQTGRAPH and self.decision_impact_plot: # Test call for the new chart
+            self.update_decision_impact_chart([100, 120, 110, 130, 125], [90, 100, 95, 110, 105])
 
-        main_layout.addStretch()
-        self.setLayout(main_layout)
+        if HAS_PYQTGRAPH and self.algorithm_comparison_plot: # Test call for algo comparison chart
+            dummy_comp_data = {
+                'peak_reduction': {'uncoordinated': 15, 'coordinated': 25},
+                'load_balance': {'uncoordinated': 0.8, 'coordinated': 0.4}, # Lower is better for std dev
+                'renewable_share': {'uncoordinated': 20, 'coordinated': 35}
+            }
+            self.update_algorithm_comparison_chart(dummy_comp_data)
+
+
+        # self.setLayout(main_layout) # This is now panel_main_layout
+
+    # Method for creating the decision impact section
+    def _create_decision_impact_section(self):
+        group_box = QGroupBox("决策影响分析")
+        group_box.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        layout = QVBoxLayout(group_box)
+
+        if HAS_PYQTGRAPH:
+            self.decision_impact_plot = PlotWidget()
+            self.decision_impact_plot.setBackground('w')
+            self.decision_impact_plot.setLabel('left', '负荷 (MW)', color='#333', **{'font-size': '10pt'})
+            self.decision_impact_plot.setLabel('bottom', '时间', color='#333', **{'font-size': '10pt'}) # Using '时间' (Time) for x-axis
+            self.decision_impact_plot.showGrid(x=True, y=True, alpha=0.3)
+            self.decision_impact_plot.addLegend(offset=(-10,10))
+
+            # Define plot curves
+            self.pre_decision_load_curve = self.decision_impact_plot.plot(
+                pen=pg.mkPen(color=(255, 100, 100), style=Qt.PenStyle.DashLine, width=2),
+                name="决策前负荷"
+            )
+            self.post_decision_load_curve = self.decision_impact_plot.plot(
+                pen=pg.mkPen(color=(100, 255, 100), width=2),
+                name="决策后负荷"
+            )
+            layout.addWidget(self.decision_impact_plot)
+        else:
+            error_label = QLabel("图表功能需要 PyQtGraph 库。")
+            error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            error_label.setStyleSheet("color:red; font-weight:bold; padding:20px;")
+            layout.addWidget(error_label)
+
+        return group_box
+
+    # Placeholder method to update the decision impact chart
+    def update_decision_impact_chart(self, pre_decision_data, post_decision_data):
+        if HAS_PYQTGRAPH and self.pre_decision_load_curve and self.post_decision_load_curve:
+            # Ensure data is in a format pg can use (e.g. list of numbers)
+            pre_data_points = [float(d) for d in pre_decision_data if isinstance(d, (int, float))]
+            post_data_points = [float(d) for d in post_decision_data if isinstance(d, (int, float))]
+
+            self.pre_decision_load_curve.setData(list(range(len(pre_data_points))), pre_data_points)
+            self.post_decision_load_curve.setData(list(range(len(post_data_points))), post_data_points)
+
+            # Potentially adjust x-axis ticks if number of points changes significantly
+            # For now, simple range is used. If timestamps are available, use them.
+            if pre_data_points or post_data_points:
+                 self.decision_impact_plot.getAxis('bottom').setTicks([]) # Clear old ticks if any specific ones were set
+        else:
+            logger.debug("PyQtGraph not available or curves not initialized. Skipping chart update.")
+
+    def _create_algorithm_comparison_section(self):
+        group_box = QGroupBox("调度算法对比")
+        group_box.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        layout = QVBoxLayout(group_box)
+
+        if HAS_PYQTGRAPH:
+            self.algorithm_comparison_plot = PlotWidget()
+            self.algorithm_comparison_plot.setBackground('w')
+            self.algorithm_comparison_plot.setLabel('left', '指标值', color='#333', **{'font-size': '10pt'})
+            self.algorithm_comparison_plot.setLabel('bottom', '对比维度', color='#333', **{'font-size': '10pt'})
+            self.algorithm_comparison_plot.showGrid(x=True, y=True, alpha=0.3)
+            # self.algorithm_comparison_plot.addLegend() # Legend will be implicit via BarGraphItem names
+
+            # Bar items will be created/updated in the update method
+            # Set X-axis ticks
+            ticks = [(i, name) for i, name in enumerate(self.metric_categories)]
+            self.algorithm_comparison_plot.getAxis('bottom').setTicks([ticks])
+
+            layout.addWidget(self.algorithm_comparison_plot)
+        else:
+            error_label = QLabel("图表功能需要 PyQtGraph 库。")
+            error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            error_label.setStyleSheet("color:red; font-weight:bold; padding:20px;")
+            layout.addWidget(error_label)
+
+        return group_box
+
+    def update_algorithm_comparison_chart(self, comparison_data):
+        if not HAS_PYQTGRAPH or not self.algorithm_comparison_plot:
+            logger.debug("PyQtGraph not available or algo comparison plot not initialized.")
+            return
+
+        # Clear previous bar items if any, to prevent overplotting on updates
+        for item_name in list(self.bar_items.keys()): # Iterate over a copy of keys
+            self.algorithm_comparison_plot.removeItem(self.bar_items[item_name])
+            del self.bar_items[item_name]
+
+        bar_width = 0.3
+        num_metrics = len(self.metric_categories)
+        x_positions = list(range(num_metrics))
+
+        algorithms = ['uncoordinated', 'coordinated']
+        algo_labels = {'uncoordinated': '无序充电', 'coordinated': '集中调度'}
+        colors = {'uncoordinated': (255, 100, 100, 150), 'coordinated': (100, 255, 100, 150)} # Red-ish, Green-ish
+
+        for i, algo_key in enumerate(algorithms):
+            heights = []
+            current_x_positions = [x + (i - 0.5) * bar_width for x in x_positions] # Shift for side-by-side
+
+            # Ensure data keys match self.metric_categories or map them
+            # For this example, let's assume comparison_data keys are 'peak_reduction', 'load_balance', 'renewable_share'
+            data_keys_ordered = ['peak_reduction', 'load_balance', 'renewable_share']
+            for metric_key_internal in data_keys_ordered:
+                heights.append(comparison_data.get(metric_key_internal, {}).get(algo_key, 0))
+
+            bar_name = f"{algo_labels[algo_key]}" # Legend name from BarGraphItem
+
+            bar_item = pg.BarGraphItem(x=current_x_positions, height=heights, width=bar_width,
+                                       brush=pg.mkBrush(color=colors[algo_key]), name=bar_name)
+            self.algorithm_comparison_plot.addItem(bar_item)
+            self.bar_items[f"{algo_key}"] = bar_item # Store to manage later if needed (e.g. for selective updates)
+
+        # Explicitly add legend after items are added if it wasn't showing up
+        # Check if a legend already exists, remove it to add a fresh one
+        if self.algorithm_comparison_plot.plotItem.legend:
+            self.algorithm_comparison_plot.plotItem.legend.scene().removeItem(self.algorithm_comparison_plot.plotItem.legend)
+        self.algorithm_comparison_plot.addLegend(offset=(-10,10))
+
 
     def _create_load_monitoring_section(self):
         # ... (Existing code - unchanged)
-        group_box = QGroupBox("Power Grid Load Monitoring");group_box.setFont(QFont("Arial", 12, QFont.Weight.Bold));group_layout = QVBoxLayout(group_box)
-        controls_layout = QHBoxLayout();controls_layout.addWidget(QLabel("Select Region:"));self.region_combo = QComboBox()
-        self.region_combo.addItems(["region_0", "region_1", "All Regions (Aggregated)"]);self.region_combo.currentTextChanged.connect(self._on_region_changed)
+        group_box = QGroupBox("电网负荷监控");group_box.setFont(QFont("Arial", 12, QFont.Weight.Bold));group_layout = QVBoxLayout(group_box)
+        controls_layout = QHBoxLayout();controls_layout.addWidget(QLabel("选择区域:"));self.region_combo = QComboBox()
+        self.region_combo.addItems(["region_0", "region_1", "All Regions (Aggregated)"]);self.region_combo.currentTextChanged.connect(self._on_region_changed) # Note: Region names are IDs, not translated
         controls_layout.addWidget(self.region_combo);controls_layout.addStretch();group_layout.addLayout(controls_layout);self.load_table = QTableWidget()
-        self.load_table.setColumnCount(4);self.load_table.setHorizontalHeaderLabels(["Time", "Total Load (MW)", "Base Load (MW)", "EV Load (MW)"])
+        self.load_table.setColumnCount(4);self.load_table.setHorizontalHeaderLabels(["时间", "总负荷 (MW)", "基础负荷 (MW)", "电动汽车负荷 (MW)"])
         self.load_table.setAlternatingRowColors(True);self.load_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.load_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);self.load_table.verticalHeader().setVisible(False)
         group_layout.addWidget(self.load_table)
         if HAS_PYQTGRAPH:
             self.load_curves_plot = PlotWidget();self.load_curves_plot.setBackground('w')
-            self.load_curves_plot.setLabel('left', 'Load / Generation (MW)', color='#333', **{'font-size': '10pt'})
-            self.load_curves_plot.setLabel('bottom', 'Time Step', color='#333', **{'font-size': '10pt'})
+            self.load_curves_plot.setLabel('left', '负荷 / 发电 (MW)', color='#333', **{'font-size': '10pt'})
+            self.load_curves_plot.setLabel('bottom', '时间步', color='#333', **{'font-size': '10pt'})
             self.load_curves_plot.showGrid(x=True, y=True, alpha=0.3);self.load_curves_plot.addLegend(offset=(-10,10))
-            self.total_load_curve = self.load_curves_plot.plot(pen=pg.mkPen(color=(0,0,255),width=2), name="Total Load")
-            self.base_load_curve = self.load_curves_plot.plot(pen=pg.mkPen(color=(0,128,0),width=2), name="Base Load")
-            self.ev_load_curve = self.load_curves_plot.plot(pen=pg.mkPen(color=(255,0,0),width=2), name="EV Load")
-            self.solar_gen_curve_item = self.load_curves_plot.plot(pen=pg.mkPen(color=(255,165,0),width=2), name="Solar Gen.")
-            self.wind_gen_curve_item = self.load_curves_plot.plot(pen=pg.mkPen(color=(135,206,235),width=2), name="Wind Gen.")
+            self.total_load_curve = self.load_curves_plot.plot(pen=pg.mkPen(color=(0,0,255),width=2), name="总负荷")
+            self.base_load_curve = self.load_curves_plot.plot(pen=pg.mkPen(color=(0,128,0),width=2), name="基础负荷")
+            self.ev_load_curve = self.load_curves_plot.plot(pen=pg.mkPen(color=(255,0,0),width=2), name="电动汽车负荷")
+            self.solar_gen_curve_item = self.load_curves_plot.plot(pen=pg.mkPen(color=(255,165,0),width=2), name="太阳能发电")
+            self.wind_gen_curve_item = self.load_curves_plot.plot(pen=pg.mkPen(color=(135,206,235),width=2), name="风能发电")
             group_layout.addWidget(self.load_curves_plot)
-        else: group_layout.addWidget(QLabel("PyQtGraph library is required for charts.", alignment=Qt.AlignmentFlag.AlignCenter, styleSheet="color:red;font-weight:bold;padding:20px;"))
+        else: group_layout.addWidget(QLabel("图表功能需要 PyQtGraph 库。", alignment=Qt.AlignmentFlag.AlignCenter, styleSheet="color:red;font-weight:bold;padding:20px;"))
         return group_box
 
 
     def _create_renewable_analysis_section(self):
         # ... (Existing code - unchanged)
-        group_box = QGroupBox("Renewable Energy Coordination");group_box.setFont(QFont("Arial",12,QFont.Weight.Bold));layout=QVBoxLayout(group_box);layout.setSpacing(10);metrics_layout=QHBoxLayout()
-        self.renewable_share_label=QLabel("Renewable Charging Share: N/A %");self.renewable_share_label.setFont(QFont("Arial",10));metrics_layout.addWidget(self.renewable_share_label);metrics_layout.addStretch()
-        self.v1g_potential_label=QLabel("V1G Dispatch Potential: N/A MW");self.v1g_potential_label.setFont(QFont("Arial",10));metrics_layout.addWidget(self.v1g_potential_label);metrics_layout.addStretch()
+        group_box = QGroupBox("新能源协调");group_box.setFont(QFont("Arial",12,QFont.Weight.Bold));layout=QVBoxLayout(group_box);layout.setSpacing(10);metrics_layout=QHBoxLayout()
+        self.renewable_share_label=QLabel("可再生能源充电占比: N/A %");self.renewable_share_label.setFont(QFont("Arial",10));metrics_layout.addWidget(self.renewable_share_label);metrics_layout.addStretch()
+        self.v1g_potential_label=QLabel("V1G 调度潜力: N/A MW");self.v1g_potential_label.setFont(QFont("Arial",10));metrics_layout.addWidget(self.v1g_potential_label);metrics_layout.addStretch()
         layout.addLayout(metrics_layout);return group_box
 
     def _create_power_quality_section(self):
         # ... (Existing code - unchanged)
-        group_box = QGroupBox("Power Quality & Stability");group_box.setFont(QFont("Arial",12,QFont.Weight.Bold));main_v_layout=QVBoxLayout(group_box);main_v_layout.setSpacing(10);strategy_h_layout=QHBoxLayout()
-        strategy_h_layout.addWidget(QLabel("Charging Strategy:"));self.strategy_combo=QComboBox();self.strategy_combo.addItems(["Uncoordinated Charging","Smart Charging (V1G)","V2G Active"])
+        group_box = QGroupBox("电能质量与稳定性");group_box.setFont(QFont("Arial",12,QFont.Weight.Bold));main_v_layout=QVBoxLayout(group_box);main_v_layout.setSpacing(10);strategy_h_layout=QHBoxLayout()
+        strategy_h_layout.addWidget(QLabel("充电策略:"));self.strategy_combo=QComboBox();self.strategy_combo.addItems(["无序充电","智能充电 (V1G)","V2G激活"])
         self.strategy_combo.currentTextChanged.connect(self._on_strategy_changed);strategy_h_layout.addWidget(self.strategy_combo);strategy_h_layout.addStretch();main_v_layout.addLayout(strategy_h_layout)
         indicators_layout=QGridLayout();indicators_layout.setSpacing(10)
-        indicators_layout.addWidget(QLabel("Voltage Stability:"),0,0);self.voltage_stability_label=QLabel("N/A");self.voltage_stability_label.setFont(QFont("Arial",10,QFont.Weight.Bold));indicators_layout.addWidget(self.voltage_stability_label,0,1)
-        indicators_layout.addWidget(QLabel("Frequency Stability:"),1,0);self.frequency_stability_label=QLabel("N/A");self.frequency_stability_label.setFont(QFont("Arial",10,QFont.Weight.Bold));indicators_layout.addWidget(self.frequency_stability_label,1,1)
-        indicators_layout.addWidget(QLabel("Grid Strain:"),2,0);self.grid_strain_label=QLabel("N/A");self.grid_strain_label.setFont(QFont("Arial",10,QFont.Weight.Bold));indicators_layout.addWidget(self.grid_strain_label,2,1)
+        indicators_layout.addWidget(QLabel("电压稳定性:"),0,0);self.voltage_stability_label=QLabel("N/A");self.voltage_stability_label.setFont(QFont("Arial",10,QFont.Weight.Bold));indicators_layout.addWidget(self.voltage_stability_label,0,1)
+        indicators_layout.addWidget(QLabel("频率稳定性:"),1,0);self.frequency_stability_label=QLabel("N/A");self.frequency_stability_label.setFont(QFont("Arial",10,QFont.Weight.Bold));indicators_layout.addWidget(self.frequency_stability_label,1,1)
+        indicators_layout.addWidget(QLabel("电网应变:"),2,0);self.grid_strain_label=QLabel("N/A");self.grid_strain_label.setFont(QFont("Arial",10,QFont.Weight.Bold));indicators_layout.addWidget(self.grid_strain_label,2,1)
         indicators_layout.setColumnStretch(2,1);main_v_layout.addLayout(indicators_layout);return group_box
 
     def _create_carbon_analysis_section(self):
         # ... (Existing code - unchanged)
-        group_box = QGroupBox("Carbon Emission Footprint");group_box.setFont(QFont("Arial",12,QFont.Weight.Bold));layout=QVBoxLayout(group_box);layout.setSpacing(10);metrics_layout=QHBoxLayout()
-        self.carbon_intensity_label=QLabel("Real-time Carbon Intensity: N/A gCO₂/kWh");self.carbon_intensity_label.setFont(QFont("Arial",10));metrics_layout.addWidget(self.carbon_intensity_label);metrics_layout.addStretch()
-        self.carbon_savings_label=QLabel("Optimized Charging Savings: N/A kg CO₂");self.carbon_savings_label.setFont(QFont("Arial",10));metrics_layout.addWidget(self.carbon_savings_label);metrics_layout.addStretch()
+        group_box = QGroupBox("碳排放足迹");group_box.setFont(QFont("Arial",12,QFont.Weight.Bold));layout=QVBoxLayout(group_box);layout.setSpacing(10);metrics_layout=QHBoxLayout()
+        self.carbon_intensity_label=QLabel("实时碳强度: N/A gCO₂/kWh");self.carbon_intensity_label.setFont(QFont("Arial",10));metrics_layout.addWidget(self.carbon_intensity_label);metrics_layout.addStretch()
+        self.carbon_savings_label=QLabel("优化充电节省: N/A kg CO₂");self.carbon_savings_label.setFont(QFont("Arial",10));metrics_layout.addWidget(self.carbon_savings_label);metrics_layout.addStretch()
         layout.addLayout(metrics_layout);return group_box
 
     def _create_regional_comparison_section(self):
         # ... (Existing code - unchanged)
-        group_box = QGroupBox("Regional Comparison & Planning Support");group_box.setFont(QFont("Arial",12,QFont.Weight.Bold));layout=QVBoxLayout(group_box);layout.setSpacing(10)
-        layout.addWidget(QLabel("Regional Metrics Comparison:"));self.regional_comparison_table=QTableWidget();self.regional_comparison_table.setColumnCount(5)
-        self.regional_comparison_table.setHorizontalHeaderLabels(["Region","Total Load (MW)","Load Share (%)","Renewable Share (%)","Carbon Intensity (gCO₂/kWh)"])
+        group_box = QGroupBox("区域对比与规划支持");group_box.setFont(QFont("Arial",12,QFont.Weight.Bold));layout=QVBoxLayout(group_box);layout.setSpacing(10)
+        layout.addWidget(QLabel("区域指标对比:"));self.regional_comparison_table=QTableWidget();self.regional_comparison_table.setColumnCount(5)
+        self.regional_comparison_table.setHorizontalHeaderLabels(["区域","总负荷 (MW)","负荷占比 (%)","可再生能源占比 (%)","碳强度 (gCO₂/kWh)"]) # "Region" is "区域"
         self.regional_comparison_table.setAlternatingRowColors(True);self.regional_comparison_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.regional_comparison_table.horizontalHeader().setStretchLastSection(True);self.regional_comparison_table.verticalHeader().setVisible(False);self.regional_comparison_table.setFixedHeight(150)
-        layout.addWidget(self.regional_comparison_table);layout.addWidget(QLabel("Planning Support Insights:"))
-        self.peak_load_insight_label=QLabel("Highest Peak Load (Current Sim): N/A");self.peak_load_insight_label.setFont(QFont("Arial",10));layout.addWidget(self.peak_load_insight_label);return group_box
+        layout.addWidget(self.regional_comparison_table);layout.addWidget(QLabel("规划支持洞察:"))
+        self.peak_load_insight_label=QLabel("最高峰值负荷 (当前仿真): N/A");self.peak_load_insight_label.setFont(QFont("Arial",10));layout.addWidget(self.peak_load_insight_label);return group_box
 
     def _create_grid_dispatch_control_section(self):
-        group_box = QGroupBox("Grid Dispatch Control")
+        group_box = QGroupBox("电网调度控制")
         group_box.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         form_layout = QFormLayout(group_box)
         form_layout.setSpacing(10)
@@ -142,9 +299,9 @@ class PowerGridPanel(QWidget):
 
         # Charging Priority
         self.charging_priority_combo = QComboBox()
-        self.charging_priority_combo.addItems(["Balanced", "Prioritize Renewables", "Minimize Cost", "Peak Shaving"])
+        self.charging_priority_combo.addItems(["均衡", "优先可再生能源", "成本最小化", "削峰"])
         self.charging_priority_combo.currentTextChanged.connect(self._on_charging_priority_changed)
-        form_layout.addRow(QLabel("Grid Charging Priority:"), self.charging_priority_combo)
+        form_layout.addRow(QLabel("电网充电优先级:"), self.charging_priority_combo)
 
         # Max EV Charging Impact Limit
         max_ev_load_layout = QHBoxLayout()
@@ -153,10 +310,10 @@ class PowerGridPanel(QWidget):
         self.max_ev_load_spinbox.setValue(500)    # Default
         self.max_ev_load_spinbox.setSuffix(" MW")
         max_ev_load_layout.addWidget(self.max_ev_load_spinbox)
-        apply_limit_btn = QPushButton("Apply Limit")
+        apply_limit_btn = QPushButton("应用限制")
         apply_limit_btn.clicked.connect(self._on_apply_max_ev_load_limit)
         max_ev_load_layout.addWidget(apply_limit_btn)
-        form_layout.addRow(QLabel("Max EV Fleet Load:"), max_ev_load_layout)
+        form_layout.addRow(QLabel("最大电动汽车集群负荷:"), max_ev_load_layout)
 
         # V2G Dispatch Request
         v2g_request_layout = QHBoxLayout()
@@ -165,10 +322,10 @@ class PowerGridPanel(QWidget):
         self.v2g_request_spinbox.setValue(0)
         self.v2g_request_spinbox.setSuffix(" MW")
         v2g_request_layout.addWidget(self.v2g_request_spinbox)
-        activate_v2g_btn = QPushButton("Activate V2G")
+        activate_v2g_btn = QPushButton("激活V2G")
         activate_v2g_btn.clicked.connect(self._on_activate_v2g_discharge)
         v2g_request_layout.addWidget(activate_v2g_btn)
-        form_layout.addRow(QLabel("Request V2G Discharge:"), v2g_request_layout)
+        form_layout.addRow(QLabel("请求V2G放电:"), v2g_request_layout)
 
         return group_box
 
@@ -190,7 +347,7 @@ class PowerGridPanel(QWidget):
 
     def _on_strategy_changed(self, strategy_text):
         # ... (Existing code - unchanged)
-        logger.debug(f"Strategy changed to: {strategy_text}");strategy_styles={"Uncoordinated Charging":{"voltage":("Risk of Fluctuation","orange"),"frequency":("Slight Fluctuation","orange"),"strain":("Elevated","red")},"Smart Charging (V1G)":{"voltage":("Stable","green"),"frequency":("Stable","green"),"strain":("Normal","green")},"V2G Active":{"voltage":("Dynamic (Managed)","#5DADE2"),"frequency":("Dynamic (Managed)","#5DADE2"),"strain":("Variable (Bidirectional)","#F39C12")}};default_style={"voltage":("N/A","black"),"frequency":("N/A","black"),"strain":("N/A","black")};current_styles=strategy_styles.get(strategy_text,default_style)
+        logger.debug(f"Strategy changed to: {strategy_text}");strategy_styles={"无序充电":{"voltage":("波动风险","orange"),"frequency":("轻微波动","orange"),"strain":("升高","red")},"智能充电 (V1G)":{"voltage":("稳定","green"),"frequency":("稳定","green"),"strain":("正常","green")},"V2G激活":{"voltage":("动态(管理中)","#5DADE2"),"frequency":("动态(管理中)","#5DADE2"),"strain":("可变(双向)","#F39C12")}};default_style={"voltage":("N/A","black"),"frequency":("N/A","black"),"strain":("N/A","black")};current_styles=strategy_styles.get(strategy_text,default_style)
         self.voltage_stability_label.setText(current_styles["voltage"][0]);self.voltage_stability_label.setStyleSheet(f"color: {current_styles['voltage'][1]}; font-weight: bold;")
         self.frequency_stability_label.setText(current_styles["frequency"][0]);self.frequency_stability_label.setStyleSheet(f"color: {current_styles['frequency'][1]}; font-weight: bold;")
         self.grid_strain_label.setText(current_styles["strain"][0]);self.grid_strain_label.setStyleSheet(f"color: {current_styles['strain'][1]}; font-weight: bold;")
@@ -200,9 +357,9 @@ class PowerGridPanel(QWidget):
         # ... (Existing code - unchanged)
         if not hasattr(self,'strategy_combo')or not hasattr(self,'carbon_savings_label'):return
         strategy=self.strategy_combo.currentText()
-        if strategy=="Smart Charging (V1G)":savings=random.uniform(5,15);self.carbon_savings_label.setText(f"Est. Savings (Smart): {savings:.1f} kg CO₂")
-        elif strategy=="V2G Active":savings=random.uniform(10,30);self.carbon_savings_label.setText(f"Est. Savings (V2G): {savings:.1f} kg CO₂")
-        else:self.carbon_savings_label.setText("Optimized Charging Savings: N/A")
+        if strategy=="智能充电 (V1G)":savings=random.uniform(5,15);self.carbon_savings_label.setText(f"预计节省 (智能): {savings:.1f} kg CO₂")
+        elif strategy=="V2G激活":savings=random.uniform(10,30);self.carbon_savings_label.setText(f"预计节省 (V2G): {savings:.1f} kg CO₂")
+        else:self.carbon_savings_label.setText("优化充电节省: N/A")
 
     def _on_region_changed(self, region_text):
         # ... (Existing code - unchanged)
@@ -234,7 +391,7 @@ class PowerGridPanel(QWidget):
             if self.predicted_load_curve_item:self.load_curves_plot.removeItem(self.predicted_load_curve_item);self.predicted_load_curve_item=None
             if self.solar_gen_curve_item:self.solar_gen_curve_item.clear()
             if self.wind_gen_curve_item:self.wind_gen_curve_item.clear()
-            self.last_plotted_timestamp_count=0;self.renewable_share_label.setText("Renewable Charging Share: N/A %");self.v1g_potential_label.setText("V1G Dispatch Potential: N/A MW");self.carbon_intensity_label.setText("Real-time Carbon Intensity: N/A gCO₂/kWh");self.regional_comparison_table.setRowCount(0);self.peak_load_insight_label.setText("Highest Peak Load (Current Sim): N/A")
+            self.last_plotted_timestamp_count=0;self.renewable_share_label.setText("可再生能源充电占比: N/A %");self.v1g_potential_label.setText("V1G 调度潜力: N/A MW");self.carbon_intensity_label.setText("实时碳强度: N/A gCO₂/kWh");self.regional_comparison_table.setRowCount(0);self.peak_load_insight_label.setText("最高峰值负荷 (当前仿真): N/A")
         if not time_series_data or'timestamps'not in time_series_data or'regional_data'not in time_series_data:reset_ui_to_na();return
         timestamps=time_series_data.get('timestamps',[]);num_timestamps=len(timestamps)
         if num_timestamps==0:reset_ui_to_na();return
@@ -255,12 +412,12 @@ class PowerGridPanel(QWidget):
                 except Exception as e:logger.error(f"Error setting X-axis ticks: {e}")
         if num_timestamps>0:
             ev_load_latest_kw=ev_load_series[-1];total_load_latest_kw=total_load_series[-1];solar_latest_kw=solar_gen_series[-1];wind_latest_kw=wind_gen_series[-1];renewable_gen_latest_kw=solar_latest_kw+wind_latest_kw
-            if ev_load_latest_kw>1e-3:share=(min(ev_load_latest_kw,renewable_gen_latest_kw)/ev_load_latest_kw)*100;self.renewable_share_label.setText(f"Renewable Charging Share: {share:.1f} %")
-            else:self.renewable_share_label.setText("Renewable Charging Share: N/A %")
-            non_ev_load_latest_kw=total_load_latest_kw-ev_load_latest_kw;surplus_renewable_kw=renewable_gen_latest_kw-non_ev_load_latest_kw;v1g_potential_mw=max(0,surplus_renewable_kw)/1000;self.v1g_potential_label.setText(f"V1G Dispatch Potential: {v1g_potential_mw:.2f} MW")
-            if self.current_region_key=="aggregated":current_ci=aggregated_metrics.get('weighted_carbon_intensity',"N/A");self.carbon_intensity_label.setText(f"Avg. Carbon Intensity: {current_ci:.2f} gCO₂/kWh"if isinstance(current_ci,(float,int))else"Avg. Carbon Intensity: N/A")
-            else:current_ci=carbon_intensity_series[-1]if carbon_intensity_series else"N/A";self.carbon_intensity_label.setText(f"Carbon Intensity: {current_ci:.2f} gCO₂/kWh"if isinstance(current_ci,(float,int))else"Carbon Intensity: N/A")
-        else:self.renewable_share_label.setText("Renewable Charging Share: N/A %");self.v1g_potential_label.setText("V1G Dispatch Potential: N/A MW");self.carbon_intensity_label.setText("Real-time Carbon Intensity: N/A")
+            if ev_load_latest_kw>1e-3:share=(min(ev_load_latest_kw,renewable_gen_latest_kw)/ev_load_latest_kw)*100;self.renewable_share_label.setText(f"可再生能源充电占比: {share:.1f} %")
+            else:self.renewable_share_label.setText("可再生能源充电占比: N/A %")
+            non_ev_load_latest_kw=total_load_latest_kw-ev_load_latest_kw;surplus_renewable_kw=renewable_gen_latest_kw-non_ev_load_latest_kw;v1g_potential_mw=max(0,surplus_renewable_kw)/1000;self.v1g_potential_label.setText(f"V1G 调度潜力: {v1g_potential_mw:.2f} MW")
+            if self.current_region_key=="aggregated":current_ci=aggregated_metrics.get('weighted_carbon_intensity',"N/A");self.carbon_intensity_label.setText(f"平均碳强度: {current_ci:.2f} gCO₂/kWh"if isinstance(current_ci,(float,int))else"平均碳强度: N/A") # "Avg. Carbon Intensity"
+            else:current_ci=carbon_intensity_series[-1]if carbon_intensity_series else"N/A";self.carbon_intensity_label.setText(f"碳强度: {current_ci:.2f} gCO₂/kWh"if isinstance(current_ci,(float,int))else"碳强度: N/A") # "Carbon Intensity"
+        else:self.renewable_share_label.setText("可再生能源充电占比: N/A %");self.v1g_potential_label.setText("V1G 调度潜力: N/A MW");self.carbon_intensity_label.setText("实时碳强度: N/A")
         self._update_carbon_savings_display()
         if total_load_series:last_total_load_mw=total_load_series[-1]/1000;dummy_predictions=[max(0,last_total_load_mw+random.uniform(-last_total_load_mw*0.1,last_total_load_mw*0.1))for _ in range(24)];self.update_prediction_data(dummy_predictions)
         self.regional_comparison_table.setRowCount(0)
@@ -281,9 +438,9 @@ class PowerGridPanel(QWidget):
                     if peak_idx<len(all_timestamps):
                         try:dt_obj=datetime.fromisoformat(all_timestamps[peak_idx].replace('Z','+00:00'));peak_load_time_str=dt_obj.strftime('%Y-%m-%d %H:%M')
                         except ValueError:peak_load_time_str=all_timestamps[peak_idx]
-            if overall_max_peak_load_kw>0:self.peak_load_insight_label.setText(f"Highest Peak: {overall_max_peak_load_kw/1000:.2f} MW in {peak_load_region_id} at {peak_load_time_str}")
-            else:self.peak_load_insight_label.setText("Highest Peak Load (Current Sim): N/A")
-        else:self.peak_load_insight_label.setText("Highest Peak Load (Current Sim): N/A")
+            if overall_max_peak_load_kw>0:self.peak_load_insight_label.setText(f"最高峰值: {overall_max_peak_load_kw/1000:.2f} MW 位于 {peak_load_region_id} 时间 {peak_load_time_str}") # "Highest Peak", "in", "at"
+            else:self.peak_load_insight_label.setText("最高峰值负荷 (当前仿真): N/A")
+        else:self.peak_load_insight_label.setText("最高峰值负荷 (当前仿真): N/A")
 
     def update_prediction_data(self, prediction_values_mw):
         # ... (Existing code - unchanged)
@@ -291,11 +448,17 @@ class PowerGridPanel(QWidget):
         if self.predicted_load_curve_item:self.load_curves_plot.removeItem(self.predicted_load_curve_item);self.predicted_load_curve_item=None
         if not prediction_values_mw:return
         start_x=self.last_plotted_timestamp_count;prediction_x_values=list(range(start_x,start_x+len(prediction_values_mw)))
-        self.predicted_load_curve_item=self.load_curves_plot.plot(prediction_x_values,prediction_values_mw,pen=pg.mkPen(color=(100,100,255,200),width=2,style=Qt.PenStyle.DashLine),name="Predicted Load")
+        self.predicted_load_curve_item=self.load_curves_plot.plot(prediction_x_values,prediction_values_mw,pen=pg.mkPen(color=(100,100,255,200),width=2,style=Qt.PenStyle.DashLine),name="预测负荷")
 
     def handle_status_update(self, status_data_signal):
         # ... (Existing code - unchanged)
         logger.debug(f"PowerGridPanel: handle_status_update.");self._last_grid_status_data=status_data_signal
+        # Example of how you might update it with real data later - FOR TESTING VISUALS
+        # if HAS_PYQTGRAPH and self.decision_impact_plot:
+        #     # Replace with actual data fetching logic for pre/post decision
+        #     dummy_pre = [random.randint(80,150) for _ in range(self.last_plotted_timestamp_count if self.last_plotted_timestamp_count > 0 else 5)]
+        #     dummy_post = [val - random.randint(5, 20) for val in dummy_pre]
+        #     self.update_decision_impact_chart(dummy_pre, dummy_post)
         if not(self.main_window and self.main_window.simulation_worker and self.main_window.simulation_worker.environment and hasattr(self.main_window.simulation_worker.environment,'grid_simulator')):self.update_load_data({});return
         try:
             time_series_data=self.main_window.simulation_worker.environment.grid_simulator.get_time_series_data()
@@ -322,23 +485,26 @@ if __name__ == '__main__':
     class DummySimulationWorker:__init__=lambda self:setattr(self,'environment',DummyEnvironment())
     class DummyMainWindow(QMainWindow):__init__=lambda self:(super().__init__(),setattr(self,'simulation_worker',DummySimulationWorker()))
 
+    # Method _create_decision_impact_section MOVED INTO PowerGridPanel CLASS
+    # Method update_decision_impact_chart MOVED INTO PowerGridPanel CLASS
+
     app=QApplication(sys.argv)
     dummy_main=DummyMainWindow()
     panel=PowerGridPanel(main_window=dummy_main)
-    panel.setWindowTitle("Power Grid Panel Test");panel.resize(800,1200);panel.show()
+    panel.setWindowTitle("电网面板测试");panel.resize(800,2000);panel.show() # Increased height for new panel
 
     # --- Test Signal Connections ---
-    def handle_grid_pref_change(name, value): logger.info(f"SIGNAL gridPreferenceChanged: name='{name}', value={value}")
-    def handle_v2g_request(amount_mw): logger.info(f"SIGNAL v2gDischargeRequested: amount={amount_mw} MW")
+    def handle_grid_pref_change(name, value): logger.info(f"信号 gridPreferenceChanged: 名称='{name}', 值={value}") # SIGNAL, name, value
+    def handle_v2g_request(amount_mw): logger.info(f"信号 v2gDischargeRequested: 电量={amount_mw} MW") # SIGNAL, amount
     panel.gridPreferenceChanged.connect(handle_grid_pref_change)
     panel.v2gDischargeRequested.connect(handle_v2g_request)
 
-    logger.info("Initial data load & display (default strategy & limits):")
+    logger.info("初始数据加载和显示 (默认策略和限制):") # Initial data load & display (default strategy & limits):
     status_data_example_signal={'state':{'grid_status':{}},'timestamp':datetime.now().isoformat()}
     panel.handle_status_update(status_data_example_signal)
 
-    logger.info("\nTesting Dispatch Controls:")
-    panel.charging_priority_combo.setCurrentText("Prioritize Renewables")
+    logger.info("\n测试调度控制:") # Testing Dispatch Controls:
+    panel.charging_priority_combo.setCurrentText("优先可再生能源") # Prioritize Renewables
     panel.max_ev_load_spinbox.setValue(300.5)
     # To simulate button click, we can call the slot directly
     panel._on_apply_max_ev_load_limit()
