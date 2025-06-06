@@ -199,7 +199,7 @@ class PowerGridPanel(QWidget):
             self.algorithm_comparison_plot.setLabel('left', '指标值', color='#333', **{'font-size': '10pt'})
             self.algorithm_comparison_plot.setLabel('bottom', '对比维度', color='#333', **{'font-size': '10pt'})
             self.algorithm_comparison_plot.showGrid(x=True, y=True, alpha=0.3)
-            # self.algorithm_comparison_plot.addLegend() # Legend will be implicit via BarGraphItem names
+            self.algorithm_comparison_plot.addLegend(offset=(-10,10)) # Ensure legend is created once here
 
             # Bar items will be created/updated in the update method
             # Set X-axis ticks
@@ -252,10 +252,20 @@ class PowerGridPanel(QWidget):
 
         # Explicitly add legend after items are added if it wasn't showing up
         # Check if a legend already exists, remove it to add a fresh one
-        if self.algorithm_comparison_plot.plotItem.legend:
-            self.algorithm_comparison_plot.plotItem.legend.scene().removeItem(self.algorithm_comparison_plot.plotItem.legend)
-        self.algorithm_comparison_plot.addLegend(offset=(-10,10))
+        # REMOVED Problematic line: if self.algorithm_comparison_plot.plotItem.legend:
+        # REMOVED Problematic line:    self.algorithm_comparison_plot.plotItem.legend.scene().removeItem(self.algorithm_comparison_plot.plotItem.legend)
+        # The legend should update automatically when items are added/removed if addLegend() was called once during setup.
+        # Re-adding the legend here can cause issues or duplicate legends.
+        # self.algorithm_comparison_plot.addLegend(offset=(-10,10)) # This should only be in _create_algorithm_comparison_section
 
+        # Ensure legend is present if not already (though it should be from setup)
+        # REMOVED: if not self.algorithm_comparison_plot.plotItem.legend:
+        # REMOVED:     self.algorithm_comparison_plot.addLegend(offset=(-10,10))
+        # else:
+            # Optional: If items were cleared and legend appears empty,
+            # one might need to manually trigger an update or ensure items are re-added correctly.
+            # However, adding named BarGraphItems should repopulate it.
+            # self.algorithm_comparison_plot.plotItem.legend.updateSize() # Example of a manual update if needed
 
     def _create_load_monitoring_section(self):
         # ... (Existing code - unchanged)

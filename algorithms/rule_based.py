@@ -12,7 +12,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-def schedule(state, config):
+def schedule(state, config, manual_decisions=None, grid_preferences=None): # Added manual_decisions
     """
     基于规则的调度算法实现。
 
@@ -23,6 +23,11 @@ def schedule(state, config):
     Returns:
         dict: 调度决策 {user_id: charger_id}
     """
+    if grid_preferences:
+        logger.debug(f"Rule-based algorithm received grid_preferences: {grid_preferences}")
+    else:
+        logger.debug("Rule-based algorithm received no grid_preferences.")
+
     decisions = {}
     scheduler_config = config.get('scheduler', {})
     env_config = config.get('environment', {})

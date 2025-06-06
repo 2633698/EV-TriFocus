@@ -1284,7 +1284,13 @@ class SimulationWorker(QThread):
     def request_v2g_discharge(self, amount_mw):
         with QMutexLocker(self.mutex):
             self.pending_v2g_request = amount_mw
-        logger.info(f"SimulationWorker: V2G discharge of {amount_mw} MW requested.")
+            # Also store it in grid_preferences for agents to see in the next decision cycle
+            if self.grid_preferences is None: # Should have been initialized
+                self.grid_preferences = {}
+            self.grid_preferences["v2g_discharge_active_request_mw"] = amount_mw
+            # This preference will be cleared/reset by the scheduler or environment after being consumed or if request changes.
+            # For now, it will persist until the next request.
+        logger.info(f"SimulationWorker: V2G discharge of {amount_mw} MW requested and preference set.")
 
 
 class ConfigDialog(QDialog):

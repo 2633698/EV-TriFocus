@@ -19,8 +19,21 @@ class MultiAgentSystem:
         self.profit_agent = CoordinatedOperatorProfitAgent()
         self.grid_agent = CoordinatedGridFriendlinessAgent()
         self.coordinator = CoordinatedCoordinator()
+        self.operational_mode = 'v1g' # Default operational mode
 
-    def make_decisions(self, state):
+    def set_operational_mode(self, mode):
+        if mode in ['v1g', 'v2g']:
+            self.operational_mode = mode
+            logger.info(f"MAS operational mode set to: {self.operational_mode}")
+            if hasattr(self.grid_agent, 'set_operational_mode'):
+                self.grid_agent.set_operational_mode(mode)
+            # Potentially inform other agents if their behavior should change
+            # if hasattr(self.profit_agent, 'set_operational_mode'):
+            #     self.profit_agent.set_operational_mode(mode)
+        else:
+            logger.warning(f"MAS: Unknown operational mode: {mode}")
+
+    def make_decisions(self, state, manual_decisions=None, grid_preferences=None):
         """
         Coordinate decisions between different agents
 
@@ -31,9 +44,10 @@ class MultiAgentSystem:
             decisions: Dict mapping user_ids to charger_ids
         """
         # Get decisions from each agent
-        user_decisions = self.user_agent.make_decision(state)
-        profit_decisions = self.profit_agent.make_decisions(state)
-        grid_decisions = self.grid_agent.make_decisions(state)
+        # Pass grid_preferences to agents that might use it (e.g., for requested_v2g_discharge_mw)
+        user_decisions = self.user_agent.make_decision(state) # User agent might not need grid_preferences directly
+        profit_decisions = self.profit_agent.make_decisions(state, grid_preferences)
+        grid_decisions = self.grid_agent.make_decisions(state, grid_preferences)
 
         # Store decisions for analysis and visualization
         self.user_agent.last_decision = user_decisions
@@ -41,13 +55,17 @@ class MultiAgentSystem:
         self.grid_agent.last_decision = grid_decisions
 
         # Resolve conflicts and make final decisions
-        # 将 config 中的权重传递给协调器
-        coordinator_weights = self.config.get('scheduler', {}).get('optimization_weights', {})
-        if coordinator_weights:
-             self.coordinator.set_weights(coordinator_weights)
+        # Extract charging_priority from grid_preferences (passed from scheduler)
+        charging_priority = "balanced" # Default
+        if grid_preferences and isinstance(grid_preferences, dict):
+            charging_priority = grid_preferences.get("charging_priority", "balanced")
+
+        # Pass charging_priority to the coordinator
+        # The coordinator will use its base weights (from config) and adjust them based on priority.
+        # No need to call self.coordinator.set_weights here anymore if resolve_conflicts handles dynamic weights.
 
         final_decisions = self.coordinator.resolve_conflicts(
-            user_decisions, profit_decisions, grid_decisions, state
+            user_decisions, profit_decisions, grid_decisions, state, charging_priority
         )
 
         return final_decisions
@@ -58,8 +76,9 @@ class CoordinatedUserSatisfactionAgent:
         self.last_decision = {}
         self.last_reward = 0
 
-    def make_decision(self, state):
+    def make_decision(self, state, grid_preferences=None): # Added grid_preferences
         """Make charging recommendations based on user satisfaction"""
+        if grid_preferences is None: grid_preferences = {}
         recommendations = {}
 
         # Use .get() for safe access
@@ -109,8 +128,15 @@ class CoordinatedUserSatisfactionAgent:
         min_weighted_cost = float('inf')
         user_pos = user.get("current_position", {"lat": 0, "lng": 0})
         # 使用 .get 获取敏感度，并提供默认值
-        time_sensitivity = user.get("time_sensitivity", 0.5)
-        price_sensitivity = user.get("price_sensitivity", 0.5)
+        time_sensitivity_base = user.get("time_sensitivity", 0.5)
+        price_sensitivity_base = user.get("price_sensitivity", 0.5)
+        charging_priority = grid_preferences.get("charging_priority", "balanced")
+
+        effective_price_sensitivity = price_sensitivity_base
+        if charging_priority == "minimize_cost":
+            effective_price_sensitivity *= 1.5 # Users become more price sensitive under this priority
+            logger.debug(f"UserAgent: User {user.get('user_id')} applying 'Minimize Cost' logic, effective price sensitivity: {effective_price_sensitivity:.2f}")
+
         grid_status = state.get("grid_status", {}) # 获取电网状态以获取价格
         current_price = grid_status.get("current_price", 0.85) # Use safe access
 
@@ -146,10 +172,10 @@ class CoordinatedUserSatisfactionAgent:
             price_cost = est_cost / 50.0
 
             # 确保敏感度是有效数字
-            if not isinstance(time_sensitivity, (int, float)): time_sensitivity = 0.5
-            if not isinstance(price_sensitivity, (int, float)): price_sensitivity = 0.5
+            if not isinstance(time_sensitivity_base, (int, float)): time_sensitivity_base = 0.5
+            if not isinstance(effective_price_sensitivity, (int, float)): effective_price_sensitivity = 0.5 # Corrected variable name
 
-            weighted_cost = (time_cost * time_sensitivity) + (price_cost * price_sensitivity)
+            weighted_cost = (time_cost * time_sensitivity_base) + (price_cost * effective_price_sensitivity) # Use effective_price_sensitivity
 
             if weighted_cost < min_weighted_cost:
                 min_weighted_cost = weighted_cost
@@ -162,7 +188,7 @@ class CoordinatedOperatorProfitAgent:
         self.last_decision = {}
         self.last_reward = 0
 
-    def make_decisions(self, state):
+    def make_decisions(self, state, grid_preferences=None): # Added grid_preferences
         """Make decisions prioritizing operator profit"""
         recommendations = {}
 
@@ -184,9 +210,20 @@ class CoordinatedOperatorProfitAgent:
             return recommendations
 
         # 从 grid_status 获取峰谷信息和基础价格
-        peak_hours = grid_status.get("peak_hours", [7, 8, 9, 10, 18, 19, 20, 21])
-        valley_hours = grid_status.get("valley_hours", [0, 1, 2, 3, 4, 5])
-        base_price = grid_status.get("current_price", 0.85) # Use current grid price
+        peak_hours = grid_status.get("peak_hours", [])
+        valley_hours = grid_status.get("valley_hours", [])
+        current_grid_price = grid_status.get("current_price", 0.85) # This is the current TOU price from grid_status
+
+        charging_priority = grid_preferences.get("charging_priority", "balanced")
+        operator_cost_of_energy_multiplier = 1.0 # Represents how operator's cost relates to TOU price
+
+        if charging_priority == "minimize_cost":
+            # If operator wants to minimize cost, their perceived cost of energy is higher at peak, lower at valley
+            if hour in peak_hours:
+                operator_cost_of_energy_multiplier = 1.2 # Higher cost burden for operator during peak
+            elif hour in valley_hours:
+                operator_cost_of_energy_multiplier = 0.7 # Lower cost burden for operator during valley
+            logger.debug(f"ProfitAgent: Applying 'Minimize Cost' logic, operator energy cost multiplier: {operator_cost_of_energy_multiplier}")
 
         # Make profit-oriented recommendations
         for user in users:
@@ -215,35 +252,36 @@ class CoordinatedOperatorProfitAgent:
             # 使用充电桩自身的价格乘数
             charger_price_multiplier = charger.get("price_multiplier", 1.0)
 
-            # 根据时间调整基础价格
-            price_at_charger_time = base_price # 默认使用当前电价
-            if hour in peak_hours:
-                 # 如果已经是峰时电价，不再乘，否则用峰时电价
-                 price_at_charger_time = max(base_price, self.config.get('grid',{}).get('peak_price', 1.2))
-            elif hour in valley_hours:
-                 # 如果已经是谷时电价，不再乘，否则用谷时电价
-                 price_at_charger_time = min(base_price, self.config.get('grid',{}).get('valley_price', 0.4))
+            # 最终充电价格 (price user pays) is current_grid_price * charger_price_multiplier
+            # This part was trying to re-evaluate TOU price which is already in current_grid_price.
+            effective_charge_price_to_user = current_grid_price * charger_price_multiplier
 
-            # 最终充电价格 = 时段价格 * 充电桩乘数
-            effective_charge_price = price_at_charger_time * charger_price_multiplier
+            # 利润潜力评分：
+            # Simplified profit: (revenue_from_user - cost_of_energy_for_operator)
+            # Revenue part:
+            revenue_potential = effective_charge_price_to_user
+            if charger.get("type") == "fast": revenue_potential *= 1.1 # Adjusted bonus
+            elif charger.get("type") == "superfast": revenue_potential *= 1.2 # Adjusted bonus
 
-            # 利润潜力评分：价格越高越好，快充更好，队列越短越好
-            profit_potential = effective_charge_price # Base score is the price
-            if charger.get("type") == "fast": # Bonus for fast chargers
-                profit_potential *= 1.15
-            elif charger.get("type") == "superfast": # Even bigger bonus
-                 profit_potential *= 1.3
+            # Cost part for operator (simplified)
+            # Operator's cost of energy is related to the current_grid_price but affected by their own strategy/costs
+            # and the charging_priority ("minimize_cost" makes operator more sensitive to TOU via operator_cost_of_energy_multiplier)
+            # Assume operator's base cost is a fraction of the current TOU price, then modified by multiplier.
+            operator_base_energy_cost = current_grid_price * 0.6 # e.g., operator's cost is 60% of sale price
+            estimated_energy_cost_for_operator = operator_base_energy_cost * operator_cost_of_energy_multiplier
 
-            # Penalty for queue length
+            # Profit score considers revenue minus cost, then other factors
+            profit_margin_score = revenue_potential - estimated_energy_cost_for_operator
+
+            # Adjust score based on queue and demand
             queue_length = len(charger.get("queue", []))
-            profit_potential /= (1 + queue_length * 0.25) # Stronger penalty for queue
+            profit_score = profit_margin_score / (1 + queue_length * 0.3) # Queue penalty
 
-            # Bonus for users needing more charge
-            charge_needed_factor = (100 - user.get("soc", 50)) / 50.0 # Normalize needed charge (0-2 approx)
-            profit_potential *= (1 + charge_needed_factor * 0.1) # Small bonus for higher need
+            charge_needed_factor = (100 - user.get("soc", 50)) / 50.0
+            profit_score *= (1 + charge_needed_factor * 0.1)
 
-            if profit_potential > max_profit_score:
-                max_profit_score = profit_potential
+            if profit_score > max_profit_score:
+                max_profit_score = profit_score
                 best_charger = charger
 
         return best_charger
@@ -253,9 +291,18 @@ class CoordinatedGridFriendlinessAgent:
     def __init__(self):
         self.last_decision = {}
         self.last_reward = 0
+        self.operational_mode = 'v1g' # Default for the agent
 
-    def make_decisions(self, state):
-        """Make decisions prioritizing grid friendliness"""
+    def set_operational_mode(self, mode):
+        if mode in ['v1g', 'v2g']:
+            self.operational_mode = mode
+            logger.info(f"CoordinatedGridFriendlinessAgent operational mode set to: {self.operational_mode}")
+        else:
+            logger.warning(f"CoordinatedGridFriendlinessAgent: Unknown operational mode: {mode}")
+
+    def make_decisions(self, state, grid_preferences=None): # Added grid_preferences
+        """Make decisions prioritizing grid friendliness, considering operational_mode and V2G requests."""
+        if grid_preferences is None: grid_preferences = {}
         decisions = {}
         users_list = state.get("users", [])
         chargers_list = state.get("chargers", [])
@@ -299,9 +346,29 @@ class CoordinatedGridFriendlinessAgent:
         # 按紧迫度排序，最紧急的优先
         charging_candidates.sort(key=lambda x: -x[2])
 
+        # --- V2G Awareness ---
+        requested_v2g_mw = grid_preferences.get("v2g_discharge_active_request_mw", 0.0)
+        actual_v2g_mw_this_step = state.get('grid_status', {}).get('aggregated_metrics', {}).get('current_actual_v2g_dispatch_mw', 0.0)
+        is_v2g_active_or_requested = self.operational_mode == 'v2g' and (requested_v2g_mw > 0 or actual_v2g_mw_this_step > 0)
+        if is_v2g_active_or_requested:
+            logger.info(f"GridAgent: V2G is active or requested (request: {requested_v2g_mw} MW, actual: {actual_v2g_mw_this_step} MW). Adjusting charging decisions.")
+        # --- End V2G Awareness ---
+
+        charging_priority = grid_preferences.get("charging_priority", "balanced")
+
         # 对每个充电桩进行评分
         charger_scores = {}
-        max_queue_len = 4 # 电网优先时允许的稍长队列
+        # Adjust queue length tolerance based on operational mode
+        if self.operational_mode == 'v2g':
+            max_queue_len = 5
+            if is_v2g_active_or_requested:
+                max_queue_len = 2
+            logger.debug(f"GridAgent (V2G mode, V2G active/req: {is_v2g_active_or_requested}): Max queue length set to {max_queue_len}")
+        else: # V1G mode
+            max_queue_len = 3
+            logger.debug(f"GridAgent (V1G mode): Max queue length set to {max_queue_len}")
+
+
         for charger_id, charger in chargers.items():
             if charger.get("status") != "failure":
                 current_queue_len = len(charger.get("queue", []))
@@ -319,8 +386,50 @@ class CoordinatedGridFriendlinessAgent:
                     # 负载分数：负载越低越好
                     load_score = max(0, 1 - (grid_load_percentage / 100.0)) # 0-1
 
-                    # 组合评分 (调整权重，优先时间，其次负载，再可再生)
-                    grid_score = time_score * 0.5 + load_score * 0.3 + renewable_score * 0.2
+                    # Default/Balanced weights for components of grid_score
+                    time_w, load_w, renewable_w = 0.5, 0.3, 0.2
+                    base_peak_penalty_score = -1.0
+                    base_valley_bonus_score = 0.8
+                    base_normal_time_score = 0.2 # Score for shoulder periods
+
+                    if self.operational_mode == 'v2g':
+                        time_w, load_w, renewable_w = 0.4, 0.2, 0.4 # V2G mode base weights
+
+                    # Adjust weights/scores based on charging_priority
+                    if charging_priority == "prioritize_renewables":
+                        time_w, load_w, renewable_w = 0.15, 0.15, 0.7 # Heavily favor renewables
+                        logger.debug(f"GridAgent: Charger {charger_id} applying 'Prioritize Renewables' weights.")
+                    elif charging_priority == "minimize_cost": # Grid agent helps by pushing to cheap (off-peak) times
+                        time_w, load_w, renewable_w = 0.6, 0.2, 0.2
+                        base_valley_bonus_score = 1.0 # Make valley even more attractive
+                        logger.debug(f"GridAgent: Charger {charger_id} applying 'Minimize Cost' (favor off-peak) weights.")
+                    elif charging_priority == "peak_shaving":
+                        if hour in peak_hours:
+                            charger_scores[charger_id] = -100 # Assign a very low score and continue
+                            logger.debug(f"GridAgent (Peak Shaving): Charger {charger_id} heavily penalized during peak hour {hour}.")
+                            continue
+                        else: # Off-peak for peak_shaving strategy, strongly prefer off-peak
+                            time_w, load_w, renewable_w = 0.7, 0.15, 0.15 # Emphasize time for off-peak, less focus on renewables here
+                            logger.debug(f"GridAgent: Charger {charger_id} applying 'Peak Shaving' (off-peak) weights.")
+
+                    # Calculate individual score components using current values from grid_status
+                    current_time_score = 0
+                    if hour in valley_hours: current_time_score = base_valley_bonus_score
+                    elif hour not in peak_hours: current_time_score = base_normal_time_score
+                    else: current_time_score = base_peak_penalty_score
+
+                    current_renewable_score = (renewable_ratio / 100.0) if renewable_ratio is not None else 0.0
+                    current_load_score = max(0, 1.0 - (grid_load_percentage / 100.0)) if grid_load_percentage is not None else 0.5
+
+
+                    grid_score = (current_time_score * time_w +
+                                  current_renewable_score * renewable_w +
+                                  current_load_score * load_w)
+
+                    if is_v2g_active_or_requested and self.operational_mode == 'v2g':
+                        grid_score -= 0.5
+                        logger.debug(f"GridAgent: Charger {charger_id} penalized due to active V2G request/dispatch.")
+
                     charger_scores[charger_id] = grid_score
 
         # 按电网友好度分数排序可用充电桩
@@ -367,24 +476,49 @@ class CoordinatedCoordinator:
         self.weights = {"user": 0.4, "profit": 0.3, "grid": 0.3}
         self.conflict_history = []
         self.last_agent_rewards = {}
+        # Base weights, can be loaded from config if MultiAgentSystem passes its config here
+        # For now, using the defaults that were previously set by set_weights.
+        # self.config should ideally be passed to Coordinator or weights directly.
+        # Let's assume self.weights are the "balanced" weights, potentially set by MAS if config is passed to Coordinator.
+        self.base_weights = {"user": 0.4, "profit": 0.3, "grid": 0.3} # Default balanced weights
 
-    def set_weights(self, weights):
-        """Set agent weights from config"""
-        self.weights = {
+    def set_weights(self, weights): # This method can still be used for initial config loading
+        """Set agent base weights from config"""
+        self.base_weights = { # Store as base_weights
             "user": weights.get("user_satisfaction", 0.4),
             "profit": weights.get("operator_profit", 0.3),
             "grid": weights.get("grid_friendliness", 0.3)
         }
         # 确保权重和为1
-        total_w = sum(self.weights.values())
+        total_w = sum(self.base_weights.values())
         if total_w > 0 and abs(total_w - 1.0) > 1e-6:
-             logger.warning(f"Coordinator weights do not sum to 1 ({total_w}). Normalizing.")
-             for k in self.weights: self.weights[k] /= total_w
-        logger.info(f"Coordinator weights updated: User={self.weights['user']:.2f}, Profit={self.weights['profit']:.2f}, Grid={self.weights['grid']:.2f}")
+             logger.warning(f"Coordinator base weights do not sum to 1 ({total_w}). Normalizing.")
+             for k in self.base_weights: self.base_weights[k] /= total_w
+        logger.info(f"Coordinator base weights updated: User={self.base_weights['user']:.2f}, Profit={self.base_weights['profit']:.2f}, Grid={self.base_weights['grid']:.2f}")
 
-    def resolve_conflicts(self, user_decisions, profit_decisions, grid_decisions, state):
-        """Resolve conflicts between agent decisions using weighted voting and capacity checks."""
-        final_decisions = {}
+    def _estimate_assignment_power_kw(self, user_dict, charger_dict, state): # Added state for future use e.g. vehicle_models
+        """Estimates power for a user-charger assignment in kW."""
+        # More sophisticated: consider user.vehicle_model.max_charging_rate_kw, current SOC.
+        # For now, use charger's max power or a default.
+        # Ensure 'max_power' is the correct key and in kW. If it's 'max_power_kw', use that.
+        charger_max_power_kw = charger_dict.get('max_power_kw', charger_dict.get('max_power', 30.0)) # Assuming 30kW default
+
+        # Placeholder for EV's max acceptance rate if available
+        # vehicle_type = user_dict.get('vehicle_type')
+        # vehicle_models = state.get('vehicle_models', {}) # Assuming vehicle_models are part of state
+        # ev_max_power_kw = charger_max_power_kw # Default to charger max
+        # if vehicle_type and vehicle_models and vehicle_type in vehicle_models:
+        #     ev_max_power_kw = vehicle_models[vehicle_type].get('max_charging_rate_kw', charger_max_power_kw)
+        # return min(charger_max_power_kw, ev_max_power_kw)
+        return charger_max_power_kw
+
+
+    def resolve_conflicts(self, user_decisions, profit_decisions, grid_decisions, state, charging_priority="balanced", grid_preferences=None): # Added grid_preferences
+        """Resolve conflicts using dynamically adjusted weights, capacity checks, and EV fleet load limit."""
+        if grid_preferences is None: # Ensure grid_preferences is a dict
+            grid_preferences = {}
+
+        final_decisions_dict = {} # Changed name to avoid confusion with outer scope final_decisions
         conflict_count = 0
         all_users = set(user_decisions.keys()) | set(profit_decisions.keys()) | set(grid_decisions.keys())
 
@@ -408,13 +542,47 @@ class CoordinatedCoordinator:
 
         for user_id in user_list:
             choices = []
+
+            # --- Dynamic Weight Adjustment based on charging_priority ---
+            current_weights = self.base_weights.copy() # Start with base/balanced weights
+            requested_v2g_mw = grid_preferences.get("v2g_discharge_active_request_mw", 0.0)
+
+            if charging_priority == "prioritize_renewables":
+                current_weights = {"user": 0.2, "profit": 0.2, "grid": 0.6}
+                logger.debug("Coordinator: Applying 'Prioritize Renewables' dynamic weights.")
+            elif charging_priority == "minimize_cost":
+                current_weights = {"user": 0.3, "profit": 0.5, "grid": 0.2}
+                logger.debug("Coordinator: Applying 'Minimize Cost' dynamic weights.")
+            elif charging_priority == "peak_shaving":
+                current_weights = {"user": 0.15, "profit": 0.15, "grid": 0.7}
+                logger.debug("Coordinator: Applying 'Peak Shaving' dynamic weights.")
+            # else: "balanced" uses self.base_weights as is.
+
+            # If V2G is actively requested, slightly boost grid agent's influence further
+            # This is a simple way; more complex logic could involve specific V2G scores from agents
+            if requested_v2g_mw > 0 and self.operational_mode == 'v2g': # operational_mode is on MAS, not coordinator directly
+                # Need to get operational_mode from MAS or pass it in. For now, assume coordinator is aware or MAS passes it.
+                # Let's assume MultiAgentSystem passes its self.operational_mode to resolve_conflicts
+                # For now, this direct check is not possible without changing resolve_conflicts signature again or MAS structure.
+                # So, this specific boost might be better handled inside GridFriendlinessAgent's scoring.
+                # logger.info(f"Coordinator: V2G request active, slightly boosting grid agent weight if possible.")
+                # current_weights["grid"] = min(0.8, current_weights["grid"] + 0.1) # Example boost
+                pass
+
+
+            # Normalize if necessary (e.g., if custom priority weights don't sum to 1)
+            total_w_dynamic = sum(current_weights.values())
+            if total_w_dynamic > 0 and abs(total_w_dynamic - 1.0) > 1e-6:
+                 for k_w_dyn in current_weights: current_weights[k_w_dyn] /= total_w_dynamic
+            # --- End Dynamic Weight Adjustment ---
+
             # 获取各 agent 的推荐和对应的权重
             if user_id in user_decisions:
-                choices.append((user_decisions[user_id], self.weights.get("user", 0)))
+                choices.append((user_decisions[user_id], current_weights.get("user", 0)))
             if user_id in profit_decisions:
-                choices.append((profit_decisions[user_id], self.weights.get("profit", 0)))
+                choices.append((profit_decisions[user_id], current_weights.get("profit", 0)))
             if user_id in grid_decisions:
-                choices.append((grid_decisions[user_id], self.weights.get("grid", 0)))
+                choices.append((grid_decisions[user_id], current_weights.get("grid", 0)))
 
             if not choices: continue # 该用户没有收到任何推荐
 
@@ -440,26 +608,66 @@ class CoordinatedCoordinator:
             sorted_chargers = sorted(charger_votes.items(), key=lambda item: -item[1])
 
             # 分配给票数最高且未满的充电桩
-            assigned = False
+            assigned_this_user = False
             for best_charger_id, vote_score in sorted_chargers:
-                # 检查容量，使用配置的 max_queue_len_config
                 if assigned_count.get(best_charger_id, 0) < max_queue_len_config:
-                    # 确保充电桩不是故障状态
                     if chargers_state.get(best_charger_id, {}).get('status') != 'failure':
-                        final_decisions[user_id] = best_charger_id
-                        assigned_count[best_charger_id] += 1 # 更新本轮分配计数
-                        assigned = True
-                        logger.debug(f"Coordinator assigned user {user_id} to charger {best_charger_id} (Votes: {vote_score:.2f}, Queue now: {assigned_count[best_charger_id]})")
-                        break # 用户已分配
+                        final_decisions_dict[user_id] = best_charger_id
+                        assigned_count[best_charger_id] += 1
+                        assigned_this_user = True
+                        logger.debug(f"Coordinator initial assignment: User {user_id} to Charger {best_charger_id} (Score: {vote_score:.2f})")
+                        break
                     else:
-                         logger.debug(f"Coordinator: Charger {best_charger_id} (top vote for user {user_id}) is in failure state. Trying next.")
-                # else:
-                    # logger.debug(f"Coordinator: Charger {best_charger_id} (top vote for user {user_id}) is full (Current count: {assigned_count.get(best_charger_id, 0)}). Trying next.")
-
-
-            # if not assigned:
-                # logger.warning(f"Coordinator: Could not assign user {user_id}, all preferred chargers were full or invalid.")
+                        logger.debug(f"Charger {best_charger_id} (top vote for {user_id}) is in failure. Trying next.")
+            # if not assigned_this_user:
+            #     logger.debug(f"Could not assign user {user_id}; all preferred chargers full or invalid.")
 
         self.conflict_history.append(conflict_count)
-        logger.info(f"Coordinator resolved decisions: {len(final_decisions)} assignments made, {conflict_count} conflicts encountered.")
-        return final_decisions
+        logger.info(f"Coordinator initial resolution: {len(final_decisions_dict)} assignments, {conflict_count} conflicts.")
+
+        # --- Apply Max EV Fleet Load Limit ---
+        max_ev_fleet_load_mw = grid_preferences.get("max_ev_fleet_load_mw")
+
+        if max_ev_fleet_load_mw is not None and max_ev_fleet_load_mw < float('inf'): # Check if a limit is actually set
+            current_assigned_ev_load_kw = 0
+            assignments_with_power = []
+
+            users_map = {u['user_id']: u for u in state.get('users', []) if 'user_id' in u}
+
+            for user_id, charger_id in final_decisions_dict.items():
+                user = users_map.get(user_id)
+                charger = chargers_state.get(charger_id)
+                if user and charger:
+                    power_kw = self._estimate_assignment_power_kw(user, charger, state)
+                    assignments_with_power.append({"user_id": user_id, "charger_id": charger_id, "power_kw": power_kw})
+                    current_assigned_ev_load_kw += power_kw
+
+            current_assigned_ev_load_mw = current_assigned_ev_load_kw / 1000.0
+
+            if current_assigned_ev_load_mw > max_ev_fleet_load_mw:
+                logger.info(f"MAS: Initial EV load {current_assigned_ev_load_mw:.2f} MW exceeds limit {max_ev_fleet_load_mw:.2f} MW. Applying curtailment.")
+
+                # Sort by power (highest first) to remove largest consumers first
+                assignments_with_power.sort(key=lambda x: x['power_kw'], reverse=True)
+
+                curtailed_final_decisions = final_decisions_dict.copy()
+
+                for assignment_to_remove in assignments_with_power:
+                    if current_assigned_ev_load_mw <= max_ev_fleet_load_mw:
+                        break
+
+                    user_to_remove_id = assignment_to_remove['user_id']
+                    power_removed_kw = assignment_to_remove['power_kw']
+
+                    if user_to_remove_id in curtailed_final_decisions:
+                        del curtailed_final_decisions[user_to_remove_id]
+                        current_assigned_ev_load_kw -= power_removed_kw
+                        current_assigned_ev_load_mw = current_assigned_ev_load_kw / 1000.0
+                        logger.info(f"MAS: Curtailed user {user_to_remove_id} (removed {power_removed_kw:.2f} kW). New total EV load: {current_assigned_ev_load_mw:.2f} MW")
+
+                final_decisions_dict = curtailed_final_decisions
+                logger.info(f"MAS: EV load after curtailment: {current_assigned_ev_load_mw:.2f} MW. Total assignments: {len(final_decisions_dict)}")
+        else:
+            logger.debug(f"No Max EV Fleet Load limit applied or limit is infinite ({max_ev_fleet_load_mw} MW).")
+
+        return final_decisions_dict

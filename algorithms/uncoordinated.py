@@ -11,7 +11,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-def schedule(state):
+def schedule(state, config, manual_decisions=None, grid_preferences=None): # Added config
     """
     无序充电算法实现 (先到先得，或基于简单距离/队列)。
 

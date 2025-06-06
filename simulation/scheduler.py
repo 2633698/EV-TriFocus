@@ -36,34 +36,48 @@ class ChargingScheduler:
         self.config = config
         # 安全地获取配置，提供默认空字典
         env_config = config.get("environment", {})
-        scheduler_config = config.get("scheduler", {})
+        scheduler_config = self.config.get('scheduler', {}) # Use self.config here
+        if not isinstance(scheduler_config, dict):
+            logger.warning("Scheduler config section not found or not a dictionary. Using default algorithm.")
+            scheduler_config = {} # Default to empty dict to prevent errors
+
+        self.scheduling_algorithm_name = scheduler_config.get('scheduling_algorithm', 'coordinated_mas') # Changed self.algorithm to self.scheduling_algorithm_name
+        logger.info(f"ChargingScheduler initialized. Default algorithm from config: '{self.scheduling_algorithm_name}'")
+
         marl_specific_config = scheduler_config.get("marl_config", {})
 
-        self.algorithm = scheduler_config.get("scheduling_algorithm", "rule_based")
-        logger.info(f"ChargingScheduler initializing with algorithm: {self.algorithm}")
 
         # 根据算法初始化特定系统
         self.coordinated_mas_system = None
         self.marl_system = None
 
-        if self.algorithm == "coordinated_mas":
-            logger.info("Initializing Coordinated MAS subsystem...")
+        # Populate self.algorithms for simple modules
+        self.algorithms = {
+            "rule_based": rule_based,
+            "uncoordinated": uncoordinated
+            # Note: MARL and MAS are handled via their specific system instances (self.marl_system, self.coordinated_mas_system)
+        }
+
+        # Initialize systems based on the configured self.scheduling_algorithm_name
+        if self.scheduling_algorithm_name == "coordinated_mas":
+            logger.info("Initializing Coordinated MAS subsystem as it's the configured default...")
             try:
                 from algorithms.coordinated_mas import MultiAgentSystem
                 self.coordinated_mas_system = MultiAgentSystem()
-                self.coordinated_mas_system.config = config # 将完整配置传递给MAS
+                self.coordinated_mas_system.config = self.config # Pass the main config to MAS
+                if hasattr(self.coordinated_mas_system, 'coordinator') and hasattr(self.coordinated_mas_system.coordinator, 'set_weights'):
+                    coordinator_weights = scheduler_config.get('optimization_weights', {})
+                    if coordinator_weights:
+                        self.coordinated_mas_system.coordinator.set_weights(coordinator_weights)
                 logger.info("Coordinated MAS subsystem initialized.")
             except ImportError:
-                 logger.error("Could not import MultiAgentSystem from algorithms.coordinated_mas. Check file and class names.")
-                 self.algorithm = "rule_based"
-                 logger.warning("Falling back to rule_based.")
+                 logger.error("Could not import MultiAgentSystem from algorithms.coordinated_mas.")
+                 # No change to self.scheduling_algorithm_name here, error will be caught when trying to use it
             except Exception as e:
                 logger.error(f"Failed to initialize Coordinated MAS: {e}", exc_info=True)
-                self.algorithm = "rule_based"
-                logger.warning("Falling back to rule_based.")
 
-        elif self.algorithm == "marl":
-            logger.info("Initializing MARL subsystem...")
+        elif self.scheduling_algorithm_name == "marl":
+            logger.info("Initializing MARL subsystem as it's the configured default...")
             try:
                 from algorithms.marl import MARLSystem
                 # 获取充电桩数量，处理可能的缺失
@@ -84,37 +98,129 @@ class ChargingScheduler:
                  )
                 logger.info("MARL subsystem initialized.")
             except ImportError:
-                 logger.error("Could not import MARLSystem from algorithms.marl. Check file and class names.")
-                 self.algorithm = "rule_based"
-                 logger.warning("Falling back to rule_based.")
+                 logger.error("Could not import MARLSystem from algorithms.marl.")
+                 # No change to self.scheduling_algorithm_name here
             except Exception as e:
                 logger.error(f"Failed to initialize MARL system: {e}", exc_info=True)
-                self.algorithm = "rule_based"
-                logger.warning("Falling back to rule_based.")
 
-    def make_scheduling_decision(self, state, manual_decisions=None, grid_preferences=None):
+
+    def make_scheduling_decision(self, current_state, manual_decisions=None, grid_preferences=None): # Renamed state to current_state for clarity
         """根据配置的算法进行调度决策，支持手动决策优先和电网偏好"""
         decisions = {}
-        logger.debug(f"Making decision using algorithm: {self.algorithm}")
+        # logger.debug(f"Making decision using algorithm: {self.scheduling_algorithm_name}") # Now uses self.scheduling_algorithm_name
 
         if grid_preferences is None:
             grid_preferences = {}
-
         logger.info(f"Scheduler received grid_preferences: {grid_preferences}")
-        priority = grid_preferences.get("charging_priority", "Balanced")
-        max_ev_load = grid_preferences.get("max_ev_fleet_load_mw", float('inf'))
-        logger.info(f"Extracted charging_priority: {priority}, max_ev_fleet_load_mw: {max_ev_load}")
-        # Actual use of these preferences will be in the specific algorithm logic
 
-        if not state or not isinstance(state, dict):
-            logger.error("Scheduler received invalid state")
+        # current_strategy_key is derived from grid_preferences
+        current_strategy_key = grid_preferences.get("charging_strategy")
+
+        # effective_algo_name is determined based on current_strategy_key and self.scheduling_algorithm_name (base from config)
+        effective_algo_name = self.scheduling_algorithm_name
+        operational_mode = None
+
+        if current_strategy_key == "uncoordinated":
+            effective_algo_name = "uncoordinated"
+            # operational_mode remains None
+            logger.info(f"UI Strategy: '{current_strategy_key}'. Effective Algo: Uncoordinated.")
+        elif current_strategy_key == "smart_charging_v1g":
+            if self.scheduling_algorithm_name == "coordinated_mas": # Only apply V1G mode if base is MAS
+                effective_algo_name = "coordinated_mas"
+                operational_mode = 'v1g'
+                logger.info(f"UI Strategy: '{current_strategy_key}'. Effective Algo: CoordinatedMAS in 'v1g' mode.")
+            elif self.scheduling_algorithm_name == "marl": # MARL might also support modes
+                effective_algo_name = "marl"
+                operational_mode = 'v1g' # Assuming MARL agent can interpret this
+                logger.info(f"UI Strategy: '{current_strategy_key}'. Effective Algo: MARL in 'v1g' mode.")
+            else: # Base algo is rule_based or uncoordinated itself
+                logger.warning(f"UI Strategy '{current_strategy_key}' selected, but base algorithm '{self.scheduling_algorithm_name}' doesn't support distinct V1G mode. Using base algorithm '{effective_algo_name}' behavior.")
+        elif current_strategy_key == "v2g_active":
+            if self.scheduling_algorithm_name == "coordinated_mas":
+                effective_algo_name = "coordinated_mas"
+                operational_mode = 'v2g'
+                logger.info(f"UI Strategy: '{current_strategy_key}'. Effective Algo: CoordinatedMAS in 'v2g' mode.")
+            elif self.scheduling_algorithm_name == "marl":
+                effective_algo_name = "marl"
+                operational_mode = 'v2g'
+                logger.info(f"UI Strategy: '{current_strategy_key}'. Effective Algo: MARL in 'v2g' mode.")
+            else:
+                logger.warning(f"UI Strategy '{current_strategy_key}' selected, but base algorithm '{self.scheduling_algorithm_name}' doesn't support distinct V2G mode. Using base algorithm '{effective_algo_name}' behavior.")
+        else: # No specific UI strategy, or unknown key
+            logger.info(f"No specific UI strategy ('{current_strategy_key}') or unknown. Effective Algo: {effective_algo_name} (from config).")
+            # If default is MAS, ensure its operational mode is its configured/current default
+            if effective_algo_name == "coordinated_mas" and self.coordinated_mas_system and hasattr(self.coordinated_mas_system, 'operational_mode'):
+                operational_mode = self.coordinated_mas_system.operational_mode # Use MAS's current/default
+                logger.info(f"CoordinatedMAS will operate in its current/default mode: '{operational_mode}'.")
+            # Similar logic could be applied if MARL had a default settable mode.
+
+
+        # Get the algorithm module or system instance
+        algo_module_or_system = None
+        if effective_algo_name == "coordinated_mas":
+            algo_module_or_system = self.coordinated_mas_system
+        elif effective_algo_name == "marl":
+             algo_module_or_system = self.marl_system # Assuming marl_system instance exists
+        else: # rule_based, uncoordinated, or other simple modules
+            algo_module_or_system = self.algorithms.get(effective_algo_name)
+
+
+        if not algo_module_or_system:
+            logger.error(f"Algorithm module/system for '{effective_algo_name}' not found. Defaulting to empty decisions.")
+            return {}
+
+        # Set operational mode if applicable (primarily for MAS)
+        if operational_mode and hasattr(algo_module_or_system, 'set_operational_mode'):
+            algo_module_or_system.set_operational_mode(operational_mode)
+        elif operational_mode: # Mode specified but algo doesn't support setting it
+            logger.warning(f"Algorithm '{effective_algo_name}' selected for mode '{operational_mode}' but has no 'set_operational_mode' method.")
+
+
+        # Log other preferences being passed down (already present in previous version)
+        priority = grid_preferences.get("charging_priority", "Balanced")
+        max_ev_load = grid_preferences.get("max_ev_fleet_load_mw", float('inf')) # Already correctly logged
+        logger.info(f"Scheduler passing down: charging_priority='{priority}', max_ev_fleet_load_mw={max_ev_load} to '{effective_algo_name}'")
+
+        if not current_state or not isinstance(current_state, dict): # Use current_state
+            logger.error("Scheduler received invalid current_state")
             return decisions
 
         try:
             # 优先应用手动决策
             if manual_decisions and isinstance(manual_decisions, dict):
-                logger.info(f"Applying manual decisions: {manual_decisions}")
-                decisions.update(manual_decisions)
+                logger.info(f"Applying manual decisions: {manual_decisions}") # This part seems fine
+                # The decisions.update(manual_decisions) was removed in a previous diff, ensure it's handled or re-added if needed
+                # The logic for validating and applying manual_decisions should be here, before algo_decisions.
+                # Based on previous diff, it seems manual_decisions are handled to create 'decisions',
+                # and algo_decisions are only sought if 'decisions' is empty. This is correct.
+                # The provided search block for this change started *after* manual_decision handling.
+                # The key is that manual_decisions processing should correctly populate 'decisions'.
+                # Re-inserting the manual decision processing from the original file snippet if it was lost.
+
+                # --- Copied from existing logic for manual decision handling ---
+                users = {u.get('user_id'): u for u in current_state.get('users', []) if isinstance(u, dict)}
+                chargers = {c.get('charger_id'): c for c in current_state.get('chargers', []) if isinstance(c, dict)}
+                valid_manual_decisions = {}
+                for user_id, charger_id in manual_decisions.items():
+                    if user_id in users and charger_id in chargers:
+                        user = users[user_id]
+                        charger = chargers[charger_id]
+                        if True:
+                            if charger.get('status') != 'failure':
+                                valid_manual_decisions[user_id] = charger_id
+                                current_status = user.get('status')
+                                if current_status == 'charging':
+                                    user['status'] = 'idle'; user['target_charger'] = None; user['needs_charge_decision'] = True
+                                    for cid, c_obj in chargers.items():
+                                        if c_obj.get('current_user') == user_id: c_obj['current_user'] = None; c_obj['status'] = 'available'; break
+                                elif current_status == 'waiting':
+                                    for cid, c_obj in chargers.items():
+                                        if user_id in c_obj.get('queue', []): c_obj['queue'].remove(user_id); break
+                                    user['status'] = 'idle'; user['target_charger'] = None; user['needs_charge_decision'] = True
+                                user['manual_decision'] = True; user['manual_decision_locked'] = True;
+                                user['force_target_charger'] = True; user['manual_decision_override'] = True;
+                decisions.update(valid_manual_decisions) # Apply valid manual decisions
+                # --- End copied manual decision handling ---
                 
                 # 验证手动决策的有效性
                 users = {u.get('user_id'): u for u in state.get('users', []) if isinstance(u, dict)}
@@ -201,17 +307,34 @@ class ChargingScheduler:
                         locked_manual_users.add(user.get('user_id'))
             
             # 如果没有手动决策或手动决策不足，使用算法补充
-            if len(decisions) == 0:
-                if self.algorithm == "rule_based":
-                    algo_decisions = rule_based.schedule(state, self.config)
-                elif self.algorithm == "uncoordinated":
-                    algo_decisions = uncoordinated.schedule(state)
-                elif self.algorithm == "coordinated_mas" and self.coordinated_mas_system:
-                    self.coordinated_mas_system.config = self.config
-                    algo_decisions = self.coordinated_mas_system.make_decisions(state)
-                elif self.algorithm == "marl" and self.marl_system:
-                    # MARL逻辑保持不变
-                    charger_action_maps = {}
+            if len(decisions) == 0: # Only apply algo if no manual decisions overrode everything
+                if algo_module_or_system:
+                    try:
+                        if hasattr(algo_module_or_system, 'make_decisions'): # For MAS-like objects
+                            algo_decisions = algo_module_or_system.make_decisions(state, manual_decisions, grid_preferences)
+                        elif hasattr(algo_module_or_system, 'schedule'): # For simple algorithm modules
+                            # Standardized call: state, config, manual_decisions, grid_preferences
+                            algo_decisions = algo_module_or_system.schedule(current_state, self.config, manual_decisions, grid_preferences)
+                        # MARL specific handling
+                        elif effective_algo_name == "marl" and self.marl_system:
+                             charger_action_maps = {}
+                             if current_state.get("chargers"):
+                                 for charger in current_state["chargers"]:
+                                     charger_id = charger.get("charger_id")
+                                     if charger_id and charger.get("status") != "failure":
+                                         action_map, action_size = self._create_dynamic_action_map(charger_id, current_state)
+                                         charger_action_maps[charger_id] = {"map": action_map, "size": action_size}
+                             marl_actions = self.marl_system.choose_actions(current_state)
+                             algo_decisions = self._convert_marl_actions_to_decisions(marl_actions, current_state, charger_action_maps)
+                        else:
+                            logger.error(f"Algorithm module/system '{effective_algo_name}' has no recognized decision-making method.")
+                            algo_decisions = {}
+                    except Exception as e_algo:
+                        logger.error(f"Error executing algorithm {effective_algo_name}: {e_algo}", exc_info=True)
+                        algo_decisions = {}
+                else:
+                    logger.error(f"Algorithm module/system for {effective_algo_name} was None before attempting to make decisions (this should have been caught earlier).")
+                    algo_decisions = {}
                     if state.get("chargers"):
                         for charger in state["chargers"]:
                             charger_id = charger.get("charger_id")
@@ -221,9 +344,9 @@ class ChargingScheduler:
                     
                     marl_actions = self.marl_system.choose_actions(state)
                     algo_decisions = self._convert_marl_actions_to_decisions(marl_actions, state, charger_action_maps)
-                else:
-                    logger.warning(f"Algorithm '{self.algorithm}' not recognized. Using rule-based fallback.")
-                    algo_decisions = rule_based.schedule(state, self.config)
+                # else: # OLD LOGIC BLOCK
+                #     logger.warning(f"Algorithm '{self.algorithm}' not recognized. Using rule-based fallback.")
+                #     algo_decisions = rule_based.schedule(state, self.config)
                 
                 # 过滤掉已锁定的手动决策用户，防止算法重新分配
                 filtered_decisions = {}
@@ -236,19 +359,34 @@ class ChargingScheduler:
                 decisions = filtered_decisions
 
         except Exception as e:
-            logger.error(f"Error during scheduling with {self.algorithm}: {e}", exc_info=True)
+            logger.error(f"Error during scheduling with {effective_algorithm_name}: {e}", exc_info=True) # Use effective_algorithm_name
             logger.warning("Falling back to rule-based scheduling due to error.")
             try:
-                decisions = rule_based.schedule(state, self.config)
+                # Ensure rule_based is imported or available as a fallback module
+                from algorithms import rule_based as fallback_rule_based_module # Ensure this import is valid
+                decisions = fallback_rule_based_module.schedule(current_state, self.config, grid_preferences) # Pass current_state
             except Exception as fallback_e:
                 logger.error(f"Error during fallback rule-based scheduling: {fallback_e}", exc_info=True)
                 decisions = {}
 
-        logger.info(f"Scheduler ({self.algorithm}) made {len(decisions)} assignments.")
+        logger.info(f"Scheduler ({effective_algo_name}) made {len(decisions)} assignments.")
         return decisions
+
+    def _get_configured_algorithm_module(self):
+        """Helper to get the module instance based on self.scheduling_algorithm_name from config."""
+        # This method is primarily for simple modules listed in self.algorithms
+        # MAS and MARL are typically handled via their dedicated system instances.
+        if self.scheduling_algorithm_name in self.algorithms:
+            return self.algorithms[self.scheduling_algorithm_name]
+        elif self.scheduling_algorithm_name == "coordinated_mas" and self.coordinated_mas_system:
+             return self.coordinated_mas_system # Should be handled before calling this ideally
+        elif self.scheduling_algorithm_name == "marl" and self.marl_system:
+             return self.marl_system # Should be handled before calling this ideally
+        logger.error(f"Configured algorithm {self.scheduling_algorithm_name} module not found in self.algorithms or as a system.")
+        return None
         
     # --- learn, load_q_tables, save_q_tables ---
-    def learn(self, state, actions, rewards, next_state):
+    def learn(self, state, actions, rewards, next_state): # Use 'state' consistent with other methods if it's current_state
         """如果使用 MARL，则调用其学习方法"""
         if self.algorithm == "marl" and self.marl_system:
             try:

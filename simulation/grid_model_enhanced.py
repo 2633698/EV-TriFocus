@@ -499,3 +499,9 @@ class EnhancedGridModel:
         # A full simulation would integrate this into the energy balance calculation within update_step.
         # The impact on grid_load_percentage, renewable_ratio etc. will be reflected
         # when these are recalculated based on the new total_load in the next call to _update_regional_state or get_status.
+
+        # Store the actual total amount of V2G power dispatched in this step's status
+        if 'aggregated_metrics' not in self.grid_status: # Should always exist after reset
+            self.grid_status['aggregated_metrics'] = {}
+        self.grid_status['aggregated_metrics']['current_actual_v2g_dispatch_mw'] = amount_mw
+        logger.info(f"GridModel: Recorded {amount_mw:.2f} MW of V2G dispatch in grid status's aggregated_metrics.")
