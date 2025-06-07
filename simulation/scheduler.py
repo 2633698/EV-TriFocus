@@ -63,8 +63,8 @@ class ChargingScheduler:
             logger.info("Initializing Coordinated MAS subsystem as it's the configured default...")
             try:
                 from algorithms.coordinated_mas import MultiAgentSystem
-                self.coordinated_mas_system = MultiAgentSystem()
-                self.coordinated_mas_system.config = self.config # Pass the main config to MAS
+                self.coordinated_mas_system = MultiAgentSystem(main_config=self.config) # Pass main config
+                # self.coordinated_mas_system.config = self.config # This line is redundant if passed in constructor
                 if hasattr(self.coordinated_mas_system, 'coordinator') and hasattr(self.coordinated_mas_system.coordinator, 'set_weights'):
                     coordinator_weights = scheduler_config.get('optimization_weights', {})
                     if coordinator_weights:
@@ -94,7 +94,8 @@ class ChargingScheduler:
                      learning_rate=marl_specific_config.get("learning_rate", 0.01),
                      discount_factor=marl_specific_config.get("discount_factor", 0.95),
                      exploration_rate=marl_specific_config.get("exploration_rate", 0.1),
-                     q_table_path=marl_specific_config.get("q_table_path", None)
+                     q_table_path=marl_specific_config.get("q_table_path", None),
+                     marl_config=marl_specific_config # Ensure this line is present
                  )
                 logger.info("MARL subsystem initialized.")
             except ImportError:
@@ -175,14 +176,15 @@ class ChargingScheduler:
 
         try:
             # 1. Apply Manual Decisions First
-            if manual_decisions and isinstance(manual_decisions, dict):
+            # Initialize decisions dictionary
+            # decisions = {} # decisions is initialized at the start of the function
+
+            if manual_decisions and isinstance(manual_decisions, dict): # Check if manual_decisions is a dict and not None
                 logger.info(f"SCHEDULER: Applying manual decisions: {manual_decisions}")
-                # (Logic for validating and applying manual_decisions - assuming it populates `decisions` directly)
-                # This is the block from the file that handles manual decisions.
                 users_map = {u.get('user_id'): u for u in current_state.get('users', []) if isinstance(u, dict)}
                 chargers_map = {c.get('charger_id'): c for c in current_state.get('chargers', []) if isinstance(c, dict)}
                 valid_manual_decisions = {}
-                for user_id, charger_id in manual_decisions.items():
+                for user_id, charger_id in manual_decisions.items(): # Now safe to call .items()
                     if user_id in users_map and charger_id in chargers_map:
                         user = users_map[user_id]
                         charger = chargers_map[charger_id]
@@ -245,16 +247,19 @@ class ChargingScheduler:
             # If `decisions` is empty, then `algo_decisions` becomes `decisions`.
             # Then `filtered_decisions` ensures locked users are not changed by algo. This is complex.
 
-            # Simpler merge: Start with algo_decisions, then apply manual_decisions on top.
-            final_algo_decisions = algo_decisions.copy()
-            # Filter out users who had a manual decision from algo_decisions
-            for user_id in manual_decisions.keys():
-                if user_id in final_algo_decisions:
-                    del final_algo_decisions[user_id]
+            # Merge: Algorithmic decisions are primary, manual decisions override or add
+            final_algo_decisions = algo_decisions.copy() # Start with algorithmic decisions
 
-            # Add manual decisions
-            final_algo_decisions.update(decisions) # 'decisions' here contains validated manual ones
-            decisions = final_algo_decisions # This is the final set
+            if manual_decisions and isinstance(manual_decisions, dict): # Guard this block
+                # Filter out users who had a manual decision from algo_decisions
+                for user_id_manual in manual_decisions.keys(): # Iterate over keys of manual_decisions
+                    if user_id_manual in final_algo_decisions:
+                        del final_algo_decisions[user_id_manual]
+
+                # Add validated manual decisions (which are already in the 'decisions' dict from the first block)
+                final_algo_decisions.update(decisions) # 'decisions' currently holds validated manual decisions
+
+            decisions = final_algo_decisions # This is the final combined set
 
         except Exception as e:
             logger.error(f"SCHEDULER: Error during scheduling with {effective_algo_name}: {e}", exc_info=True)
@@ -317,14 +322,20 @@ class ChargingScheduler:
         """
         # 从配置中获取 MARL 参数
         marl_config = self.config.get("scheduler", {}).get("marl_config", {})
+        candidate_params = marl_config.get('candidate_selection_params', {})
+
         action_space_size = marl_config.get("action_space_size", 6) # Default to 6
         max_potential_users = action_space_size - 1 # Number of users to map
 
         # --- 获取可配置的候选用户选择参数 ---
-        MAX_DISTANCE_SQ = marl_config.get("marl_candidate_max_dist_sq", 0.15**2) # ~20km radius
-        W_SOC = marl_config.get("marl_priority_w_soc", 0.5)
-        W_DIST = marl_config.get("marl_priority_w_dist", 0.4)
-        W_URGENCY = marl_config.get("marl_priority_w_urgency", 0.1)
+        MAX_DISTANCE_SQ = marl_config.get("marl_candidate_max_dist_sq", 0.15**2) # Example: (0.15 degrees)^2
+        W_SOC = marl_config.get("marl_priority_w_soc", 0.5) # Weight for SOC in priority scoring
+        W_DIST = marl_config.get("marl_priority_w_dist", 0.4) # Weight for distance
+        W_URGENCY = marl_config.get("marl_priority_w_urgency", 0.1) # Weight for urgency
+
+        base_soc_trigger = candidate_params.get('base_soc_threshold', 40)
+        profile_soc_adjustments = candidate_params.get('profile_soc_adjustments', {})
+        dist_conversion_factor = candidate_params.get('distance_unit_conversion_factor', 111.0) # km per degree
 
         action_map = {0: 'idle'} # Action 0 is always idle
         chargers = state.get('chargers', [])
@@ -349,9 +360,11 @@ class ChargingScheduler:
 
             # --- 筛选逻辑: 寻找主动寻求充电的用户 ---
             is_actively_seeking = False
-            charge_threshold = 40 # 基础阈值，可配置
-            if user_profile == 'anxious': charge_threshold = 50
-            elif user_profile == 'economic': charge_threshold = 30
+
+            charge_threshold = base_soc_trigger # Start with base
+            charge_threshold += profile_soc_adjustments.get(user_profile, 0)
+            # Ensure threshold is reasonable, e.g. not negative if adjustments are large
+            charge_threshold = max(5, charge_threshold) # Minimum practical threshold
 
             is_low_soc = soc < charge_threshold
 
@@ -375,7 +388,7 @@ class ChargingScheduler:
                 dist_sq = (user_pos['lat'] - charger_pos['lat'])**2 + (user_pos['lng'] - charger_pos['lng'])**2
 
                 if dist_sq < MAX_DISTANCE_SQ:
-                    distance = math.sqrt(dist_sq) * 111 # Approx km
+                    distance = math.sqrt(dist_sq) * dist_conversion_factor # Use configured conversion factor
                     # 计算紧迫度 (0 to 1, higher is more urgent)
                     urgency = max(0, (charge_threshold - soc)) / charge_threshold if charge_threshold > 0 else 0
 

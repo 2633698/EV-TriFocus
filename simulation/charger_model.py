@@ -6,10 +6,12 @@ import math # 需要 math
 
 logger = logging.getLogger(__name__)
 
-def simulate_step(chargers, users, current_time, time_step_minutes, grid_status):
+def simulate_step(chargers, users, current_time, time_step_minutes, grid_status, config):
     """
     模拟所有充电桩的操作，特别关注手动决策用户
     """
+    env_conf = config.get('environment', {})
+    charger_params = env_conf.get('charger_model_params', {})
     time_step_hours = round(time_step_minutes / 60, 4)
     total_ev_load = 0
     completed_sessions_this_step = []
@@ -35,18 +37,23 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                 charger_max_power = charger.get("max_power", 60)
                 vehicle_max_power = user.get("max_charging_power", 60)
                 power_limit = min(charger_max_power, vehicle_max_power)
-                base_efficiency = user.get("charging_efficiency", 0.92)
+                base_efficiency = user.get("charging_efficiency", 0.92) # This is user's base vehicle efficiency
                 
-                # 根据快充偏好和手动决策优化充电效率
+                # Efficiency boost calculation from charger_params
+                manual_boost_val = charger_params.get('manual_decision_efficiency_boost', 0.03)
+                fast_pref_boost_factor_val = charger_params.get('fast_pref_efficiency_boost_factor', 0.02)
+                fast_pref_thresh_val = charger_params.get('fast_pref_threshold_for_boost', 0.7)
+                low_fast_pref_boost_factor_val = charger_params.get('low_fast_pref_efficiency_boost_factor', 0.01)
+                low_fast_pref_thresh_val = charger_params.get('low_fast_pref_threshold', 0.3)
+                max_efficiency_val = charger_params.get('max_total_efficiency_clamp', 0.95)
+
                 fast_charging_preference = user.get("fast_charging_preference", 0.5)
                 efficiency_boost = 0.0
                 
-                # 手动决策用户的充电功率优化
                 if is_manual_decision:
                     preferred_type = user.get("preferred_charging_type", "快充")
                     if preferred_type == "快充" and charger_type in ["fast", "superfast"]:
-                        # 提高充电效率
-                        efficiency_boost += 0.03
+                        efficiency_boost += manual_boost_val
                         logger.info(f"=== MANUAL DECISION CHARGING OPTIMIZATION ===")
                         logger.info(f"User {current_user_id} getting optimized charging at charger {charger_id}")
                         logger.info(f"Preferred type: {preferred_type}, Charger type: {charger_type}")
@@ -57,35 +64,56 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                         logger.info(f"Preferred type: {preferred_type}, Charger type: {charger_type}")
                         logger.info(f"Current SOC: {current_soc:.1f}%, Target SOC: {target_soc}%")
                 
-                # 根据快充偏好优化充电效率
+                # According to fast charging preference
                 if charger_type in ["fast", "superfast"]:
-                    # 快充偏好高的用户在使用快充时效率更高
-                    if fast_charging_preference > 0.7:
-                        preference_boost = 0.02 * (fast_charging_preference - 0.7) / 0.3
+                    if fast_charging_preference > fast_pref_thresh_val:
+                        # Normalize preference effect: (preference - threshold) / (1.0 - threshold)
+                        norm_pref = (fast_charging_preference - fast_pref_thresh_val) / (1.0 - fast_pref_thresh_val + 1e-5)
+                        preference_boost = fast_pref_boost_factor_val * norm_pref
                         efficiency_boost += preference_boost
-                        logger.debug(f"User {current_user_id} with high fast charging preference ({fast_charging_preference:.2f}) gets +{preference_boost:.3f} efficiency boost")
-                elif charger_type == "normal" and fast_charging_preference < 0.3:
-                    # 快充偏好低的用户在使用慢充时效率更高
-                    preference_boost = 0.01 * (0.3 - fast_charging_preference) / 0.3
+                        logger.debug(f"User {current_user_id} high fast pref ({fast_charging_preference:.2f}) on {charger_type} gets +{preference_boost:.3f} efficiency.")
+                elif charger_type == "normal" and fast_charging_preference < low_fast_pref_thresh_val:
+                    # Normalize preference effect: (threshold - preference) / threshold
+                    norm_pref = (low_fast_pref_thresh_val - fast_charging_preference) / (low_fast_pref_thresh_val + 1e-5)
+                    preference_boost = low_fast_pref_boost_factor_val * norm_pref
                     efficiency_boost += preference_boost
-                    logger.debug(f"User {current_user_id} with low fast charging preference ({fast_charging_preference:.2f}) gets +{preference_boost:.3f} efficiency boost on normal charger")
+                    logger.debug(f"User {current_user_id} low fast pref ({fast_charging_preference:.2f}) on normal gets +{preference_boost:.3f} efficiency.")
                 
-                # 应用效率提升
                 old_efficiency = base_efficiency
-                base_efficiency = min(0.95, base_efficiency * (1 + efficiency_boost))
+                final_efficiency = min(max_efficiency_val, base_efficiency * (1 + efficiency_boost))
                 
                 if efficiency_boost > 0:
-                    logger.debug(f"Charging efficiency optimized: {old_efficiency:.3f} -> {base_efficiency:.3f} (boost: {efficiency_boost:.3f})")
+                    logger.debug(f"Charging efficiency for {current_user_id}: Base={base_efficiency:.3f}, Boost={efficiency_boost:.3f}, Final={final_efficiency:.3f}")
 
+                # SOC Tapering
+                soc_tapering_curve = charger_params.get('soc_tapering_curve', [
+                    [20, 1.0, 0.0], [50, 1.0, -0.003333], [80, 0.9, -0.006667], [100, 0.7, -0.025]
+                ])
+                min_taper_factor = charger_params.get('min_soc_taper_factor', 0.1)
 
-                soc_factor = 1.0
-                if current_soc < 20: soc_factor = 1.0
-                elif current_soc < 50: soc_factor = 1.0 - ((current_soc - 20) / 30) * 0.1
-                elif current_soc < 80: soc_factor = 0.9 - ((current_soc - 50) / 30) * 0.2
-                else: soc_factor = 0.7 - ((current_soc - 80) / 20) * 0.5
+                soc_factor = 1.0 # Default if no matching tier
+                for i in range(len(soc_tapering_curve)):
+                    tier_soc_thresh, tier_start_factor, tier_slope = soc_tapering_curve[i]
+                    if current_soc < tier_soc_thresh:
+                        if i == 0: # Below first threshold
+                            soc_factor = tier_start_factor
+                        else: # In between thresholds or within a sloped segment
+                            prev_tier_soc, prev_tier_factor, _ = soc_tapering_curve[i-1]
+                            # The slope in config is per unit of SOC over the range of that tier
+                            # Example: -0.1/30 means a 0.1 drop over 30 SOC points
+                            # So, (current_soc - prev_tier_soc) * slope_from_config
+                            # The config has slope_factor_over_range, so it's already per unit of SOC in that range
+                            # Let's assume the slope is just the factor to multiply (current_soc - prev_tier_soc)
+                            soc_factor = prev_tier_factor + (current_soc - prev_tier_soc) * soc_tapering_curve[i-1][2] # Use previous tier's slope
+                        break
+                else: # If current_soc is >= last threshold
+                    last_tier_soc, last_tier_factor, last_tier_slope = soc_tapering_curve[-1]
+                    soc_factor = last_tier_factor + (current_soc - last_tier_soc) * last_tier_slope
+
+                soc_factor = max(min_taper_factor, soc_factor) # Clamp to min factor
                 
-                actual_power = power_limit * max(0.1, soc_factor)
-                power_to_battery = actual_power * base_efficiency
+                actual_power = power_limit * soc_factor
+                power_to_battery = actual_power * final_efficiency
 
                 soc_needed = max(0, target_soc - current_soc)
                 energy_needed = (soc_needed / 100.0) * battery_capacity
@@ -106,9 +134,8 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                     current_price = grid_status.get("current_price", 0.85)
                     price_multiplier = charger.get("price_multiplier", 1.0)
                     
-                    # 手动决策用户可能享受小幅折扣
                     if is_manual_decision:
-                        price_multiplier *= 0.98  # 2%折扣
+                        price_multiplier *= charger_params.get('manual_decision_price_discount_factor', 0.98)
                     
                     revenue = actual_energy_from_grid * current_price * price_multiplier
                     charger["daily_revenue"] = charger.get("daily_revenue", 0) + revenue
@@ -117,14 +144,17 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                     # 检查充电是否完成
                     charging_start_time = charger.get("charging_start_time", current_time - timedelta(minutes=time_step_minutes))
                     charging_duration_minutes = (current_time - charging_start_time).total_seconds() / 60
-                    max_charging_time = 180
-                    if charger_type == "superfast": max_charging_time = 30
-                    elif charger_type == "fast": max_charging_time = 60
+
+                    max_times_by_type = charger_params.get('max_charging_time_minutes_by_type', {"default": 180, "superfast": 30, "fast": 60})
+                    max_charging_time = max_times_by_type.get(charger_type, max_times_by_type.get("default", 180))
 
                     # 结束充电逻辑
-                    if new_soc >= target_soc - 0.5 or charging_duration_minutes >= max_charging_time - 0.1:
-                        reason = "target_reached" if new_soc >= target_soc - 0.5 else "time_limit_exceeded"
-                        
+                    # Allow a small tolerance for target_soc, e.g. 0.5%
+                    target_soc_reached = new_soc >= (target_soc - 0.5)
+                    time_limit_exceeded = charging_duration_minutes >= (max_charging_time - 0.1) # Small tolerance for time limit
+
+                    if target_soc_reached or time_limit_exceeded:
+                        reason = "target_reached" if target_soc_reached else "time_limit_exceeded"
                         if is_manual_decision:
                             logger.info(f"=== MANUAL DECISION CHARGING COMPLETED ===")
                             logger.info(f"User {current_user_id} finished charging at charger {charger_id}")
@@ -169,9 +199,16 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
 
                         user["status"] = "post_charge"
                         user["target_charger"] = None
-                        user["post_charge_timer"] = random.randint(1, 3)
+
+                        min_post_steps = charger_params.get('user_post_charge_min_timer_steps', 1)
+                        max_post_steps_normal = charger_params.get('user_post_charge_max_timer_steps_normal', 3)
+                        max_post_steps_profiled = charger_params.get('user_post_charge_max_timer_steps_profiled', {})
+                        user_type_for_timer = user.get('user_type', 'private_default') # Use a default key if user_type not in map
+                        max_steps = max_post_steps_profiled.get(user_type_for_timer, max_post_steps_normal)
+                        user["post_charge_timer"] = random.randint(min_post_steps, max_steps)
+
                         user["initial_soc"] = None
-                        user["target_soc"] = None
+                        user["target_soc"] = None # Clear target SOC after charging
                         # 保留手动决策标记直到post_charge结束
 
         # 处理等待队列 - 优先处理手动决策用户
@@ -233,14 +270,23 @@ def simulate_step(chargers, users, current_time, time_step_minutes, grid_status)
                             logger.info(f"Manual user {next_user_id} successfully assigned to target charger {charger_id}")
                             logger.info(f"Manual decision fulfilled as requested")
                         
-                        # 使用手动设置的目标SOC或默认值
-                        if is_manual and 'manual_charging_params' in next_user:
-                            target_soc = next_user['manual_charging_params'].get('target_soc', 80)
-                        else:
-                            target_soc = min(95, next_user.get("soc", 0) + 60)
+                        # Set target SOC for the new session
+                        default_target_soc_val = charger_params.get('default_target_soc_if_not_set', 95)
+                        default_charge_needed_val = charger_params.get('default_charge_needed_for_target_soc', 60)
+
+                        if is_manual and 'manual_charging_params' in next_user and next_user['manual_charging_params'].get('target_soc') is not None:
+                            target_soc = next_user['manual_charging_params']['target_soc']
+                        elif next_user.get('is_reservation_user') and next_user.get('target_soc') is not None: # Reservation might set target_soc
+                            target_soc = next_user['target_soc']
+                        else: # Default logic if not manual or reservation with specific target
+                            current_soc_val = next_user.get("soc", 0)
+                            if current_soc_val + default_charge_needed_val < default_target_soc_val:
+                                target_soc = default_target_soc_val
+                            else:
+                                target_soc = min(100, current_soc_val + default_charge_needed_val)
                         
                         next_user["target_soc"] = target_soc
-                        next_user["initial_soc"] = next_user.get("soc", 0)
+                        next_user["initial_soc"] = next_user.get("soc", 0) # Record SOC at start of charge
 
                         # 从队列中移除
                         charger["queue"].pop(0)

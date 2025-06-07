@@ -114,9 +114,8 @@ class MARLAgent:
 
 # --- Helper Functions for MARL (Remain associated with MARL logic) ---
 
-def get_agent_state(charger_id, global_state):
-    """Extracts the relevant state information for a specific charger agent."""
-    # (基本逻辑不变，确保从 global_state 安全取值)
+def get_agent_state(charger_id, global_state, agent_state_params):
+    """Extracts the relevant state information for a specific charger agent using config parameters."""
     if not global_state or 'chargers' not in global_state:
         logger.warning(f"Cannot get agent state for {charger_id}. Invalid global_state.")
         return {}
@@ -124,50 +123,62 @@ def get_agent_state(charger_id, global_state):
     charger = next((c for c in global_state.get('chargers', []) if c['charger_id'] == charger_id), None)
     if not charger: return {}
 
-    # --- State Features ---
-    status_map = {'available': 0, 'occupied': 1, 'failure': 2}
+    # State Features from config or defaults
+    status_map = agent_state_params.get('status_map', {'available': 0, 'occupied': 1, 'failure': 2})
     charger_status = status_map.get(charger.get('status', 'available'), 0)
-    queue_length = len(charger.get('queue', []))
+
+    max_queue_repr = agent_state_params.get('max_queue_state_representation', 3)
+    queue_length = min(len(charger.get('queue', [])), max_queue_repr)
+
+    hour_discretization = agent_state_params.get('hour_discretization_factor', 4)
     hour_of_day = 0
     try:
         timestamp_str = global_state.get('timestamp')
         if timestamp_str: hour_of_day = datetime.fromisoformat(timestamp_str).hour
-    except: pass # Ignore parsing errors
+    except: pass
+    discrete_hour = hour_of_day // hour_discretization
 
     grid_status = global_state.get('grid_status', {})
     grid_load_percentage = grid_status.get('grid_load_percentage', 50)
     renewable_ratio = grid_status.get('renewable_ratio', 0)
 
+    grid_load_cats = agent_state_params.get('grid_load_categories', [80, 60]) # [high, medium]
     grid_load_cat = 0
-    if grid_load_percentage > 80: grid_load_cat = 2
-    elif grid_load_percentage > 60: grid_load_cat = 1
+    if grid_load_percentage > grid_load_cats[0]: grid_load_cat = 2
+    elif grid_load_percentage > grid_load_cats[1]: grid_load_cat = 1
 
+    renewable_cats = agent_state_params.get('renewable_categories', [50, 20]) # [high, medium]
     renew_cat = 0
-    if renewable_ratio > 50: renew_cat = 2
-    elif renewable_ratio > 20: renew_cat = 1
+    if renewable_ratio > renewable_cats[0]: renew_cat = 2
+    elif renewable_ratio > renewable_cats[1]: renew_cat = 1
 
-    # --- Nearby Demand (Simplified) ---
+    # Nearby Demand
     users_needing_charge = 0
     charger_pos = charger.get('position', {'lat': 0, 'lng': 0})
-    nearby_radius_sq = 0.05**2 # Approx 5km radius squared
-    for user in global_state.get('users', []):
-        if user.get('soc', 100) < 40 and user.get('status') not in ['charging', 'waiting']:
-             user_pos = user.get('current_position', {'lat': -999, 'lng': -999})
-             # Use imported calculate_distance helper if needed, or keep inline calculation
-             # dist_sq = (user_pos['lat'] - charger_pos['lat'])**2 + (user_pos['lng'] - charger_pos['lng'])**2
-             # Simplified check:
-             if abs(user_pos.get('lat', -999) - charger_pos.get('lat', 0)) < 0.05 and \
-                abs(user_pos.get('lng', -999) - charger_pos.get('lng', 0)) < 0.05:
-                 users_needing_charge += 1
+    nearby_radius_sq_deg = agent_state_params.get('nearby_demand_radius_sq_degrees', 0.05**2)
 
-    # --- Assemble State Dictionary ---
+    # Assuming a simple SOC threshold for "needing charge" for this state feature
+    # This is distinct from the scheduler's user filtering for action map generation
+    demand_soc_threshold = agent_state_params.get('nearby_demand_soc_threshold', 40)
+
+    for user in global_state.get('users', []):
+        if user.get('soc', 100) < demand_soc_threshold and user.get('status') not in ['charging', 'waiting']:
+             user_pos = user.get('current_position', {'lat': -999, 'lng': -999})
+             if isinstance(user_pos.get('lat'), (float, int)) and isinstance(charger_pos.get('lat'), (float, int)): # Basic check
+                 dist_sq = (user_pos['lat'] - charger_pos['lat'])**2 + (user_pos['lng'] - charger_pos['lng'])**2
+                 if dist_sq < nearby_radius_sq_deg:
+                     users_needing_charge += 1
+
+    max_demand_repr = agent_state_params.get('max_nearby_demand_state_representation', 2)
+    nearby_demand_cat = min(users_needing_charge, max_demand_repr)
+
     state = {
         "status": charger_status,
-        "queue": min(queue_length, 3),
-        "hour_discrete": hour_of_day // 4, # Discretize hour
+        "queue": queue_length,
+        "hour_discrete": discrete_hour,
         "grid_load_cat": grid_load_cat,
         "renew_cat": renew_cat,
-        "nearby_demand_cat": min(users_needing_charge, 2) # Discretize demand
+        "nearby_demand_cat": nearby_demand_cat
     }
     return state
 
@@ -176,9 +187,8 @@ def get_agent_state(charger_id, global_state):
 # it might need access to the scheduler's config or state more easily.
 # If you prefer it here, you'll need to pass `config` to it.
 
-def calculate_agent_reward(charger_id, action_taken, global_state, previous_state):
-    """Calculates the reward for a charger agent."""
-    # (基本逻辑不变，确保从 global_state 和 previous_state 安全取值)
+def calculate_agent_reward(charger_id, action_taken, global_state, previous_state, agent_reward_params):
+    """Calculates the reward for a charger agent using config parameters."""
     reward = 0.0
     if not global_state or not previous_state or \
        'chargers' not in global_state or 'chargers' not in previous_state:
@@ -189,37 +199,41 @@ def calculate_agent_reward(charger_id, action_taken, global_state, previous_stat
     if not charger or not prev_charger: return 0.0
 
     grid_status = global_state.get('grid_status', {})
-    current_price = grid_status.get('current_price', 0.8)
+    current_price = grid_status.get('current_price', 0.8) # Base electricity price
     hour = 0
     try:
         if global_state.get('timestamp'): hour = datetime.fromisoformat(global_state['timestamp']).hour
     except: pass
 
-    # 1. Successful Assignment Reward:
-    # Check if the charger is now occupied by the user it decided to take
-    if action_taken != 'idle' and charger.get('status') == 'occupied' and charger.get('current_user') == action_taken and prev_charger.get('status') == 'available':
-        reward += current_price * 0.7 # Slightly higher reward for successful assignment
+    # 1. Successful Assignment Reward
+    assignment_base_factor = agent_reward_params.get('assignment_success_base_factor', 0.7)
+    if action_taken != 'idle' and charger.get('status') == 'occupied' and \
+       charger.get('current_user') == action_taken and prev_charger.get('status') == 'available':
+        reward += current_price * assignment_base_factor
 
-    # 2. Grid Friendliness Reward/Penalty:
+    # 2. Grid Friendliness Reward/Penalty
     if charger.get('status') == 'occupied':
-        peak_hours = grid_status.get('peak_hours', [])
+        peak_hours = grid_status.get('peak_hours', []) # Assume these come from grid_status or main config
         valley_hours = grid_status.get('valley_hours', [])
         renewable_ratio = grid_status.get('renewable_ratio', 0)
-        if hour in peak_hours: reward -= 0.6 # Stronger penalty for peak
-        elif hour in valley_hours: reward += 0.4 # Higher reward for valley
-        elif renewable_ratio > 60: reward += 0.25 # Higher threshold for renewable bonus
 
-    # 3. Idle Penalty:
-    if action_taken == 'idle' and prev_charger.get('status') == 'available':
-        # Check if there *were* potential users it could have taken (requires action map from previous state)
-        # Simplified: Apply small penalty if idle when grid is not stressed
+        if hour in peak_hours: reward += agent_reward_params.get('peak_hour_penalty', -0.6)
+        elif hour in valley_hours: reward += agent_reward_params.get('valley_hour_reward', 0.4)
+
+        high_renew_thresh = agent_reward_params.get('high_renewable_threshold', 60)
+        if renewable_ratio > high_renew_thresh: # Percentage
+            reward += agent_reward_params.get('high_renewable_reward', 0.25)
+
+    # 3. Idle Penalty
+    idle_penalty_load_thresh = agent_reward_params.get('idle_penalty_grid_load_threshold', 70)
+    if action_taken == 'idle' and prev_charger.get('status') == 'available': # Corrected: was `action_taken != 'idle'`
          grid_load_percentage = grid_status.get('grid_load_percentage', 50)
-         if grid_load_percentage < 70:
-            reward -= 0.15
+         if grid_load_percentage < idle_penalty_load_thresh:
+            reward += agent_reward_params.get('idle_penalty', -0.15)
 
-    # 4. Failure Penalty:
+    # 4. Failure Penalty
     if charger.get('status') == 'failure' and prev_charger.get('status') != 'failure':
-        reward -= 3.0 # Stronger penalty for failure
+        reward += agent_reward_params.get('failure_penalty', -3.0)
 
     # 5. Queue Management Reward (Optional)
     # Small reward for keeping queue short?
@@ -231,10 +245,11 @@ def calculate_agent_reward(charger_id, action_taken, global_state, previous_stat
 
 # --- MARLSystem Class ---
 class MARLSystem:
-    def __init__(self, num_chargers, action_space_size, learning_rate, discount_factor, exploration_rate, q_table_path):
+    def __init__(self, num_chargers, action_space_size, learning_rate, discount_factor, exploration_rate, q_table_path, marl_config=None): # Added marl_config
         self.num_chargers = num_chargers
         self.action_space_size = action_space_size
         self.lr = learning_rate
+        self.marl_config = marl_config if marl_config is not None else {} # Store the marl_config section
         self.gamma = discount_factor
         self.epsilon = exploration_rate
         self.q_table_path = q_table_path
@@ -276,9 +291,21 @@ class MARLSystem:
                  idle_agents += 1
                  continue
 
-             agent_state = get_agent_state(charger_id, state) # Get state specific to this agent
+             agent_state_params = self.marl_config.get('agent_state_params', {})
+             agent_state = get_agent_state(charger_id, state, agent_state_params)
 
              # --- How to get valid actions? ---
+             # The action map is generated by ChargingScheduler._create_dynamic_action_map
+             # and should be passed to this function or used before calling this.
+             # For now, assuming choose_action in MARLAgent will use a map passed to it.
+             # The current MARLAgent.choose_action takes `current_action_map`.
+             # This map needs to be provided here.
+             # This part is complex as the map generation is in ChargingScheduler.
+             # For this refactoring, we focus on get_agent_state and calculate_agent_reward using config.
+             # The choose_actions method's direct config use is minimal here, beyond calling get_agent_state.
+             # We'll use a placeholder for current_action_map as it's outside current direct refactor scope of this function.
+             _current_action_map_placeholder = {0: 'idle'} # This needs to be properly passed from scheduler
+
              # OPTION 1: Assume MARLAgent.choose_action handles it (needs state only)
              # action, action_index = agent.choose_action(agent_state, ?) # Problem: Needs action map
 
@@ -350,16 +377,16 @@ class MARLSystem:
         # This structure is problematic. `actions` should ideally be the raw {charger_id: action_index}.
         # Let's assume `actions` IS {charger_id: action_index} for the update logic.
 
-        if isinstance(actions, dict): # Check if actions is the expected format
+        if isinstance(actions, dict):
             for charger_id, action_index in actions.items():
                 agent = self.agents.get(charger_id)
                 if not agent: continue
 
-                agent_state = get_agent_state(charger_id, state) # State when action was chosen
-                next_agent_state = get_agent_state(charger_id, next_state) # Resulting state
-                reward = agent_rewards.get(charger_id, 0) # Get specific reward
+                current_agent_state = get_agent_state(charger_id, state, agent_state_params)
+                next_agent_state = get_agent_state(charger_id, next_state, agent_state_params)
+                reward = agent_rewards.get(charger_id, 0)
 
-                agent.update_q_table(agent_state, action_index, reward, next_agent_state)
+                agent.update_q_table(current_agent_state, action_index, reward, next_agent_state)
                 update_count += 1
                 # Optional: Log significant updates
                 # ...

@@ -13,8 +13,10 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
     模拟所有用户的行为，特别处理手动决策用户
     """
     time_step_hours = time_step_minutes / 60.0
-    env_config = config.get('environment', {})
-    map_bounds = env_config.get("map_bounds", {
+    env_config = config.get('environment', {}) # Top-level 'environment' key
+    user_model_params = env_config.get('user_model_params', {}) # Specific user model params
+
+    map_bounds = env_config.get("map_bounds", { # map_bounds is still under top-level 'environment'
         "lat_min": 30.5, "lat_max": 31.0, "lng_min": 114.0, "lng_max": 114.5
     })
 
@@ -32,14 +34,15 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
         if is_manual_decision:
             # 手动决策用户减少随机行为，更确定地执行决策
             if user_status == "traveling" and user.get("target_charger"):
-                # 大幅加速到达目标（模拟用户更积极的驾驶）
-                travel_speed = user.get("travel_speed", 45) * 2.0  # 提高100%速度
+                manual_speed_mult = user_model_params.get('manual_decision_travel_speed_multiplier', 2.0)
+                travel_speed = user.get("travel_speed", 45) * manual_speed_mult
                 user["travel_speed"] = travel_speed
                 
-                # 强制减少剩余时间，确保快速到达
                 current_time_to_dest = user.get("time_to_destination", 0)
-                if current_time_to_dest > 5:  # 如果剩余时间超过5分钟
-                    user["time_to_destination"] = max(1, current_time_to_dest * 0.3)  # 大幅减少剩余时间
+                reduction_thresh = user_model_params.get('manual_decision_time_to_dest_reduction_threshold_minutes', 5.0)
+                reduction_factor = user_model_params.get('manual_decision_time_to_dest_reduction_factor', 0.3)
+                if current_time_to_dest > reduction_thresh:
+                    user["time_to_destination"] = max(1, current_time_to_dest * reduction_factor)
                     logger.debug(f"Manual decision user {user_id} accelerated travel: time reduced to {user['time_to_destination']:.1f} minutes")
                 
                 logger.debug(f"Manual decision user {user_id} traveling at enhanced speed: {travel_speed:.1f} km/h")
@@ -94,31 +97,36 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
 
         # 电量消耗（对手动决策用户同样适用）
         if user_status not in ["charging", "waiting"]:
-            # 原有电量消耗逻辑...
-            idle_consumption_rate = 0.4
-            vehicle_type = user.get("vehicle_type", "sedan")
+            base_idle_kw = user_model_params.get('idle_consumption_base_kw', 0.4)
+            vehicle_type_mults = user_model_params.get('idle_consumption_vehicle_type_multipliers',
+                                                       {"sedan": 2.0, "suv": 3.0, "truck": 5.0, "luxury": 2.5, "compact": 1.5, "default": 2.0})
+            season_factors_cfg = user_model_params.get('idle_consumption_season_factors',
+                                                      {"summer": 2.2, "winter": 2.5, "default": 1.3})
+            time_factors_cfg = user_model_params.get('idle_consumption_time_factors',
+                                                    {"peak": 1.6, "off_peak_night": 0.8, "default": 1.0})
+            b_min = user_model_params.get('idle_consumption_behavior_factor_min', 0.9)
+            b_max = user_model_params.get('idle_consumption_behavior_factor_max', 1.8)
 
-            if vehicle_type == "sedan": idle_consumption_rate = 0.8
-            elif vehicle_type == "suv": idle_consumption_rate = 1.2
-            elif vehicle_type == "truck": idle_consumption_rate = 2.0
-            elif vehicle_type == "luxury": idle_consumption_rate = 1.0
-            elif vehicle_type == "compact": idle_consumption_rate = 0.6
+            idle_consumption_rate = base_idle_kw
+            vehicle_type = user.get("vehicle_type", "sedan")
+            idle_consumption_rate *= vehicle_type_mults.get(vehicle_type, vehicle_type_mults.get("default", 2.0))
 
             current_month = current_time.month
-            season_factor = 1.0
-            if 6 <= current_month <= 8: season_factor = 2.2
-            elif current_month <= 2 or current_month == 12: season_factor = 2.5
-            else: season_factor = 1.3
+            season_factor = season_factors_cfg.get("default", 1.3)
+            if 6 <= current_month <= 8: season_factor = season_factors_cfg.get("summer", 2.2)
+            elif current_month <= 2 or current_month == 12: season_factor = season_factors_cfg.get("winter", 2.5)
             idle_consumption_rate *= season_factor
 
             hour = current_time.hour
-            time_factor = 1.0
-            if hour in [6, 7, 8, 17, 18, 19]: time_factor = 1.6
-            elif 22 <= hour or hour <= 4: time_factor = 0.8
+            time_factor = time_factors_cfg.get("default", 1.0)
+            # Example peak hours for idle consumption, can be made more robust if peak_hours list is in config
+            if any(h_start <= hour < h_end for h_start, h_end in [(6,9), (17,20)]):
+                time_factor = time_factors_cfg.get("peak",1.6)
+            elif hour >= 22 or hour <= 4:
+                time_factor = time_factors_cfg.get("off_peak_night",0.8)
             idle_consumption_rate *= time_factor
 
-            behavior_factor = random.uniform(0.9, 1.8)
-            idle_consumption_rate *= behavior_factor
+            idle_consumption_rate *= random.uniform(b_min, b_max)
 
             idle_energy_used = idle_consumption_rate * time_step_hours
             idle_soc_decrease = (idle_energy_used / battery_capacity) * 100 if battery_capacity > 0 else 0
@@ -134,29 +142,12 @@ def simulate_step(users, chargers, current_time, time_step_minutes, config):
                 
                 if estimated_charge_amount < MIN_CHARGE_AMOUNT_THRESHOLD:
                     pass
-                elif current_soc <= config.get('environment',{}).get('force_charge_soc_threshold', 20.0):
+                elif current_soc <= config.get('environment',{}).get('force_charge_soc_threshold', 20.0): # This threshold is from general env_config
                     user["needs_charge_decision"] = True
                     logger.debug(f"User {user_id} SOC critical, forcing charge need.")
                 else:
-                    charging_prob = calculate_charging_probability(user, current_time.hour, config)
-                    # 应用各种调整因子
-                    timer_value = user.get("post_charge_timer")
-                    if user_status == "post_charge" and isinstance(timer_value, int) and timer_value > 0:
-                        charging_prob *= 0.1
-                    if user_status == "traveling" and user.get("last_destination_type") == "random":
-                        charging_prob *= (0.1 if current_soc > 60 else 1.2)
-                    if current_soc > 75: charging_prob *= 0.01
-                    elif current_soc > 60: charging_prob *= 0.1
-                    if user.get("user_type") in ["taxi", "ride_hailing"]:
-                        charging_prob *= (0.5 if current_soc > 50 else 1.2)
-                    
-                    hour = current_time.hour
-                    grid_status = config.get('grid', {})
-                    peak_hours = grid_status.get('peak_hours', [])
-                    if hour in peak_hours:
-                        charging_prob *= (0.5 if current_soc > 60 else 1.2)
-                    if 20 < current_soc <= 35: charging_prob *= 1.5
-
+                    charging_prob = calculate_charging_probability(user, current_time.hour, config, user_model_params)
+                    # The detailed factor adjustments are now inside calculate_charging_probability
                     if random.random() < charging_prob:
                         user["needs_charge_decision"] = True
 
@@ -376,79 +367,84 @@ def get_destination_by_user_type_and_time(user, current_time, map_bounds):
     
     return {"lat": lat, "lng": lng}
 
-def calculate_charging_probability(user, current_hour, config):
+def calculate_charging_probability(user, current_hour, config, user_model_params): # Added user_model_params
     """计算用户决定寻求充电的概率 (使用原详细逻辑)"""
     # (从原 ChargingEnvironment._calculate_charging_probability 复制逻辑)
     current_soc = user.get("soc", 100)
     user_type = user.get("user_type", "commuter")
-    charging_preference = user.get("charging_preference", "flexible") # 可能没有这个字段
-    profile = user.get("user_profile", "balanced") # 使用 user_profile
-    fast_charging_preference = user.get("fast_charging_preference", 0.5) # 快充偏好
+    profile = user.get("user_profile", "balanced")
+    fast_charging_preference = user.get("fast_charging_preference", 0.5)
 
-    # 检查充电量是否太小
-    estimated_charge_amount = 100 - current_soc
-    MIN_CHARGE_AMOUNT_THRESHOLD = config.get('environment',{}).get('min_charge_threshold_percent', 25.0)
-    if estimated_charge_amount < MIN_CHARGE_AMOUNT_THRESHOLD:
-        return 0.0 # 概率为0
+    # Check min charge amount - this is from top-level environment config, not user_model_params directly
+    min_charge_amount_env = config.get('environment',{}).get('min_charge_threshold_percent', 25.0)
+    if (100 - current_soc) < min_charge_amount_env:
+        return 0.0
 
     # 1. Base probability using sigmoid
-    soc_midpoint = 40
-    soc_steepness = 0.1
-    base_prob = 1 / (1 + math.exp(soc_steepness * (current_soc - soc_midpoint)))
-    base_prob = min(0.95, max(0.05, base_prob))
-    if current_soc > 75: base_prob *= 0.1
-    elif current_soc > 60: base_prob *= 0.3
+    mid = user_model_params.get('charging_prob_sigmoid_midpoint', 40)
+    steep = user_model_params.get('charging_prob_sigmoid_steepness', 0.1)
+    base_prob = 1 / (1 + math.exp(steep * (current_soc - mid)))
 
-    # 2. User type factor
-    type_factor = 0
-    if user_type == "taxi": type_factor = 0.2
-    elif user_type == "delivery": type_factor = 0.15
-    elif user_type == "business": type_factor = 0.1
-    elif user_type == "ride_hailing": type_factor = 0.15
-    elif user_type == "logistics": type_factor = 0.1
+    min_clamp = user_model_params.get('charging_prob_min_clamp', 0.05)
+    max_clamp = user_model_params.get('charging_prob_max_clamp', 0.95)
+    base_prob = min(max_clamp, max(min_clamp, base_prob))
 
-    # 3. Preference factor (simplified - time based)
-    preference_factor = 0
-    grid_status = config.get('grid', {})
-    peak_hours = grid_status.get('peak_hours', [])
-    valley_hours = grid_status.get('valley_hours', [])
-    hour = current_hour
-    if hour in valley_hours: preference_factor = 0.2 # Prefer valley
-    elif hour not in peak_hours: preference_factor = 0.1 # Prefer shoulder over peak
+    # SOC reduction factors
+    soc_reduct_thresh = user_model_params.get('charging_probability_soc_thresholds_for_reduction', [75, 60])
+    soc_reduct_factors = user_model_params.get('charging_probability_soc_reduction_factors', [0.1, 0.3])
+    if current_soc > soc_reduct_thresh[0]: base_prob *= soc_reduct_factors[0]
+    elif current_soc > soc_reduct_thresh[1]: base_prob *= soc_reduct_factors[1]
 
-    # 4. Profile factor
-    profile_factor = 0
-    if profile == "anxious": profile_factor = 0.2
-    elif profile == "urgent": profile_factor = 0.15
-    elif profile == "economic": profile_factor = -0.1 # Discourage charging unless needed
+    # User type factor
+    type_factors = user_model_params.get('charging_prob_user_type_factors', {})
+    type_factor_adj = type_factors.get(user_type, 0.0)
 
-    # 5. Fast charging preference factor
-    # 快充偏好高的用户更倾向于在SOC较高时就开始寻找充电站
-    fast_charging_factor = 0
-    if fast_charging_preference > 0.7:
-        # 高快充偏好的用户在SOC较高时就会考虑充电
-        if 40 <= current_soc <= 60:
-            fast_charging_factor = 0.1 * (fast_charging_preference - 0.7) / 0.3
-    elif fast_charging_preference < 0.3:
-        # 低快充偏好的用户会等到SOC较低时才充电
-        if current_soc > 30:
-            fast_charging_factor = -0.1 * (0.3 - fast_charging_preference) / 0.3
+    # Time preference factor (valley/shoulder)
+    time_pref_factors = user_model_params.get('charging_prob_time_preference_factors', {})
+    grid_config = config.get('grid', {}) # Need peak_hours, valley_hours from grid_config
+    peak_hours_list = grid_config.get('peak_hours', [])
+    valley_hours_list = grid_config.get('valley_hours', [])
 
-    # 6. Emergency boost
-    emergency_boost = 0
-    force_charge_soc = config.get('environment',{}).get('force_charge_soc_threshold', 20.0)
-    if current_soc <= force_charge_soc + 5: # Slightly above force threshold
-        emergency_boost = 0.4 * (1 - (current_soc - force_charge_soc) / 5.0) if current_soc > force_charge_soc else 0.4
+    time_factor_adj = 0.0
+    if current_hour in valley_hours_list: time_factor_adj = time_pref_factors.get('valley', 0.0)
+    elif current_hour not in peak_hours_list: time_factor_adj = time_pref_factors.get('shoulder', 0.0)
 
-    # Combine factors
-    charging_prob = base_prob + type_factor + preference_factor + profile_factor + fast_charging_factor + emergency_boost
-    charging_prob = min(1.0, max(0.0, charging_prob)) # Clamp to [0, 1]
+    # Profile factor
+    profile_adj_factors = user_model_params.get('charging_prob_profile_factors', {})
+    profile_factor_adj = profile_adj_factors.get(profile, 0.0)
 
-    # logger.debug(f"User {user.get('user_id')} charging prob: {charging_prob:.3f} (SOC:{current_soc:.1f})")
-    return charging_prob
+    # Fast charging preference factor
+    fast_charge_pref_factor_adj = 0.0
+    fc_pref_high_soc_min = user_model_params.get('charging_prob_fast_charging_pref_factor_high_soc_min', 40)
+    fc_pref_high_soc_max = user_model_params.get('charging_prob_fast_charging_pref_factor_high_soc_max', 60)
+    fc_pref_high_boost = user_model_params.get('charging_prob_fast_charging_pref_factor_high_pref_boost', 0.1)
+
+    fc_pref_low_soc_min = user_model_params.get('charging_prob_fast_charging_pref_factor_low_soc_min', 30)
+    fc_pref_low_penalty = user_model_params.get('charging_prob_fast_charging_pref_factor_low_pref_penalty', -0.1)
+
+    if fast_charging_preference > 0.7: # High preference
+        if fc_pref_high_soc_min <= current_soc <= fc_pref_high_soc_max:
+            fast_charge_pref_factor_adj = fc_pref_high_boost * (fast_charging_preference - 0.7) / 0.3
+    elif fast_charging_preference < 0.3: # Low preference
+        if current_soc > fc_pref_low_soc_min: # Penalty if SOC is not that low
+            fast_charge_pref_factor_adj = fc_pref_low_penalty * (0.3 - fast_charging_preference) / 0.3
+
+    # Emergency boost (uses force_charge_soc_threshold from top-level environment config)
+    emergency_boost_adj = 0.0
+    force_charge_soc_env = config.get('environment',{}).get('force_charge_soc_threshold', 20.0)
+    emergency_soc_offset = user_model_params.get('charging_prob_emergency_boost_soc_offset', 5)
+    emergency_max_factor = user_model_params.get('charging_prob_emergency_boost_max_factor', 0.4)
+
+    if current_soc <= force_charge_soc_env + emergency_soc_offset:
+        boost_range = force_charge_soc_env + emergency_soc_offset - force_charge_soc_env
+        emergency_boost_adj = emergency_max_factor * (1 - (current_soc - force_charge_soc_env) / boost_range) if current_soc > force_charge_soc_env and boost_range > 0 else emergency_max_factor
+        emergency_boost_adj = max(0, emergency_boost_adj) # Ensure non-negative boost
+
+    charging_prob = base_prob + type_factor_adj + time_factor_adj + profile_factor_adj + fast_charge_pref_factor_adj + emergency_boost_adj
+    return min(1.0, max(0.0, charging_prob))
 
 
-def plan_route(user, start_pos, end_pos, map_bounds):
+def plan_route(user, start_pos, end_pos, map_bounds, user_model_params): # Added user_model_params
     """规划通用路线（使用原详细逻辑，如果需要）"""
     # (从原 ChargingEnvironment._plan_route_to_charger/destination 复制完整逻辑)
     user["route"] = []
@@ -520,10 +516,9 @@ def plan_route_to_charger(user, charger_pos, map_bounds):
     # ^^^ 移除这行，target_charger 由 environment.py 设置 ^^^
 
     user["last_destination_type"] = "charger"
-    # 现在只调用通用的 plan_route
-    return plan_route(user, start_pos, charger_pos, map_bounds)
+    return plan_route(user, start_pos, charger_pos, map_bounds, user_model_params) # Pass params
 
-def plan_route_to_destination(user, destination, map_bounds):
+def plan_route_to_destination(user, destination, map_bounds, user_model_params): # Added user_model_params
     """规划用户到任意目的地的路线"""
     if not user or not isinstance(user, dict) or \
        not destination or not isinstance(destination, dict):
@@ -533,14 +528,12 @@ def plan_route_to_destination(user, destination, map_bounds):
     if not start_pos:
          logger.warning(f"User {user.get('user_id')} missing current_position.")
          return False
-    user["target_charger"] = None # Not going to a charger
+    user["target_charger"] = None
     user["last_destination_type"] = "random"
-    return plan_route(user, start_pos, destination, map_bounds)
+    return plan_route(user, start_pos, destination, map_bounds, user_model_params) # Pass params
 
 
-def update_user_position_along_route(user, distance_km, map_bounds):
-    """沿路线移动用户位置（使用原详细逻辑），返回实际移动距离"""
-    # (从原 ChargingEnvironment._update_user_position_along_route 复制逻辑)
+def update_user_position_along_route(user, distance_km, map_bounds, user_model_params): # Added user_model_params
     route = user.get("route")
     if not route or len(route) < 2 or distance_km <= 0:
         return 0
@@ -590,34 +583,35 @@ def update_user_position_along_route(user, distance_km, map_bounds):
     user["traveled_distance"] = user.get("traveled_distance", 0) + (moved_coord * 111.0) # Update total traveled
 
     # Return actual distance moved in km
-    return moved_coord * 111.0
+    degrees_to_km = user_model_params.get('degrees_to_km_conversion_factor', 111.0)
+    return moved_coord * degrees_to_km if degrees_to_km > 0 else moved_coord * 111.0
 
 
-def has_reached_destination(user):
+def has_reached_destination(user, user_model_params): # Added user_model_params
     """检查用户是否已到达目的地（基于剩余时间和距离）"""
     if not user or user.get("time_to_destination") is None:
         return False
     
-    # 检查剩余时间是否为0或非常小
-    if user["time_to_destination"] <= 0.1:
+    if user["time_to_destination"] <= 0.1: # Time-based check
         return True
     
-    # 额外检查：如果用户位置非常接近目的地，也认为已到达
     current_pos = user.get("current_position")
     destination = user.get("destination")
     if current_pos and destination:
-        from .utils import calculate_distance
+        # from .utils import calculate_distance # Already imported at top
         distance_to_dest = calculate_distance(current_pos, destination)
-        # 如果距离小于100米，认为已到达
-        if distance_to_dest < 0.1:  # 0.1km = 100m
-            logger.debug(f"User {user.get('user_id')} reached destination by distance check: {distance_to_dest:.3f}km")
+        dist_thresh_km = user_model_params.get('reached_destination_distance_threshold_km', 0.1)
+        if distance_to_dest < dist_thresh_km:
+            logger.debug(f"User {user.get('user_id')} reached destination by distance check: {distance_to_dest:.3f}km (threshold: {dist_thresh_km}km)")
             return True
     
     return False
 class UserDecisionManager:
     """用户决策管理器 - 处理用户手动决策的验证和应用"""
     
-    def __init__(self):
+    def __init__(self, config=None): # Allow passing config for parameters
+        self.config = config if config is not None else {}
+        self.user_model_params = self.config.get('environment', {}).get('user_model_params', {})
         self.pending_decisions = {}
         self.decision_history = []
     
@@ -694,14 +688,15 @@ class UserDecisionManager:
             return [d for d in self.decision_history if d['user_id'] == user_id]
         return self.decision_history.copy()
     
-    def clear_expired_decisions(self, expiry_minutes=30):
+    def clear_expired_decisions(self): # Removed expiry_minutes, will use from config
         """清理过期的待处理决策"""
+        expiry_minutes_cfg = self.user_model_params.get('user_decision_manager_expiry_minutes', 30)
         current_time = datetime.now()
         expired_users = []
         
         for user_id, decision in self.pending_decisions.items():
             decision_time = datetime.fromisoformat(decision['timestamp'])
-            if (current_time - decision_time).total_seconds() > expiry_minutes * 60:
+            if (current_time - decision_time).total_seconds() > expiry_minutes_cfg * 60:
                 expired_users.append(user_id)
         
         for user_id in expired_users:

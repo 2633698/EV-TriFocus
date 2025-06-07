@@ -14,6 +14,12 @@
             "lng_min": 116.0,
             "lng_max": 116.05
         },
+        "map_bounds_defaults": {
+            "lat_min": 39.5,
+            "lat_max": 40.5,
+            "lng_min": 116.0,
+            "lng_max": 117.0
+        },
         "charger_failure_rate": 0.0,
         "enable_uncoordinated_baseline": true,
         "min_charge_threshold_percent": 20.0,
@@ -51,6 +57,116 @@
                 "normal": [7, 20]
             },
             "price_multipliers": {"superfast": 1.5, "fast": 1.2, "normal": 1.0}
+        },
+        "initialization_params": {
+            "user_count_invalid_fallback": 1000,
+            "hotspot_generation": {
+                "region_multiplier": 2,
+                "cbd_weight": 0.2,
+                "remaining_weight_factor_for_other_hotspots": 0.8,
+                "other_hotspot_weight_divisor_factor": 1.5,
+                "min_hotspot_distance_degrees": 0.01,
+                "hotspot_descriptions": ["Tech Park", "Mall", "Residential Area", "Industrial Zone", "Leisure Area", "University", "Business District", "Hospital", "School", "Office Area"],
+                "hotspot_placement_randomness_factor_min": 0.1,
+                "hotspot_placement_randomness_factor_max": 0.9
+            },
+            "user_type_base_weights": {
+                "private": 0.4, "taxi": 0.1, "ride_hailing": 0.1, "logistics": 0.1,
+                "commuter": 0.15, "business": 0.05, "delivery": 0.1
+            },
+            "user_profile_options": ["urgent", "economic", "flexible", "anxious"],
+            "user_profile_base_probs": [0.25, 0.25, 0.25, 0.25],
+            "user_profile_probs_by_type": {
+                "private": [0.2, 0.3, 0.3, 0.2], "taxi": [0.5, 0.1, 0.3, 0.1],
+                "ride_hailing": [0.4, 0.2, 0.3, 0.1], "logistics": [0.3, 0.4, 0.2, 0.1],
+                "commuter": [0.3, 0.2, 0.3, 0.2], "business": [0.6, 0.1, 0.2, 0.1],
+                "delivery": [0.5, 0.3, 0.1, 0.1]
+            },
+            "user_profile_low_soc_urgent_boost": 0.2,
+            "user_travel_speed_min_kmh": 30, "user_travel_speed_max_kmh": 65,
+            "user_default_charging_efficiency": 0.92,
+            "user_driving_style_options": ["normal", "aggressive", "eco"],
+            "user_driving_style_weights": [0.6, 0.25, 0.15],
+            "user_sensitivity_profile_adjustments": {
+                "urgent": {"time_sensitivity": [1.2, 1.4], "price_sensitivity": [0.3, 0.5], "range_anxiety": [0.5, 0.7], "fast_charging_preference": [1.3, 1.5]},
+                "economic": {"time_sensitivity": [0.5, 0.7], "price_sensitivity": [1.2, 1.4], "range_anxiety": [0.8, 1.2], "fast_charging_preference": [0.4, 0.6]},
+                "anxious": {"time_sensitivity": [0.8, 1.2], "price_sensitivity": [0.6, 0.8], "range_anxiety": [1.5, 2.0], "fast_charging_preference": [1.1, 1.3]},
+                "flexible": {"time_sensitivity": [0.9, 1.1], "price_sensitivity": [0.9, 1.1], "range_anxiety": [0.9, 1.1], "fast_charging_preference": [0.9, 1.1]}
+            },
+            "charger_location_spread_degrees": 0.002,
+            "charger_fallback_power_kw": 50
+        },
+        "charger_model_params": {
+            "manual_decision_efficiency_boost": 0.03,
+            "fast_pref_efficiency_boost_factor": 0.02,
+            "fast_pref_threshold_for_boost": 0.7,
+            "low_fast_pref_efficiency_boost_factor": 0.01,
+            "low_fast_pref_threshold": 0.3,
+            "max_total_efficiency_clamp": 0.95,
+            "soc_tapering_curve": [
+                [20, 1.0, 0.0],
+                [50, 1.0, -0.00333333333],
+                [80, 0.9, -0.00666666666],
+                [100, 0.7, -0.025]
+            ],
+            "min_soc_taper_factor": 0.1,
+            "manual_decision_price_discount_factor": 0.98,
+            "max_charging_time_minutes_by_type": {"default": 180, "superfast": 30, "fast": 60},
+            "user_post_charge_min_timer_steps": 1,
+            "user_post_charge_max_timer_steps_normal": 3,
+            "user_post_charge_max_timer_steps_profiled": {
+                 "taxi": 2, "ride_hailing": 2, "logistics": 3, "delivery": 3, "private_default": 5
+            },
+            "default_target_soc_if_not_set": 95,
+            "default_charge_needed_for_target_soc": 60
+        },
+        "user_model_params": {
+            "manual_decision_travel_speed_multiplier": 2.0,
+            "manual_decision_time_to_dest_reduction_threshold_minutes": 5.0,
+            "manual_decision_time_to_dest_reduction_factor": 0.3,
+            "idle_consumption_base_kw": 0.4,
+            "idle_consumption_vehicle_type_multipliers": {"sedan": 2.0, "suv": 3.0, "truck": 5.0, "luxury": 2.5, "compact": 1.5},
+            "idle_consumption_season_factors": {"summer": 2.2, "winter": 2.5, "default": 1.3},
+            "idle_consumption_time_factors": {"peak": 1.6, "off_peak_night": 0.8, "default": 1.0},
+            "idle_consumption_behavior_factor_min": 0.9, "idle_consumption_behavior_factor_max": 1.8,
+            "charging_probability_soc_thresholds_for_reduction": [75, 60],
+            "charging_probability_soc_reduction_factors": [0.1, 0.3],
+            "charging_probability_traveling_random_dest_soc_reduction_threshold": 60,
+            "charging_probability_traveling_random_dest_factor_high_soc": 0.1,
+            "charging_probability_traveling_random_dest_factor_low_soc": 1.2,
+            "charging_probability_peak_hour_soc_reduction_threshold": 60,
+            "charging_probability_peak_hour_factor_high_soc": 0.5,
+            "charging_probability_peak_hour_factor_low_soc": 1.2,
+            "charging_probability_low_soc_boost_threshold": 35,
+            "charging_probability_low_soc_boost_factor": 1.5,
+            "travel_base_energy_per_km": 0.25,
+            "travel_speed_factor_for_base_energy": 80.0,
+            "travel_energy_vehicle_type_multipliers": {"sedan": 1.2, "suv": 1.5, "truck": 1.8, "default": 1.0},
+            "travel_energy_driving_style_multipliers": {"aggressive": 1.3, "eco": 0.9, "normal": 1.0},
+            "travel_road_condition_factor_min": 1.0, "travel_road_condition_factor_max": 1.3,
+            "travel_weather_impact_factor_min": 1.0, "travel_weather_impact_factor_max": 1.2,
+            "travel_traffic_factor_peak_min": 1.1, "travel_traffic_factor_peak_max": 1.4,
+            "reached_destination_distance_threshold_km": 0.1,
+            "destination_choice_area_type_default_weights": {
+                "residential": 0.3, "business": 0.2, "industrial": 0.1, "entertainment": 0.1, "suburban": 0.1, "random": 0.2
+            },
+            "destination_choice_logic_config": { },
+            "destination_area_radius_degrees": 0.05,
+            "charging_prob_sigmoid_midpoint": 40, "charging_prob_sigmoid_steepness": 0.1,
+            "charging_prob_min_clamp": 0.05, "charging_prob_max_clamp": 0.95,
+            "charging_prob_user_type_factors": {"taxi": 0.2, "delivery": 0.15, "business": 0.1, "ride_hailing": 0.15, "logistics": 0.1},
+            "charging_prob_time_preference_factors": {"valley": 0.2, "shoulder": 0.1},
+            "charging_prob_profile_factors": {"anxious": 0.2, "urgent": 0.15, "economic": -0.1},
+            "charging_prob_fast_charging_pref_factor_high_soc_min": 40, "charging_prob_fast_charging_pref_factor_high_soc_max": 60, "charging_prob_fast_charging_pref_factor_high_pref_boost": 0.1,
+            "charging_prob_fast_charging_pref_factor_low_soc_min": 30, "charging_prob_fast_charging_pref_factor_low_pref_penalty": -0.1,
+            "charging_prob_emergency_boost_soc_offset": 5,
+            "charging_prob_emergency_boost_max_factor": 0.4,
+            "route_plan_num_waypoints_min": 2, "route_plan_num_waypoints_max": 4,
+            "route_plan_waypoint_offset_factor": 0.1,
+            "degrees_to_km_conversion_factor": 111.0,
+            "user_decision_manager_expiry_minutes": 30,
+            "history_max_steps_snapshot": 96,
+            "simulation_history_max_steps": 1000
         }
     },
     "grid": {
@@ -119,10 +235,35 @@
             "exploration_rate": 0.1,
             "learning_rate": 0.01,
             "q_table_path": "models/marl_q_tables.pkl",
-            "marl_candidate_max_dist_sq": 0.15,
+            "marl_candidate_max_dist_sq": 0.0225,
             "marl_priority_w_soc": 0.5,
             "marl_priority_w_dist": 0.4,
-            "marl_priority_w_urgency": 0.1
+            "marl_priority_w_urgency": 0.1,
+            "candidate_selection_params": {
+                "base_soc_threshold": 40,
+                "profile_soc_adjustments": {"anxious": 10, "economic": -10},
+                "distance_unit_conversion_factor": 111.0
+            },
+            "agent_state_params": {
+                "status_map": {"available": 0, "occupied": 1, "failure": 2},
+                "nearby_demand_radius_sq_degrees": 0.0025,
+                "hour_discretization_factor": 4,
+                "grid_load_categories": [80, 60],
+                "renewable_categories": [50, 20],
+                "max_queue_state_representation": 3,
+                "max_nearby_demand_state_representation": 2,
+                "nearby_demand_soc_threshold": 40
+            },
+            "agent_reward_params": {
+                "assignment_success_base_factor": 0.7,
+                "peak_hour_penalty": -0.6,
+                "valley_hour_reward": 0.4,
+                "high_renewable_threshold": 60,
+                "high_renewable_reward": 0.25,
+                "idle_penalty_grid_load_threshold": 70,
+                "idle_penalty": -0.15,
+                "failure_penalty": -3.0
+            }
         },
         "use_trained_model": false,
         "use_multi_agent": true
@@ -130,14 +271,98 @@
     "algorithms": {
         "rule_based": {
             "max_queue": {"peak": 3, "valley": 12, "shoulder": 6},
-            "weight_adjustment": {"grid_boost_factor": 200, "valley_grid_reduction": 0.15},
             "candidate_limit": 15,
-            "queue_penalty": 0.05
+            "queue_penalty": 0.05,
+            "score_params": {
+                "user_satisfaction": {
+                    "distance_tiers": [[2, 0.5, -0.1], [5, 0.3, -0.1], [10, 0.0, -0.05]], "default_dist_factor": -0.025, "dist_base_penalty": -0.25,
+                    "wait_time_tiers": [[0, 0.5], [2, 0.3], [5, 0.1], [8, -0.1]], "default_wait_score": -0.3,
+                    "power_expected_base": 20, "power_expected_urgency_factor": 30, "power_expected_base_soc_threshold": 40,
+                    "power_expected_profile_factors": {"taxi": 1.5, "ride_hailing": 1.2, "logistics": 1.0},
+                    "power_score_tiers": [[1.5, 0.4], [1.0, 0.3], [0.7, 0.1], [0.5, -0.1]], "default_power_score": -0.2,
+                    "price_score_multiplier": 0.5, "price_score_max_abs": 0.3,
+                    "emergency_soc_thresholds": [15, 25], "emergency_factors": [1.5, 1.2],
+                    "component_weights": {"distance": 0.4, "wait_time": 0.3, "power": 0.15, "price": 0.15},
+                    "emergency_satisfaction_min_score_adjustment": -0.5, "emergency_satisfaction_adjustment_factor": 0.8
+                },
+                "operator_profit": {
+                    "fast_charger_multiplier": 1.15, "superfast_charger_multiplier": 1.30,
+                    "queue_penalty_per_person": 0.15,
+                    "charge_needed_score_factor": 0.05,
+                    "normalization_min_assumed_score": 0.5, "normalization_max_assumed_score": 2.0
+                },
+                "grid_friendliness": {
+                    "load_score_tiers": [[30, 0.8, 0.0], [50, 0.5, -0.015], [70, 0.2, -0.01], [85, 0.0, -0.015]], "default_load_factor": -0.01, "default_load_base_penalty": -0.225, "max_load_score_penalty": -0.5,
+                    "renewable_score_multiplier": 0.8,
+                    "time_scores": {"peak": -0.3, "valley": 0.6, "shoulder": 0.2},
+                    "power_penalty_thresholds": [150, 50], "power_penalties": [0.1, 0.05],
+                    "final_score_min_clamp": -0.9, "final_score_max_clamp": 1.0,
+                    "negative_score_adjustment_factor": 0.8, "positive_score_adjustment_factor": 1.1
+                }
+            },
+            "dynamic_weight_adjustment": {
+                "peak_grid_boost_max": 0.3, "peak_grid_boost_load_divisor": 200,
+                "peak_user_reduction_factor": 0.5, "peak_profit_reduction_factor": 0.5,
+                "valley_grid_reduction": -0.15, "valley_profit_increase": 0.1, "valley_user_increase": 0.05,
+                "critical_urgency_threshold": 0.9, "critical_soc_threshold": 15,
+                "critical_user_satisfaction_boost_factor": 1.5, "critical_user_satisfaction_max": 0.6
+            },
+            "user_charge_trigger": {
+                 "target_soc_charge_to": 95,
+                 "profile_threshold_adjustments": {"anxious": 10, "economic": -10},
+                 "hour_threshold_adjustments": {"peak": -5, "valley": 10},
+                 "min_threshold_clamp": 15, "max_threshold_clamp": 60
+            }
          },
          "uncoordinated": {
              "soc_threshold": 50,
              "max_queue": 4,
-             "score_weights": {"distance": 0.7, "queue_penalty_km": 5.0}
+             "score_weights": {"distance": 0.7, "queue_penalty_km": 5.0},
+             "low_soc_behavior_threshold": 20
+         },
+         "coordinated_mas": {
+            "user_satisfaction_agent_params": {
+                "soc_thresholds_by_hour": {"default": 50, "night_start_hour": 22, "night_end_hour": 6, "night_soc_threshold": 60},
+                "travel_time_distance_multiplier": 2.0,
+                "avg_charge_time_by_type": {"superfast": 30, "fast": 45, "normal": 60},
+                "price_cost_scaling_factor": 50.0,
+                "default_time_sensitivity": 0.5,
+                "default_price_sensitivity": 0.5,
+                "minimize_cost_priority_price_sensitivity_factor": 1.5
+            },
+            "operator_profit_agent_params": {
+                "revenue_multipliers_by_type": {"fast": 1.1, "superfast": 1.2, "normal": 1.0},
+                "operator_base_energy_cost_rate": 0.6,
+                "queue_score_penalty_factor": 0.3,
+                "charge_needed_score_factor": 0.05,
+                "minimize_cost_priority_op_cost_multipliers": {"peak": 1.25, "valley": 0.75, "default": 1.0}
+            },
+            "grid_friendliness_agent_params": {
+                "min_charge_needed_threshold": 10.0,
+                "soc_threshold": 60.0,
+                "target_soc_for_deficit": 95.0,
+                "max_queue_len_defaults": {"default": 3, "v2g_mode": 5, "v2g_active_request": 2, "peak_shaving_priority": 1},
+                "score_weights_balanced": {"time": 0.5, "load": 0.3, "renewable": 0.2},
+                "score_weights_v2g_mode": {"time": 0.4, "load": 0.25, "renewable": 0.35},
+                "score_weights_prioritize_renewables": {"time": 0.15, "load": 0.15, "renewable": 0.7},
+                "score_weights_minimize_cost": {"time": 0.6, "load": 0.2, "renewable": 0.2},
+                "score_weights_peak_shaving": {"time": 0.7, "load": 0.15, "renewable": 0.15},
+                "time_scores_default": {"valley": 0.8, "shoulder": 0.2, "peak": -1.0},
+                "time_scores_minimize_cost": {"valley": 1.0, "shoulder": 0.3, "peak": -0.5},
+                "time_scores_peak_shaving": {"valley": 1.0, "shoulder": 0.4, "peak": -200},
+                "v2g_active_score_penalty": -0.75
+            },
+            "coordinator_params": {
+                "max_queue_length": 4,
+                "base_agent_weights": {"user": 0.4, "profit": 0.3, "grid": 0.3},
+                "critical_soc_threshold": 20.0,
+                "critical_soc_max_queue_increment": 1,
+                "priority_weights_override": {
+                    "prioritize_renewables": {"user": 0.2, "profit": 0.2, "grid": 0.6},
+                    "minimize_cost": {"user": 0.3, "profit": 0.5, "grid": 0.2},
+                    "peak_shaving": {"user": 0.15, "profit": 0.15, "grid": 0.7}
+                }
+            }
          }
     },
     "strategies": {
@@ -172,10 +397,96 @@
         "update_interval_ms": 5000,
         "alert_check_interval_ms": 30000,
         "financial_analysis": {
-            "default_period_days": 7
+            "default_period_days": 7,
+            "summary_card_font_size": 16,
+            "summary_card_font_weight_bold_value": 75,
+            "chart_background": "w",
+            "grid_alpha": 0.3,
+            "revenue_pen_color": "b",
+            "revenue_symbol": "o",
+            "cost_pen_color": "r",
+            "cost_symbol": "s",
+            "profit_pen_color": "g",
+            "profit_symbol": "^"
         },
         "demand_forecast": {
-            "default_forecast_days": 7
+            "default_forecast_days": 7,
+            "chart_background": "w",
+            "grid_alpha": 0.3,
+            "suggestions_max_height": 150,
+            "sessions_pen_color": "b",
+            "energy_pen_color": "g",
+            "queue_pen_color": "r",
+            "forecast_model_defaults": {
+                "base_sessions": 5,
+                "base_energy": 100,
+                "weekday_factor_weekend": 0.8,
+                "weekday_factor_weekday": 1.0,
+                "daily_trend_factor_percentage": 2.0,
+                "random_factor_min": 0.9,
+                "random_factor_max": 1.1,
+                "queue_model_session_threshold": 10,
+                "queue_model_factor": 0.3,
+                "confidence_level": 0.75,
+                "model_version": "simple_v1_configurable"
+            }
+        },
+        "station_status_card": {
+            "width": 200,
+            "height": 120,
+            "font_family": "Arial",
+            "font_size": 11,
+            "font_weight": "bold",
+            "font_weight_bold_value": 75,
+            "utilization_threshold_high": 80,
+            "utilization_color_high": "#ff4444",
+            "utilization_border_high": "#cc0000",
+            "utilization_threshold_medium": 60,
+            "utilization_color_medium": "#ff9944",
+            "utilization_border_medium": "#cc6600",
+            "utilization_color_low": "#44ff44",
+            "utilization_border_low": "#00cc00",
+            "border_radius": 8,
+            "hover_background_color": "#f0f0f0"
+        },
+        "realtime_monitor_widget": {
+            "card_columns": 3
+        },
+        "pricing_control_widget": {
+            "base_price_min": 0.1,
+            "base_price_max": 5.0,
+            "base_price_default": 0.85,
+            "service_fee_min": 0,
+            "service_fee_max": 100,
+            "service_fee_default": 20,
+            "peak_factor_min": 0.5,
+            "peak_factor_max": 3.0,
+            "peak_factor_default": 1.5,
+            "valley_factor_min": 0.3,
+            "valley_factor_max": 1.5,
+            "valley_factor_default": 0.6
+        },
+        "alert_management_widget": {
+            "alert_count_font_size": 24,
+            "alert_count_font_weight_bold_value": 75
+        },
+        "config_keys_to_add": [
+            "station_status_card.font_weight_bold_value",
+            "financial_analysis.summary_card_font_size",
+            "financial_analysis.summary_card_font_weight_bold_value",
+            "alert_management_widget.alert_count_font_size",
+            "alert_management_widget.alert_count_font_weight_bold_value"
+        ],
+        "main_panel_settings": {
+            "station_details_dialog_width": 600,
+            "station_details_dialog_height": 400,
+            "report_export_default_days": 30,
+            "report_filename_prefix": "operator_report_",
+            "alert_long_queue_threshold": 5,
+            "expansion_recs_dialog_width": 800,
+            "expansion_recs_dialog_height": 600,
+            "expansion_recs_high_priority_color_hex": "#ff4444",
+            "expansion_recs_high_priority_text_color_hex": "#ffffff"
         }
     },
     "reservation_system": {
@@ -264,5 +575,15 @@
             "update_interval_seconds": 5,
             "recalculate_threshold_km": 1
         }
+    },
+    "simulation_constants": {
+        "EARTH_RADIUS_KM": 6371.0,
+        "DEFAULT_ROUTE_DEGREES_PER_STEP": 0.001,
+        "MAX_WAYPOINTS_PER_ROUTE": 10,
+        "SIMULATION_TICKS_PER_SECOND": 10,
+        "UI_MAP_UPDATE_INTERVAL_MS": 500,
+        "DEFAULT_USER_SPEED_KMPH": 50.0,
+        "MIN_DISTANCE_TO_UPDATE_ROUTE_KM": 0.5,
+        "DEGREES_TO_KM_APPROX_FACTOR": 111.0
     }
 }

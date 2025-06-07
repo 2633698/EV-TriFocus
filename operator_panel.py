@@ -37,21 +37,27 @@ from data_storage import operator_storage
 
 logger = logging.getLogger(__name__)
 
+# Default config, will be overwritten by __init__
+config = {}
+
 
 class StationStatusCard(QFrame):
     """站点状态卡片 - 简化版"""
     
     clicked = pyqtSignal(str)  # 站点ID
     
-    def __init__(self, station_id: str, station_name: str, parent=None):
+    def __init__(self, station_id: str, station_name: str, config: Dict, parent=None):
         super().__init__(parent)
         self.station_id = station_id
         self.station_name = station_name
+        self.card_config = config  # Specific config for this card
         self.setupUI()
         
     def setupUI(self):
         self.setFrameStyle(QFrame.Shape.Box)
-        self.setFixedSize(200, 120)
+        width = self.card_config.get('width', 200)
+        height = self.card_config.get('height', 120)
+        self.setFixedSize(width, height)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         
         layout = QVBoxLayout(self)
@@ -59,7 +65,12 @@ class StationStatusCard(QFrame):
         
         # 站点名称
         self.name_label = QLabel(self.station_name)
-        self.name_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        font_family = self.card_config.get('font_family', 'Arial')
+        font_size = self.card_config.get('font_size', 11)
+        # QFont.Weight.Bold is typically 75. Some systems might use other values.
+        # Ensuring it's an int.
+        font_weight_val = int(self.card_config.get('font_weight_bold_value', 75))
+        self.name_label.setFont(QFont(font_family, font_size, font_weight_val))
         layout.addWidget(self.name_label)
         
         # 状态信息网格
@@ -85,7 +96,7 @@ class StationStatusCard(QFrame):
         self.utilization_bar.setFormat("%p%")
         layout.addWidget(self.utilization_bar)
         
-        self.updateStyle()
+        self.updateStyle() # Initial style setup
     
     def updateStatus(self, status_data: Dict):
         """更新站点状态"""
@@ -105,28 +116,35 @@ class StationStatusCard(QFrame):
     
     def updateStyle(self, utilization: float = 0):
         """根据利用率更新样式"""
-        if utilization > 80:
-            color = "#ff4444"
-            border_color = "#cc0000"
-        elif utilization > 60:
-            color = "#ff9944"
-            border_color = "#cc6600"
+        util_high = self.card_config.get('utilization_threshold_high', 80)
+        util_medium = self.card_config.get('utilization_threshold_medium', 60)
+
+        if utilization > util_high:
+            color = self.card_config.get('utilization_color_high', "#ff4444")
+            border_color = self.card_config.get('utilization_border_high', "#cc0000")
+        elif utilization > util_medium:
+            color = self.card_config.get('utilization_color_medium', "#ff9944")
+            border_color = self.card_config.get('utilization_border_medium', "#cc6600")
         else:
-            color = "#44ff44"
-            border_color = "#00cc00"
-        
+            color = self.card_config.get('utilization_color_low', "#44ff44")
+            border_color = self.card_config.get('utilization_border_low', "#00cc00")
+
+        border_radius = self.card_config.get('border_radius', 8)
+        hover_bg_color = self.card_config.get('hover_background_color', "#f0f0f0")
+
         self.setStyleSheet(f"""
             StationStatusCard {{
                 background: white;
                 border: 2px solid {border_color};
-                border-radius: 8px;
+                border-radius: {border_radius}px;
             }}
             StationStatusCard:hover {{
-                background: #f0f0f0;
+                background: {hover_bg_color};
                 border: 3px solid {border_color};
             }}
             QProgressBar::chunk {{
                 background: {color};
+                border-radius: {max(0, border_radius - 2)}px; /* Ensure progress bar chunk radius is smaller */
             }}
         """)
     
@@ -141,8 +159,9 @@ class RealtimeMonitorWidget(QWidget):
     
     stationSelected = pyqtSignal(str)
     
-    def __init__(self, parent=None):
+    def __init__(self, config: Dict, parent=None):
         super().__init__(parent)
+        self.op_config = config # This is the operator_panel config section
         self.station_cards = {}
         self.setupUI()
         
@@ -177,9 +196,12 @@ class RealtimeMonitorWidget(QWidget):
         self.station_cards.clear()
         
         # 创建新卡片
+        station_card_config = self.op_config.get('station_status_card', {})
+        card_columns = self.op_config.get('realtime_monitor_widget', {}).get('card_columns', 3)
+
         row, col = 0, 0
         for station_id, status in stations_data.items():
-            card = StationStatusCard(station_id, station_id)
+            card = StationStatusCard(station_id, station_id, station_card_config)
             card.clicked.connect(self.stationSelected)
             card.updateStatus(status)
             
@@ -187,7 +209,7 @@ class RealtimeMonitorWidget(QWidget):
             self.station_cards[station_id] = card
             
             col += 1
-            if col >= 3:  # 每行3个
+            if col >= card_columns:
                 col = 0
                 row += 1
     
@@ -203,8 +225,12 @@ class PricingControlWidget(QWidget):
     
     pricingUpdated = pyqtSignal(dict)
     
-    def __init__(self, parent=None):
+    def __init__(self, app_config: Dict, parent=None): # Expects the full application config
         super().__init__(parent)
+        self.app_config = app_config
+        self.pricing_config = self.app_config.get('operator_panel', {}).get('pricing_control_widget', {})
+        self.grid_config_main_app = self.app_config.get('grid', {})
+
         self.setupUI()
         
     def setupUI(self):
@@ -215,15 +241,23 @@ class PricingControlWidget(QWidget):
         base_layout = QFormLayout(base_group)
         
         self.base_price_spin = QDoubleSpinBox()
-        self.base_price_spin.setRange(0.1, 5.0)
+        self.base_price_spin.setRange(
+            self.pricing_config.get('base_price_min', 0.1),
+            self.pricing_config.get('base_price_max', 5.0)
+        )
         self.base_price_spin.setSingleStep(0.01)
-        self.base_price_spin.setValue(0.85)
+        # Try to use grid_config if available, else pricing_config default
+        base_price_default = self.grid_config_main_app.get('normal_price', self.pricing_config.get('base_price_default', 0.85))
+        self.base_price_spin.setValue(base_price_default)
         self.base_price_spin.setSuffix(" 元/kWh")
         base_layout.addRow("基础电价:", self.base_price_spin)
         
         self.service_fee_spin = QSpinBox()
-        self.service_fee_spin.setRange(0, 100)
-        self.service_fee_spin.setValue(20)
+        self.service_fee_spin.setRange(
+            self.pricing_config.get('service_fee_min', 0),
+            self.pricing_config.get('service_fee_max', 100)
+        )
+        self.service_fee_spin.setValue(self.pricing_config.get('service_fee_default', 20))
         self.service_fee_spin.setSuffix(" %")
         base_layout.addRow("服务费率:", self.service_fee_spin)
         
@@ -234,13 +268,30 @@ class PricingControlWidget(QWidget):
         time_layout = QFormLayout(time_group)
         
         self.peak_factor = QDoubleSpinBox()
-        self.peak_factor.setRange(0.5, 3.0)
-        self.peak_factor.setValue(1.5)
+        self.peak_factor.setRange(
+            self.pricing_config.get('peak_factor_min', 0.5),
+            self.pricing_config.get('peak_factor_max', 3.0)
+        )
+        # Default for peak_factor
+        normal_price = self.grid_config_main_app.get('normal_price')
+        peak_price = self.grid_config_main_app.get('peak_price')
+        peak_factor_default = self.pricing_config.get('peak_factor_default', 1.5)
+        if normal_price and peak_price and normal_price > 0:
+            peak_factor_default = peak_price / normal_price
+        self.peak_factor.setValue(peak_factor_default)
         time_layout.addRow("峰时系数:", self.peak_factor)
         
         self.valley_factor = QDoubleSpinBox()
-        self.valley_factor.setRange(0.3, 1.5)
-        self.valley_factor.setValue(0.6)
+        self.valley_factor.setRange(
+            self.pricing_config.get('valley_factor_min', 0.3),
+            self.pricing_config.get('valley_factor_max', 1.5)
+        )
+        # Default for valley_factor
+        valley_price = self.grid_config_main_app.get('valley_price')
+        valley_factor_default = self.pricing_config.get('valley_factor_default', 0.6)
+        if normal_price and valley_price and normal_price > 0:
+            valley_factor_default = valley_price / normal_price
+        self.valley_factor.setValue(valley_factor_default)
         time_layout.addRow("谷时系数:", self.valley_factor)
         
         layout.addWidget(time_group)
@@ -269,8 +320,10 @@ class PricingControlWidget(QWidget):
 class FinancialAnalysisWidget(QWidget):
     """财务分析组件"""
     
-    def __init__(self, parent=None):
+    def __init__(self, op_panel_config: Dict, parent=None):
         super().__init__(parent)
+        self.op_panel_config = op_panel_config # Store the passed operator_panel config section
+        self.financial_config = self.op_panel_config.get('financial_analysis', {})
         self.setupUI()
         
     def setupUI(self):
@@ -317,10 +370,12 @@ class FinancialAnalysisWidget(QWidget):
         # 图表
         if HAS_PYQTGRAPH:
             self.chart = PlotWidget()
-            self.chart.setBackground('w')
+            chart_bg = self.financial_config.get('chart_background', 'w')
+            grid_alpha = self.financial_config.get('grid_alpha', 0.3)
+            self.chart.setBackground(chart_bg)
             self.chart.setLabel('left', '金额 (元)')
             self.chart.setLabel('bottom', '日期')
-            self.chart.showGrid(x=True, y=True, alpha=0.3)
+            self.chart.showGrid(x=True, y=True, alpha=grid_alpha)
             self.chart.addLegend()
             layout.addWidget(self.chart)
         
@@ -348,11 +403,15 @@ class FinancialAnalysisWidget(QWidget):
         layout = QVBoxLayout(card)
         
         title_label = QLabel(title)
-        title_label.setStyleSheet("color: #666; font-size: 12px;")
+        title_label.setStyleSheet("color: #666; font-size: 12px;") # Title label style kept as is
         layout.addWidget(title_label)
         
         value_label = QLabel(value)
-        value_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        # Use config for value_label font
+        font_family = "Arial" # Default font family
+        font_size = self.financial_config.get('summary_card_font_size', 16)
+        font_weight_val = int(self.financial_config.get('summary_card_font_weight_bold_value', 75)) # 75 for QFont.Weight.Bold
+        value_label.setFont(QFont(font_family, font_size, font_weight_val))
         value_label.setObjectName(f"{title}_value")
         layout.addWidget(value_label)
         
@@ -401,9 +460,17 @@ class FinancialAnalysisWidget(QWidget):
         
         # 绘制曲线
         x = np.arange(len(daily_df))
-        self.chart.plot(x, daily_df['total_revenue'], pen='b', name='收入', symbol='o')
-        self.chart.plot(x, daily_df['total_cost'], pen='r', name='成本', symbol='s')
-        self.chart.plot(x, daily_df['total_profit'], pen='g', name='利润', symbol='^')
+
+        revenue_pen_color = self.financial_config.get('revenue_pen_color', 'b')
+        revenue_symbol = self.financial_config.get('revenue_symbol', 'o')
+        cost_pen_color = self.financial_config.get('cost_pen_color', 'r')
+        cost_symbol = self.financial_config.get('cost_symbol', 's')
+        profit_pen_color = self.financial_config.get('profit_pen_color', 'g')
+        profit_symbol = self.financial_config.get('profit_symbol', '^')
+
+        self.chart.plot(x, daily_df['total_revenue'], pen=revenue_pen_color, name='收入', symbol=revenue_symbol)
+        self.chart.plot(x, daily_df['total_cost'], pen=cost_pen_color, name='成本', symbol=cost_symbol)
+        self.chart.plot(x, daily_df['total_profit'], pen=profit_pen_color, name='利润', symbol=profit_symbol)
         
         # 设置X轴标签
         labels = [(i, str(d)) for i, d in enumerate(daily_df['date'])]
@@ -427,8 +494,10 @@ class FinancialAnalysisWidget(QWidget):
 class DemandForecastWidget(QWidget):
     """需求预测组件"""
     
-    def __init__(self, parent=None):
+    def __init__(self, op_panel_config: Dict, parent=None): # Added op_panel_config
         super().__init__(parent)
+        # self.op_panel_config = op_panel_config # Store if other parts of config are needed directly
+        self.demand_forecast_config = op_panel_config.get('demand_forecast', {})
         self.current_forecast = None
         self.setupUI()
         
@@ -444,8 +513,8 @@ class DemandForecastWidget(QWidget):
         
         control_layout.addWidget(QLabel("预测天数:"))
         self.days_spin = QSpinBox()
-        self.days_spin.setRange(1, 30)
-        self.days_spin.setValue(7)
+        self.days_spin.setRange(1, 30) # Range can also be made configurable if needed
+        self.days_spin.setValue(self.demand_forecast_config.get('default_forecast_days', 7))
         control_layout.addWidget(self.days_spin)
         
         self.forecast_btn = QPushButton("生成预测")
@@ -458,17 +527,20 @@ class DemandForecastWidget(QWidget):
         # 预测图表
         if HAS_PYQTGRAPH:
             self.chart = PlotWidget()
-            self.chart.setBackground('w')
+            chart_bg = self.demand_forecast_config.get('chart_background', 'w')
+            grid_alpha = self.demand_forecast_config.get('grid_alpha', 0.3)
+            self.chart.setBackground(chart_bg)
             self.chart.setLabel('left', '预测值')
             self.chart.setLabel('bottom', '时间')
-            self.chart.showGrid(x=True, y=True, alpha=0.3)
+            self.chart.showGrid(x=True, y=True, alpha=grid_alpha)
             self.chart.addLegend()
             layout.addWidget(self.chart)
         
         # 建议面板
         self.suggestions_text = QTextEdit()
         self.suggestions_text.setReadOnly(True)
-        self.suggestions_text.setMaximumHeight(150)
+        suggestions_max_h = self.demand_forecast_config.get('suggestions_max_height', 150)
+        self.suggestions_text.setMaximumHeight(suggestions_max_h)
         layout.addWidget(self.suggestions_text)
     
     def updateStationList(self, stations: List[str]):
@@ -499,33 +571,45 @@ class DemandForecastWidget(QWidget):
     
     def _performForecast(self, station_id: str, days: int) -> List[Dict]:
         """执行预测算法"""
+        forecast_model_defaults = self.demand_forecast_config.get('forecast_model_defaults', {})
+
         # 获取历史数据
-        performance = operator_storage.analyze_station_performance(station_id, 30)
+        performance = operator_storage.analyze_station_performance(station_id, 30) # Look back period could also be config
         hourly_dist = performance.get('hourly_distribution', [])
         
         # 简单的预测模型
         forecast_data = []
         base_date = datetime.now().date()
-        
-        for day in range(days):
-            forecast_date = base_date + timedelta(days=day + 1)
+
+        default_base_sessions = forecast_model_defaults.get('base_sessions', 5)
+        default_base_energy = forecast_model_defaults.get('base_energy', 100)
+        weekday_factor_weekend = forecast_model_defaults.get('weekday_factor_weekend', 0.8)
+        weekday_factor_weekday = forecast_model_defaults.get('weekday_factor_weekday', 1.0)
+        daily_trend_percentage = forecast_model_defaults.get('daily_trend_factor_percentage', 2.0)
+        random_factor_min = forecast_model_defaults.get('random_factor_min', 0.9)
+        random_factor_max = forecast_model_defaults.get('random_factor_max', 1.1)
+        queue_session_threshold = forecast_model_defaults.get('queue_model_session_threshold', 10)
+        queue_factor = forecast_model_defaults.get('queue_model_factor', 0.3)
+        confidence = forecast_model_defaults.get('confidence_level', 0.75)
+        model_version = forecast_model_defaults.get('model_version', 'simple_v1_configurable')
+
+        for day_offset in range(days): # Use day_offset to avoid confusion with outer scope 'day' if any
+            forecast_date = base_date + timedelta(days=day_offset + 1)
             
             for hour in range(24):
-                # 基于历史平均值
-                hour_data = next((h for h in hourly_dist if int(h['hour']) == hour), {})
-                base_sessions = hour_data.get('sessions', 5)
-                base_energy = hour_data.get('energy', 100)
+                hour_data = next((h for h in hourly_dist if int(h.get('hour', -1)) == hour), {})
+                base_sessions = hour_data.get('sessions', default_base_sessions)
+                base_energy = hour_data.get('energy', default_base_energy)
                 
-                # 添加周期性和趋势
-                weekday_factor = 0.8 if forecast_date.weekday() in [5, 6] else 1.0
-                trend_factor = 1.02 ** day  # 2%日增长
+                weekday_factor = weekday_factor_weekend if forecast_date.weekday() >= 5 else weekday_factor_weekday # 5=Saturday, 6=Sunday
                 
-                # 添加随机性
-                random_factor = np.random.uniform(0.9, 1.1)
+                trend_factor = (1.0 + (daily_trend_percentage / 100.0)) ** day_offset
+
+                random_factor = np.random.uniform(random_factor_min, random_factor_max)
                 
                 predicted_sessions = int(base_sessions * weekday_factor * trend_factor * random_factor)
                 predicted_energy = base_energy * weekday_factor * trend_factor * random_factor
-                predicted_queue = max(0, predicted_sessions - 10) * 0.3  # 简单队列模型
+                predicted_queue = max(0, predicted_sessions - queue_session_threshold) * queue_factor
                 
                 forecast_data.append({
                     'forecast_date': forecast_date.isoformat(),
@@ -534,8 +618,8 @@ class DemandForecastWidget(QWidget):
                     'predicted_sessions': predicted_sessions,
                     'predicted_energy': predicted_energy,
                     'predicted_queue_length': predicted_queue,
-                    'confidence_level': 0.75,
-                    'model_version': 'simple_v1'
+                    'confidence_level': confidence,
+                    'model_version': model_version
                 })
         
         return forecast_data
@@ -552,13 +636,17 @@ class DemandForecastWidget(QWidget):
         sessions = [d['predicted_sessions'] for d in forecast_data]
         energy = [d['predicted_energy'] for d in forecast_data]
         queue = [d['predicted_queue_length'] for d in forecast_data]
+
+        sessions_pen_color = self.demand_forecast_config.get('sessions_pen_color', 'b')
+        energy_pen_color = self.demand_forecast_config.get('energy_pen_color', 'g')
+        queue_pen_color = self.demand_forecast_config.get('queue_pen_color', 'r')
         
         # 绘制曲线
-        self.chart.plot(hours, sessions, pen='b', name='充电会话')
-        
-        # 创建第二个Y轴
-        self.chart.plot(hours, energy, pen='g', name='充电量(kWh)')
-        self.chart.plot(hours, queue, pen='r', name='排队长度')
+        self.chart.plot(hours, sessions, pen=sessions_pen_color, name='充电会话')
+        self.chart.plot(hours, energy, pen=energy_pen_color, name='充电量(kWh)')
+        self.chart.plot(hours, queue, pen=queue_pen_color, name='排队长度')
+        # Note: Creating a second Y-axis for energy/queue might be better if scales differ significantly.
+        # This is a more advanced pyqtgraph feature. For now, using single Y-axis.
     
     def _generateSuggestions(self, forecast_data: List[Dict]) -> str:
         """生成运营建议"""
@@ -598,8 +686,10 @@ class DemandForecastWidget(QWidget):
 class AlertManagementWidget(QWidget):
     """告警管理组件"""
     
-    def __init__(self, parent=None):
+    def __init__(self, op_panel_config: Dict, parent=None):
         super().__init__(parent)
+        self.op_panel_config = op_panel_config # For general alert settings like interval
+        self.alert_config = self.op_panel_config.get('alert_management_widget', {}) # For specific styling
         self.setupUI()
         
     def setupUI(self):
@@ -630,7 +720,8 @@ class AlertManagementWidget(QWidget):
         # 定时刷新
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self.refreshAlerts)
-        self.refresh_timer.start(30000)  # 30秒刷新一次
+        alert_check_interval = self.op_panel_config.get('alert_check_interval_ms', 30000)
+        self.refresh_timer.start(alert_check_interval)
     
     def _createAlertCounter(self, level: str, color: str) -> QFrame:
         """创建告警计数器"""
@@ -647,7 +738,10 @@ class AlertManagementWidget(QWidget):
         layout = QVBoxLayout(frame)
         
         count_label = QLabel("0")
-        count_label.setFont(QFont("Arial", 24, QFont.Weight.Bold))
+        font_family = "Arial" # Default font family
+        font_size = self.alert_config.get('alert_count_font_size', 24)
+        font_weight_val = int(self.alert_config.get('alert_count_font_weight_bold_value', 75)) # 75 for QFont.Weight.Bold
+        count_label.setFont(QFont(font_family, font_size, font_weight_val))
         count_label.setStyleSheet(f"color: {color};")
         count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         count_label.setObjectName(f"{level}_count")
@@ -726,8 +820,11 @@ class OperatorControlPanel(QWidget):
     pricingStrategyChanged = pyqtSignal(dict)
     maintenanceRequested = pyqtSignal(str)
     
-    def __init__(self, parent=None):
+    def __init__(self, config_param, parent=None):
         super().__init__(parent)
+        self.config = config_param
+        self.op_panel_specific_config = self.config.get('operator_panel', {})
+        self.panel_settings = self.op_panel_specific_config.get('main_panel_settings', {})
         self.simulation_environment = None
         self.current_data = {}
         self.setupUI()
@@ -745,25 +842,28 @@ class OperatorControlPanel(QWidget):
         self.tab_widget = QTabWidget()
         
         # 实时监控
-        self.monitor_widget = RealtimeMonitorWidget()
+        op_panel_config = self.config.get('operator_panel', {})
+        self.monitor_widget = RealtimeMonitorWidget(op_panel_config)
         self.monitor_widget.stationSelected.connect(self.onStationSelected)
         self.tab_widget.addTab(self.monitor_widget, "📊 实时监控")
         
         # 定价管理
-        self.pricing_widget = PricingControlWidget()
+        # Pass the full application config to PricingControlWidget
+        self.pricing_widget = PricingControlWidget(self.config)
         self.pricing_widget.pricingUpdated.connect(self.onPricingUpdated)
         self.tab_widget.addTab(self.pricing_widget, "💰 定价管理")
         
         # 财务分析
-        self.financial_widget = FinancialAnalysisWidget()
+        # Ensure FinancialAnalysisWidget receives op_panel_config
+        self.financial_widget = FinancialAnalysisWidget(op_panel_config)
         self.tab_widget.addTab(self.financial_widget, "📈 财务分析")
         
         # 需求预测
-        self.forecast_widget = DemandForecastWidget()
+        self.forecast_widget = DemandForecastWidget(op_panel_config)
         self.tab_widget.addTab(self.forecast_widget, "🔮 需求预测")
         
         # 告警管理
-        self.alert_widget = AlertManagementWidget()
+        self.alert_widget = AlertManagementWidget(op_panel_config)
         self.tab_widget.addTab(self.alert_widget, "🚨 告警管理")
         
         layout.addWidget(self.tab_widget)
@@ -793,15 +893,21 @@ class OperatorControlPanel(QWidget):
         
     def setupTimers(self):
         """设置定时器"""
+        op_config = self.config.get('operator_panel', {})
+
         # 数据更新定时器
+        update_interval = op_config.get('update_interval_ms', 5000)
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.updateRealtimeData)
-        self.update_timer.start(5000)  # 5秒更新一次
+        self.update_timer.start(update_interval)
         
         # 告警检查定时器
+        # Note: AlertManagementWidget also has its own timer for refreshing alerts from DB.
+        # This timer in OperatorControlPanel seems to be for proactively checking simulation state for new alerts.
+        alert_check_interval = op_config.get('alert_check_interval_ms', 30000)
         self.alert_timer = QTimer()
         self.alert_timer.timeout.connect(self.checkAlerts)
-        self.alert_timer.start(30000)  # 30秒检查一次
+        self.alert_timer.start(alert_check_interval)
         
     def setSimulationEnvironment(self, environment):
         """设置仿真环境"""
@@ -917,10 +1023,11 @@ class OperatorControlPanel(QWidget):
             
             # 检查队列过长
             queue_length = len(charger.get('queue', []))
-            if queue_length > 5:
+            long_queue_threshold = self.panel_settings.get('alert_long_queue_threshold', 5)
+            if queue_length > long_queue_threshold:
                 self.alert_widget.createChargerAlert(
                     charger_id, station_id, 'long_queue',
-                    f'充电桩 {charger_id} 排队人数过多: {queue_length}人'
+                    f'充电桩 {charger_id} 排队人数过多: {queue_length}人 (阈值: {long_queue_threshold})'
                 )
     
     def onStationSelected(self, station_id: str):
@@ -936,7 +1043,9 @@ class OperatorControlPanel(QWidget):
         
         dialog = QDialog(self)
         dialog.setWindowTitle(f"站点详情 - {station_id}")
-        dialog.resize(600, 400)
+        dialog_width = self.panel_settings.get('station_details_dialog_width', 600)
+        dialog_height = self.panel_settings.get('station_details_dialog_height', 400)
+        dialog.resize(dialog_width, dialog_height)
         
         layout = QVBoxLayout(dialog)
         
@@ -989,7 +1098,8 @@ class OperatorControlPanel(QWidget):
         
         start_date = QDateEdit()
         start_date.setCalendarPopup(True)
-        start_date.setDate(QDate.currentDate().addDays(-30))
+        default_export_days = self.panel_settings.get('report_export_default_days', 30)
+        start_date.setDate(QDate.currentDate().addDays(-default_export_days))
         layout.addRow("开始日期:", start_date)
         
         end_date = QDateEdit()
@@ -1011,7 +1121,8 @@ class OperatorControlPanel(QWidget):
             report_data = self._generateReport(start, end)
             
             # 保存到文件
-            filename = f"operator_report_{start}_{end}.json"
+            filename_prefix = self.panel_settings.get('report_filename_prefix', 'operator_report_')
+            filename = f"{filename_prefix}{start}_{end}.json"
             try:
                 with open(filename, 'w', encoding='utf-8') as f:
                     json.dump(report_data, f, indent=2, ensure_ascii=False)
@@ -1072,7 +1183,9 @@ class OperatorControlPanel(QWidget):
         
         dialog = QDialog(self)
         dialog.setWindowTitle("扩容建议")
-        dialog.resize(800, 600)
+        dialog_width = self.panel_settings.get('expansion_recs_dialog_width', 800)
+        dialog_height = self.panel_settings.get('expansion_recs_dialog_height', 600)
+        dialog.resize(dialog_width, dialog_height)
         
         layout = QVBoxLayout(dialog)
         
@@ -1094,8 +1207,10 @@ class OperatorControlPanel(QWidget):
             
             priority_item = QTableWidgetItem(rec['priority'])
             if rec['priority'] == 'high':
-                priority_item.setBackground(QColor("#ff4444"))
-                priority_item.setForeground(QColor("white"))
+                bg_color_hex = self.panel_settings.get('expansion_recs_high_priority_color_hex', "#ff4444")
+                text_color_hex = self.panel_settings.get('expansion_recs_high_priority_text_color_hex', "#ffffff")
+                priority_item.setBackground(QColor(bg_color_hex))
+                priority_item.setForeground(QColor(text_color_hex))
             table.setItem(row, 5, priority_item)
         
         layout.addWidget(table)

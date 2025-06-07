@@ -1504,7 +1504,27 @@ class MainWindow(QMainWindow):
         super().__init__()
         
         # 初始化配置和状态
-        self.config = self._loadDefaultConfig()
+        # Load configuration
+        try:
+            with open("config.json", 'r', encoding='utf-8') as f:
+                self.config = json.load(f)
+            logger.info("Successfully loaded config.json")
+        except FileNotFoundError:
+            logger.warning("config.json not found, using default configuration.")
+            self.config = self._loadDefaultConfig()
+            try:
+                with open("config.json", 'w', encoding='utf-8') as f:
+                    json.dump(self.config, f, indent=4, ensure_ascii=False)
+                logger.info("Default configuration saved to config.json")
+            except IOError as e:
+                logger.error(f"Could not save default config.json: {e}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Error decoding config.json: {e}. Using default configuration.")
+            self.config = self._loadDefaultConfig()
+        except Exception as e:
+            logger.error(f"Error loading config.json: {e}. Using default configuration.")
+            self.config = self._loadDefaultConfig()
+
         self.simulation_worker = None
         self.current_metrics = {}
         self.time_series_data = {'timestamps': [], 'regional_data': {}}
@@ -2176,7 +2196,7 @@ class MainWindow(QMainWindow):
     def _createOperatorPanelTab(self):
         """创建运营商面板选项卡"""
         from operator_panel import OperatorControlPanel
-        self.operator_control_panel = OperatorControlPanel()
+        self.operator_control_panel = OperatorControlPanel(self.config)
         
         # 连接信号
         self.operator_control_panel.pricingStrategyChanged.connect(self.onPricingStrategyChanged)

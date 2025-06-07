@@ -9,16 +9,20 @@ from simulation.utils import calculate_distance
 logger = logging.getLogger("MAS")
 
 class MultiAgentSystem:
-    def __init__(self):
-        self.config = {}
-        self.user_agent = CoordinatedUserSatisfactionAgent()
-        self.profit_agent = CoordinatedOperatorProfitAgent()
-        self.grid_agent = CoordinatedGridFriendlinessAgent()
-        # Pass self.config to Coordinator during its initialization
-        # This assumes self.config is populated before MAS.make_decisions is first called.
-        # If MAS is initialized then immediately used, self.config might be empty here.
-        # Better to pass config to Coordinator when MAS itself gets its config.
-        self.coordinator = CoordinatedCoordinator(config=self.config)
+    def __init__(self, main_config=None): # Expects the full application config
+        self.config = main_config if main_config is not None else {}
+
+        coordinated_mas_config = self.config.get('algorithms', {}).get('coordinated_mas', {})
+
+        user_params = coordinated_mas_config.get('user_satisfaction_agent_params', {})
+        profit_params = coordinated_mas_config.get('operator_profit_agent_params', {})
+        grid_params = coordinated_mas_config.get('grid_friendliness_agent_params', {})
+        coordinator_params = coordinated_mas_config.get('coordinator_params', {})
+
+        self.user_agent = CoordinatedUserSatisfactionAgent(user_params)
+        self.profit_agent = CoordinatedOperatorProfitAgent(profit_params)
+        self.grid_agent = CoordinatedGridFriendlinessAgent(grid_params)
+        self.coordinator = CoordinatedCoordinator(coordinator_params) # Pass specific params
         self.operational_mode = 'v1g'
 
     def set_operational_mode(self, mode):
@@ -63,7 +67,8 @@ class MultiAgentSystem:
         return final_decisions
 
 class CoordinatedUserSatisfactionAgent:
-    def __init__(self):
+    def __init__(self, params=None):
+        self.params = params if params is not None else {}
         self.last_decision = {}
         self.last_reward = 0
 
@@ -116,9 +121,15 @@ class CoordinatedUserSatisfactionAgent:
         return recommendations
 
     def _get_charging_threshold(self, hour):
-        threshold = 0
-        if 6 <= hour < 22: threshold = 50
-        else: threshold = 60
+        thresholds_by_hour = self.params.get('soc_thresholds_by_hour', {})
+        default_thresh = thresholds_by_hour.get("default", 50)
+        night_start = thresholds_by_hour.get("night_start_hour", 22)
+        night_end = thresholds_by_hour.get("night_end_hour", 6)
+        night_thresh = thresholds_by_hour.get("night_soc_threshold", 60)
+
+        threshold = default_thresh
+        if hour >= night_start or hour < night_end:
+            threshold = night_thresh
         logger.debug(f"UserAgent: Charging threshold for hour {hour} set to {threshold}%.")
         return threshold
 
@@ -127,33 +138,43 @@ class CoordinatedUserSatisfactionAgent:
         best_charger = None
         min_weighted_cost = float('inf')
         user_pos = user.get("current_position", {"lat": 0, "lng": 0})
-        time_sensitivity_base = user.get("time_sensitivity", 0.5)
-        price_sensitivity_base = user.get("price_sensitivity", 0.5)
+
+        time_sensitivity_base = user.get("time_sensitivity", self.params.get('default_time_sensitivity', 0.5))
+        price_sensitivity_base = user.get("price_sensitivity", self.params.get('default_price_sensitivity', 0.5))
         charging_priority = grid_preferences.get("charging_priority", "balanced")
+
         effective_price_sensitivity = price_sensitivity_base
         if charging_priority == "minimize_cost":
-            effective_price_sensitivity = price_sensitivity_base * 1.5
+            effective_price_sensitivity = price_sensitivity_base * self.params.get('minimize_cost_priority_price_sensitivity_factor', 1.5)
 
         grid_status = state.get("grid_status", {})
         current_price = grid_status.get("current_price", 0.85)
+
+        travel_time_dist_mult = self.params.get('travel_time_distance_multiplier', 2.0)
+        avg_charge_time_defaults = self.params.get('avg_charge_time_by_type', {"superfast": 30, "fast": 45, "normal": 60})
+        price_scaling = self.params.get('price_cost_scaling_factor', 50.0)
 
         for charger in chargers:
             if charger.get("status") == "failure": continue
             charger_pos = charger.get("position", {"lat": 0, "lng": 0})
             distance = calculate_distance(user_pos, charger_pos)
-            travel_time = distance * 2
+            travel_time = distance * travel_time_dist_mult
+
             queue_length = len(charger.get("queue", []))
-            avg_charge_time = 60
-            if charger.get("type") == "superfast": avg_charge_time = 30
-            elif charger.get("type") == "fast": avg_charge_time = 45
+            charger_type = charger.get("type", "normal")
+            avg_charge_time = avg_charge_time_defaults.get(charger_type, 60) # Default to 'normal' time
+
             wait_time = queue_length * avg_charge_time
             charge_needed = user.get("battery_capacity", 60) * (1 - user.get("soc", 50)/100)
             price_multiplier = charger.get("price_multiplier", 1.0)
             est_cost = charge_needed * current_price * price_multiplier
+
             time_cost = travel_time + wait_time
-            price_cost = est_cost / 50.0
-            if not isinstance(time_sensitivity_base, (int, float)): time_sensitivity_base = 0.5
+            price_cost = est_cost / price_scaling if price_scaling > 0 else est_cost
+
+            if not isinstance(time_sensitivity_base, (int, float)): time_sensitivity_base = self.params.get('default_time_sensitivity', 0.5)
             if not isinstance(effective_price_sensitivity, (int, float)): effective_price_sensitivity = price_sensitivity_base
+
             weighted_cost = (time_cost * time_sensitivity_base) + (price_cost * effective_price_sensitivity)
             if weighted_cost < min_weighted_cost:
                 min_weighted_cost = weighted_cost
@@ -161,10 +182,10 @@ class CoordinatedUserSatisfactionAgent:
         return best_charger
 
 class CoordinatedOperatorProfitAgent:
-    def __init__(self):
+    def __init__(self, params=None):
+        self.params = params if params is not None else {}
         self.last_decision = {}
         self.last_reward = 0
-        # self.config could be passed here if needed for specific profit calculations
 
     def make_decisions(self, state, grid_preferences=None):
         if grid_preferences is None: grid_preferences = {}
@@ -193,7 +214,7 @@ class CoordinatedOperatorProfitAgent:
             user_id = user.get("user_id")
             soc = user.get("soc", 100)
             if not user_id or user.get("status") in ["charging", "waiting"]: continue
-            if soc < 95:
+            if soc < 95: # Assuming 95 is a general threshold to consider charging
                 best_charger_info = self._find_most_profitable_charger(user, chargers, current_grid_price, peak_hours, valley_hours, hour, charging_priority)
                 if best_charger_info:
                     recommendations[user_id] = best_charger_info["charger_id"]
@@ -203,36 +224,49 @@ class CoordinatedOperatorProfitAgent:
     def _find_most_profitable_charger(self, user, chargers, current_grid_price, peak_hours, valley_hours, hour, charging_priority):
         best_charger = None
         max_profit_score = float('-inf')
-        operator_cost_of_energy_multiplier = 1.0
+
+        op_cost_multipliers = self.params.get('minimize_cost_priority_op_cost_multipliers', {"peak": 1.25, "valley": 0.75, "default": 1.0})
+        operator_cost_of_energy_multiplier = op_cost_multipliers.get('default', 1.0)
         if charging_priority == "minimize_cost":
-            if hour in peak_hours: operator_cost_of_energy_multiplier = 1.25
-            elif hour in valley_hours: operator_cost_of_energy_multiplier = 0.75
+            if hour in peak_hours: operator_cost_of_energy_multiplier = op_cost_multipliers.get('peak', 1.25)
+            elif hour in valley_hours: operator_cost_of_energy_multiplier = op_cost_multipliers.get('valley', 0.75)
             logger.debug(f"ProfitAgent: User {user.get('user_id')} (Minimize Cost) - OpCostMultiplier: {operator_cost_of_energy_multiplier}")
+
+        revenue_multipliers = self.params.get('revenue_multipliers_by_type', {"fast": 1.1, "superfast": 1.2, "normal": 1.0})
+        base_energy_cost_rate = self.params.get('operator_base_energy_cost_rate', 0.6)
+        queue_penalty_factor = self.params.get('queue_score_penalty_factor', 0.3)
+        charge_needed_factor_config = self.params.get('charge_needed_score_factor', 0.05)
 
         for charger in chargers:
             if charger.get("status") == "failure": continue
-            charger_price_multiplier = charger.get("price_multiplier", 1.0)
+
+            charger_price_multiplier = charger.get("price_multiplier", 1.0) # Charger's own markup
             effective_charge_price_to_user = current_grid_price * charger_price_multiplier
+
             revenue_potential = effective_charge_price_to_user
-            if charger.get("type") == "fast": revenue_potential *= 1.1
-            elif charger.get("type") == "superfast": revenue_potential *= 1.2
-            operator_base_energy_cost_rate = 0.6
-            estimated_energy_cost_for_operator = current_grid_price * operator_base_energy_cost_rate * operator_cost_of_energy_multiplier
+            charger_type = charger.get("type", "normal")
+            revenue_potential *= revenue_multipliers.get(charger_type, 1.0)
+
+            estimated_energy_cost_for_operator = current_grid_price * base_energy_cost_rate * operator_cost_of_energy_multiplier
             profit_margin_score = revenue_potential - estimated_energy_cost_for_operator
+
             queue_length = len(charger.get("queue", []))
-            profit_score = profit_margin_score / (1 + queue_length * 0.3)
-            charge_needed_factor = (100 - user.get("soc", 50)) / 50.0
-            profit_score *= (1 + charge_needed_factor * 0.05)
+            profit_score = profit_margin_score / (1 + queue_length * queue_penalty_factor) # Apply queue penalty
+
+            charge_needed_user = (100 - user.get("soc", 50)) / 50.0 # Scale: 0-2
+            profit_score *= (1 + charge_needed_user * charge_needed_factor_config) # Boost by how much user needs charge
+
             if profit_score > max_profit_score:
                 max_profit_score = profit_score
                 best_charger = charger
         return best_charger
 
 class CoordinatedGridFriendlinessAgent:
-    def __init__(self):
+    def __init__(self, params=None):
+        self.params = params if params is not None else {}
         self.last_decision = {}
         self.last_reward = 0
-        self.operational_mode = 'v1g'
+        self.operational_mode = 'v1g' # Default, can be changed by set_operational_mode
 
     def set_operational_mode(self, mode):
         if mode in ['v1g', 'v2g']:
@@ -263,50 +297,50 @@ class CoordinatedGridFriendlinessAgent:
         chargers = {charger_data["charger_id"]: charger_data for charger_data in chargers_list if isinstance(charger_data, dict) and "charger_id" in charger_data}
 
         grid_load_percentage = grid_status.get("grid_load_percentage", 50.0)
-        renewable_ratio = grid_status.get("renewable_ratio", 0.0)
+        renewable_ratio = grid_status.get("renewable_ratio", 0.0) # Assuming this is 0-100
         peak_hours = grid_status.get("peak_hours", [])
         valley_hours = grid_status.get("valley_hours", [])
 
         charging_candidates = []
-        min_charge_needed_for_grid_agent = 10.0 # Corrected: was 20.0
+        min_charge_needed = self.params.get('min_charge_needed_threshold', 10.0)
+        soc_threshold = self.params.get('soc_threshold', 60.0)
+        target_soc_deficit_calc = self.params.get('target_soc_for_deficit', 95.0)
+
 
         for user_id, user_data in users.items():
             soc = user_data.get("soc", 100.0)
             status = user_data.get("status", "unknown")
             needs_charge_flag = user_data.get("needs_charge_decision", False)
 
-            # Corrected SOC threshold for grid agent
-            soc_threshold_grid = 60.0
-
-            logger.debug(f"GridAgent: Checking User ID: {user_id}, SOC: {soc:.1f}%, Status: '{status}', NeedsChargeFlag: {needs_charge_flag}, SOCThreshold: {soc_threshold_grid}%, MinChargeNeeded: {min_charge_needed_for_grid_agent}%")
+            logger.debug(f"GridAgent: Checking User ID: {user_id}, SOC: {soc:.1f}%, Status: '{status}', NeedsChargeFlag: {needs_charge_flag}, SOCThreshold: {soc_threshold}%, MinChargeNeeded: {min_charge_needed}%")
 
             if status in ["charging", "waiting"]:
                 logger.debug(f"GridAgent: User {user_id} skipped (already '{status}').")
                 continue
 
-            charge_deficit = 95.0 - soc
-            passes_soc_threshold = soc < soc_threshold_grid
-            passes_charge_amount_threshold = charge_deficit >= min_charge_needed_for_grid_agent
+            charge_deficit = target_soc_deficit_calc - soc
+            passes_soc_threshold = soc < soc_threshold
+            passes_charge_amount_threshold = charge_deficit >= min_charge_needed
 
             is_candidate = False
             if needs_charge_flag and passes_charge_amount_threshold:
                 logger.debug(f"GridAgent: User {user_id} is candidate via NeedsChargeFlag (charge needed: {charge_deficit:.1f}%).")
                 is_candidate = True
             elif passes_soc_threshold and passes_charge_amount_threshold:
-                logger.debug(f"GridAgent: User {user_id} is candidate via SOC < {soc_threshold_grid}% (charge needed: {charge_deficit:.1f}%).")
+                logger.debug(f"GridAgent: User {user_id} is candidate via SOC < {soc_threshold}% (charge needed: {charge_deficit:.1f}%).")
                 is_candidate = True
 
             if is_candidate:
-                urgency = (100.0 - soc)
+                urgency = (100.0 - soc) # Higher urgency for lower SOC
                 charging_candidates.append((user_id, user_data, urgency))
                 logger.info(f"GridAgent: User {user_id} (SOC {soc:.1f}%) added to charging_candidates with urgency {urgency:.1f}.")
             else:
                 if not (needs_charge_flag or passes_soc_threshold):
-                     logger.debug(f"GridAgent: User {user_id} not candidate (failed primary need: needs_charge_flag={needs_charge_flag}, soc_under_{soc_threshold_grid}={passes_soc_threshold}).")
+                     logger.debug(f"GridAgent: User {user_id} not candidate (failed primary need: needs_charge_flag={needs_charge_flag}, soc_under_{soc_threshold}={passes_soc_threshold}).")
                 elif not passes_charge_amount_threshold:
-                     logger.debug(f"GridAgent: User {user_id} not candidate (charge needed {charge_deficit:.1f}% < {min_charge_needed_for_grid_agent}%).")
+                     logger.debug(f"GridAgent: User {user_id} not candidate (charge needed {charge_deficit:.1f}% < {min_charge_needed}%).")
 
-        charging_candidates.sort(key=lambda x: -x[2])
+        charging_candidates.sort(key=lambda x: -x[2]) # Higher urgency first
 
         requested_v2g_mw = grid_preferences.get("v2g_discharge_active_request_mw", 0.0)
         actual_v2g_mw_this_step = state.get('grid_status', {}).get('aggregated_metrics', {}).get('current_actual_v2g_dispatch_mw', 0.0)
@@ -316,13 +350,40 @@ class CoordinatedGridFriendlinessAgent:
 
         charging_priority = grid_preferences.get("charging_priority", "balanced")
         charger_scores = {}
-        max_queue_len = 3
+
+        max_q_defaults = self.params.get('max_queue_len_defaults', {"default": 3, "v2g_mode": 5, "v2g_active_request": 2, "peak_shaving_priority": 1})
+        max_queue_len = max_q_defaults.get("default",3)
         if self.operational_mode == 'v2g':
-            max_queue_len = 5
-            if is_v2g_active_or_requested: max_queue_len = 2
+            max_queue_len = max_q_defaults.get("v2g_mode",5)
+            if is_v2g_active_or_requested: max_queue_len = max_q_defaults.get("v2g_active_request",2)
         if charging_priority == "peak_shaving" and hour in peak_hours and not is_v2g_active_or_requested :
-            max_queue_len = 1
+            max_queue_len = max_q_defaults.get("peak_shaving_priority",1)
         logger.debug(f"GridAgent: OpMode='{self.operational_mode}', V2GActiveOrReq={is_v2g_active_or_requested}, Prio='{charging_priority}', Hour={hour}. MaxQueueLen={max_queue_len}")
+
+        score_weights_map = {
+            "balanced": self.params.get('score_weights_balanced', {"time": 0.5, "load": 0.3, "renewable": 0.2}),
+            "v2g_mode": self.params.get('score_weights_v2g_mode', {"time": 0.4, "load": 0.25, "renewable": 0.35}),
+            "prioritize_renewables": self.params.get('score_weights_prioritize_renewables', {"time": 0.15, "load": 0.15, "renewable": 0.7}),
+            "minimize_cost": self.params.get('score_weights_minimize_cost', {"time": 0.6, "load": 0.2, "renewable": 0.2}),
+            "peak_shaving": self.params.get('score_weights_peak_shaving', {"time": 0.7, "load": 0.15, "renewable": 0.15})
+        }
+
+        time_scores_map = {
+            "default": self.params.get('time_scores_default', {"valley": 0.8, "shoulder": 0.2, "peak": -1.0}),
+            "minimize_cost": self.params.get('time_scores_minimize_cost', {"valley": 1.0, "shoulder": 0.3, "peak": -0.5}),
+            "peak_shaving": self.params.get('time_scores_peak_shaving', {"valley": 1.0, "shoulder": 0.4, "peak": -200})
+        }
+
+        current_score_weights = score_weights_map.get(charging_priority, score_weights_map["balanced"])
+        if self.operational_mode == 'v2g': # V2G mode might override charging_priority weights for grid agent
+            current_score_weights = score_weights_map.get("v2g_mode", current_score_weights)
+
+        time_w = current_score_weights.get("time",0.5)
+        load_w = current_score_weights.get("load",0.3)
+        renewable_w = current_score_weights.get("renewable",0.2)
+
+        current_time_scores = time_scores_map.get(charging_priority if charging_priority in time_scores_map else "default", time_scores_map["default"])
+
 
         for charger_id, charger_data in chargers.items():
             if charger_data.get("status") == "failure": continue
@@ -330,39 +391,26 @@ class CoordinatedGridFriendlinessAgent:
             if charger_data.get("status") == "occupied": current_queue_len += 1
 
             if current_queue_len < max_queue_len:
-                time_w, load_w, renewable_w = 0.5, 0.3, 0.2
-                raw_time_score, raw_load_score, raw_renewable_score = 0.0, 0.5, 0.0
                 raw_load_score = max(0, 1.0 - (grid_load_percentage / 100.0)) if grid_load_percentage is not None else 0.5
-                raw_renewable_score = (renewable_ratio / 100.0) if renewable_ratio is not None else 0.0
+                raw_renewable_score = (renewable_ratio / 100.0) if renewable_ratio is not None else 0.0 # renewable_ratio is 0-100
 
-                if self.operational_mode == 'v2g':
-                    time_w, load_w, renewable_w = 0.4, 0.25, 0.35
+                if hour in valley_hours: raw_time_score = current_time_scores.get('valley', 0.8)
+                elif hour not in peak_hours: raw_time_score = current_time_scores.get('shoulder', 0.2)
+                else: raw_time_score = current_time_scores.get('peak', -1.0)
 
-                if charging_priority == "prioritize_renewables":
-                    time_w, load_w, renewable_w = 0.15, 0.15, 0.7
-                elif charging_priority == "minimize_cost":
-                    time_w, load_w, renewable_w = 0.6, 0.2, 0.2
-                    if hour in valley_hours: raw_time_score = 1.0
-                    elif hour not in peak_hours: raw_time_score = 0.3
-                    else: raw_time_score = -0.5
-                elif charging_priority == "peak_shaving":
-                    if hour in peak_hours:
-                        charger_scores[charger_id] = -200; continue
-                    else:
-                        time_w, load_w, renewable_w = 0.7, 0.15, 0.15
-                        if hour in valley_hours: raw_time_score = 1.0
-                        else: raw_time_score = 0.4
-                else: # Balanced
-                    if hour in valley_hours: raw_time_score = 0.8
-                    elif hour not in peak_hours: raw_time_score = 0.2
-                    else: raw_time_score = -1.0
+                # Special handling for peak_shaving priority during peak hours
+                if charging_priority == "peak_shaving" and hour in peak_hours:
+                    charger_scores[charger_id] = current_time_scores.get('peak',-200) # Use the very high penalty
+                    logger.debug(f"GridAgent: Charger {charger_id} during peak_shaving gets score: {charger_scores[charger_id]:.2f}")
+                    continue
+
 
                 grid_score = (raw_time_score * time_w +
                               raw_renewable_score * renewable_w +
                               raw_load_score * load_w)
 
-                if is_v2g_active_or_requested:
-                    grid_score -= 0.75
+                if is_v2g_active_or_requested: # Apply penalty if V2G is active and we are still considering charging
+                    grid_score += self.params.get('v2g_active_score_penalty', -0.75)
 
                 charger_scores[charger_id] = grid_score
                 logger.debug(f"GridAgent: Charger {charger_id} score: {grid_score:.2f} (T:{raw_time_score:.2f}*w{time_w:.2f}, R:{raw_renewable_score:.2f}*w{renewable_w:.2f}, L:{raw_load_score:.2f}*w{load_w:.2f}) Prio: {charging_priority}")
@@ -384,39 +432,47 @@ class CoordinatedGridFriendlinessAgent:
             if best_choice_idx != -1 and best_charger_id is not None:
                 decisions[user_id] = best_charger_id
                 assigned_chargers[best_charger_id] += 1
-                charger_info = chargers.get(best_charger_id, {})
+                charger_info = chargers.get(best_charger_id, {}) # Re-fetch for safety, though not strictly needed here
                 current_actual_queue = len(charger_info.get("queue", []))
                 if charger_info.get("status") == "occupied": current_actual_queue += 1
+                # If this charger is now full (considering assignments in this step), remove it from further consideration in this step
                 if current_actual_queue + assigned_chargers[best_charger_id] >= max_queue_len:
                      available_chargers.pop(best_choice_idx)
         self.last_decision = decisions
         return decisions
 
 class CoordinatedCoordinator:
-    def __init__(self, config=None):
-        self.config = config if config else {}
-        coordinator_settings = self.config.get('algorithms', {}).get('coordinated_mas', {}).get('coordinator', {})
-        self.max_queue_len_config = coordinator_settings.get('max_queue_length', 4)
+    def __init__(self, params=None):
+        self.params = params if params is not None else {}
+        self.max_queue_len_config = self.params.get('max_queue_length', 4)
         logger.info(f"Coordinator initialized with max_queue_length: {self.max_queue_len_config}")
 
-        base_weights_config = coordinator_settings.get('base_agent_weights',
-                                                 {"user": 0.4, "profit": 0.3, "grid": 0.3})
-        self.base_weights = base_weights_config
+        # Base weights are part of params, but also allow direct setting via set_weights
+        self.base_weights = self.params.get('base_agent_weights', {"user": 0.4, "profit": 0.3, "grid": 0.3}).copy()
+        self.priority_weights_override = self.params.get('priority_weights_override', {})
+        self.critical_soc_threshold = self.params.get('critical_soc_threshold', 20.0)
+        self.critical_soc_max_queue_increment = self.params.get('critical_soc_max_queue_increment', 1)
+
         self.conflict_history = []
         self.last_agent_rewards = {}
-        self.set_weights(self.base_weights)
+        self._normalize_base_weights() # Normalize once at init
 
-    def set_weights(self, weights):
-        self.base_weights = {
-            "user": weights.get("user_satisfaction", 0.4),
-            "profit": weights.get("operator_profit", 0.3),
-            "grid": weights.get("grid_friendliness", 0.3)
-        }
+    def _normalize_base_weights(self):
         total_w = sum(self.base_weights.values())
         if total_w > 0 and abs(total_w - 1.0) > 1e-6:
-             logger.warning(f"Coordinator base weights do not sum to 1 ({total_w}). Normalizing.")
-             for k in self.base_weights: self.base_weights[k] /= total_w
-        logger.info(f"Coordinator base weights updated: User={self.base_weights['user']:.2f}, Profit={self.base_weights['profit']:.2f}, Grid={self.base_weights['grid']:.2f}")
+            logger.warning(f"Coordinator base weights ({self.base_weights}) do not sum to 1 ({total_w}). Normalizing.")
+            for k in self.base_weights: self.base_weights[k] /= total_w
+        logger.info(f"Coordinator base weights (normalized): User={self.base_weights.get('user',0):.2f}, Profit={self.base_weights.get('profit',0):.2f}, Grid={self.base_weights.get('grid',0):.2f}")
+
+    def set_weights(self, weights_input): # weights_input is expected to be like {"user_satisfaction":0.x, ...} or {"user":0.x, ...}
+        # This method allows external override of base_weights, using the structure from scheduler.optimization_weights
+        user_w = weights_input.get("user_satisfaction", weights_input.get("user", self.base_weights.get("user", 0.4)))
+        profit_w = weights_input.get("operator_profit", weights_input.get("profit", self.base_weights.get("profit", 0.3)))
+        grid_w = weights_input.get("grid_friendliness", weights_input.get("grid", self.base_weights.get("grid", 0.3)))
+
+        self.base_weights = {"user": user_w, "profit": profit_w, "grid": grid_w}
+        self._normalize_base_weights()
+
 
     def _estimate_assignment_power_kw(self, user_dict, charger_dict, state):
         charger_max_power_kw = charger_dict.get('max_power_kw', charger_dict.get('max_power', 30.0))
@@ -455,22 +511,17 @@ class CoordinatedCoordinator:
             logger.debug(f"Coordinator: Processing user {user_id} (SOC {user_soc:.1f}%).")
             choices = []
 
-            current_weights = self.base_weights.copy()
-            requested_v2g_mw = grid_preferences.get("v2g_discharge_active_request_mw", 0.0)
+            # Determine current weights based on priority
+            current_weights = self.priority_weights_override.get(charging_priority, self.base_weights).copy()
+            if charging_priority in self.priority_weights_override:
+                logger.debug(f"Coordinator: Using override weights for priority '{charging_priority}': {current_weights}")
+            else:
+                logger.debug(f"Coordinator: Using base_weights for priority '{charging_priority}': {current_weights}")
 
-            if charging_priority == "prioritize_renewables":
-                current_weights = {"user": 0.2, "profit": 0.2, "grid": 0.6}
-            elif charging_priority == "minimize_cost":
-                current_weights = {"user": 0.3, "profit": 0.5, "grid": 0.2}
-            elif charging_priority == "peak_shaving":
-                current_weights = {"user": 0.15, "profit": 0.15, "grid": 0.7}
-
-            # V2G operational_mode boost logic for coordinator (currently commented out in task, keeping it that way)
-            # if requested_v2g_mw > 0 and self.operational_mode == 'v2g': # This would need operational_mode from MAS
-            #     pass
-
+            # Normalization of current_weights (important if overrides or base_weights don't sum to 1)
             total_w_dynamic = sum(current_weights.values())
             if total_w_dynamic > 0 and abs(total_w_dynamic - 1.0) > 1e-6:
+                 logger.warning(f"Coordinator dynamic weights for priority '{charging_priority}' (Source: {'override' if charging_priority in self.priority_weights_override else 'base'}, Original: {self.priority_weights_override.get(charging_priority, self.base_weights)}) do not sum to 1 ({total_w_dynamic}). Normalizing to: { {k: v/total_w_dynamic for k,v in current_weights.items()} }")
                  for k_w_dyn in current_weights: current_weights[k_w_dyn] /= total_w_dynamic
 
             log_choices_for_user = []
@@ -507,13 +558,10 @@ class CoordinatedCoordinator:
             sorted_chargers = sorted(charger_votes.items(), key=lambda item: -item[1])
             assigned_this_user = False
             for best_charger_id, vote_score in sorted_chargers:
-                effective_max_queue_for_user = self.max_queue_len_config
-                if user_soc < 20.0: # Critically low SOC threshold
-                    effective_max_queue_for_user += 1
-                    logger.debug(f"Coordinator: User {user_id} has critical SOC {user_soc:.1f}%. Effective max queue for this assignment attempt is {effective_max_queue_for_user}.")
-                # else: # Not strictly needed to log if it's the default
-                #    logger.debug(f"Coordinator: User {user_id} SOC {user_soc:.1f}%. Effective max queue for this assignment attempt is {effective_max_queue_for_user}.")
-
+                effective_max_queue_for_user = self.max_queue_len_config # Base max queue from config
+                if user_soc < self.critical_soc_threshold: # Use critical_soc_threshold from self.params
+                    effective_max_queue_for_user += self.critical_soc_max_queue_increment # Use increment from self.params
+                    logger.debug(f"Coordinator: User {user_id} has critical SOC {user_soc:.1f}% (Threshold: {self.critical_soc_threshold}%) applying increment {self.critical_soc_max_queue_increment}. Effective max queue: {effective_max_queue_for_user}.")
 
                 current_q_count_at_charger = assigned_count.get(best_charger_id, 0)
                 if current_q_count_at_charger < effective_max_queue_for_user:
