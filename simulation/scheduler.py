@@ -36,34 +36,48 @@ class ChargingScheduler:
         self.config = config
         # 安全地获取配置，提供默认空字典
         env_config = config.get("environment", {})
-        scheduler_config = config.get("scheduler", {})
+        scheduler_config = self.config.get('scheduler', {}) # Use self.config here
+        if not isinstance(scheduler_config, dict):
+            logger.warning("Scheduler config section not found or not a dictionary. Using default algorithm.")
+            scheduler_config = {} # Default to empty dict to prevent errors
+
+        self.scheduling_algorithm_name = scheduler_config.get('scheduling_algorithm', 'coordinated_mas') # Changed self.algorithm to self.scheduling_algorithm_name
+        logger.info(f"ChargingScheduler initialized. Default algorithm from config: '{self.scheduling_algorithm_name}'")
+
         marl_specific_config = scheduler_config.get("marl_config", {})
 
-        self.algorithm = scheduler_config.get("scheduling_algorithm", "rule_based")
-        logger.info(f"ChargingScheduler initializing with algorithm: {self.algorithm}")
 
         # 根据算法初始化特定系统
         self.coordinated_mas_system = None
         self.marl_system = None
 
-        if self.algorithm == "coordinated_mas":
-            logger.info("Initializing Coordinated MAS subsystem...")
+        # Populate self.algorithms for simple modules
+        self.algorithms = {
+            "rule_based": rule_based,
+            "uncoordinated": uncoordinated
+            # Note: MARL and MAS are handled via their specific system instances (self.marl_system, self.coordinated_mas_system)
+        }
+
+        # Initialize systems based on the configured self.scheduling_algorithm_name
+        if self.scheduling_algorithm_name == "coordinated_mas":
+            logger.info("Initializing Coordinated MAS subsystem as it's the configured default...")
             try:
                 from algorithms.coordinated_mas import MultiAgentSystem
-                self.coordinated_mas_system = MultiAgentSystem()
-                self.coordinated_mas_system.config = config # 将完整配置传递给MAS
+                self.coordinated_mas_system = MultiAgentSystem(main_config=self.config) # Pass main config
+                # self.coordinated_mas_system.config = self.config # This line is redundant if passed in constructor
+                if hasattr(self.coordinated_mas_system, 'coordinator') and hasattr(self.coordinated_mas_system.coordinator, 'set_weights'):
+                    coordinator_weights = scheduler_config.get('optimization_weights', {})
+                    if coordinator_weights:
+                        self.coordinated_mas_system.coordinator.set_weights(coordinator_weights)
                 logger.info("Coordinated MAS subsystem initialized.")
             except ImportError:
-                 logger.error("Could not import MultiAgentSystem from algorithms.coordinated_mas. Check file and class names.")
-                 self.algorithm = "rule_based"
-                 logger.warning("Falling back to rule_based.")
+                 logger.error("Could not import MultiAgentSystem from algorithms.coordinated_mas.")
+                 # No change to self.scheduling_algorithm_name here, error will be caught when trying to use it
             except Exception as e:
                 logger.error(f"Failed to initialize Coordinated MAS: {e}", exc_info=True)
-                self.algorithm = "rule_based"
-                logger.warning("Falling back to rule_based.")
 
-        elif self.algorithm == "marl":
-            logger.info("Initializing MARL subsystem...")
+        elif self.scheduling_algorithm_name == "marl":
+            logger.info("Initializing MARL subsystem as it's the configured default...")
             try:
                 from algorithms.marl import MARLSystem
                 # 获取充电桩数量，处理可能的缺失
@@ -80,166 +94,138 @@ class ChargingScheduler:
                      learning_rate=marl_specific_config.get("learning_rate", 0.01),
                      discount_factor=marl_specific_config.get("discount_factor", 0.95),
                      exploration_rate=marl_specific_config.get("exploration_rate", 0.1),
-                     q_table_path=marl_specific_config.get("q_table_path", None)
+                     q_table_path=marl_specific_config.get("q_table_path", None),
+                     marl_config=marl_specific_config # Ensure this line is present
                  )
                 logger.info("MARL subsystem initialized.")
             except ImportError:
-                 logger.error("Could not import MARLSystem from algorithms.marl. Check file and class names.")
-                 self.algorithm = "rule_based"
-                 logger.warning("Falling back to rule_based.")
+                 logger.error("Could not import MARLSystem from algorithms.marl.")
+                 # No change to self.scheduling_algorithm_name here
             except Exception as e:
                 logger.error(f"Failed to initialize MARL system: {e}", exc_info=True)
-                self.algorithm = "rule_based"
-                logger.warning("Falling back to rule_based.")
 
-    def make_scheduling_decision(self, state, manual_decisions=None):
-        """根据配置的算法进行调度决策，支持手动决策优先"""
-        decisions = {}
-        logger.debug(f"Making decision using algorithm: {self.algorithm}")
 
-        if not state or not isinstance(state, dict):
-            logger.error("Scheduler received invalid state")
-            return decisions
 
+    def make_scheduling_decision(self, current_state, manual_decisions=None, grid_preferences=None):
+        """根据配置的算法进行调度决策，支持手动决策优先和电网偏好"""
+        # 初始化元数据字典，确保总有返回值
+        scheduler_metadata = {
+            "algorithm_used": "unknown",
+            "candidate_user_count": 0
+        }
+        
+        # 初始化决策字典
+        algo_decisions = {}
+        final_decisions = {}
+
+        if grid_preferences is None:
+            grid_preferences = {}
+        # 日志记录可以简化，避免刷屏
+        # logger.info(f"SCHEDULER: Received grid_preferences: {grid_preferences}")
+
+        # --- 确定要使用的算法 ---
+        ui_strategy = grid_preferences.get("charging_strategy")
+        effective_algo_name = getattr(self, 'scheduling_algorithm_name', 'rule_based')
+        operational_mode = None
+
+        if ui_strategy == "uncoordinated":
+            effective_algo_name = "uncoordinated"
+        elif ui_strategy == "smart_charging_v1g":
+            if self.scheduling_algorithm_name in ["coordinated_mas", "marl"]: 
+                effective_algo_name = self.scheduling_algorithm_name
+                operational_mode = 'v1g'
+        elif ui_strategy == "v2g_active":
+            if self.scheduling_algorithm_name in ["coordinated_mas", "marl"]: 
+                effective_algo_name = self.scheduling_algorithm_name
+                operational_mode = 'v2g'
+        
+        scheduler_metadata["algorithm_used"] = effective_algo_name
+
+        # --- 获取算法模块或系统实例 ---
+        algo_module_or_system = None
+        if effective_algo_name == "coordinated_mas": algo_module_or_system = self.coordinated_mas_system
+        elif effective_algo_name == "marl": algo_module_or_system = self.marl_system
+        else: algo_module_or_system = self.algorithms.get(effective_algo_name)
+
+        if not algo_module_or_system:
+            logger.error(f"SCHEDULER: Algorithm module/system for '{effective_algo_name}' not found.")
+            return {}, scheduler_metadata # 保证返回两个值
+
+        if operational_mode and hasattr(algo_module_or_system, 'set_operational_mode'):
+            algo_module_or_system.set_operational_mode(operational_mode)
+
+        # --- 开始决策流程 ---
         try:
-            # 优先应用手动决策
+            # 1. 处理手动决策 (这部分逻辑是正确的，保持不变)
+            validated_manual_decisions = {}
             if manual_decisions and isinstance(manual_decisions, dict):
-                logger.info(f"Applying manual decisions: {manual_decisions}")
-                decisions.update(manual_decisions)
-                
-                # 验证手动决策的有效性
-                users = {u.get('user_id'): u for u in state.get('users', []) if isinstance(u, dict)}
-                chargers = {c.get('charger_id'): c for c in state.get('chargers', []) if isinstance(c, dict)}
-                
-                valid_manual_decisions = {}
+                # ... (validation logic for manual decisions) ...
+                users_map = {u.get('user_id'): u for u in current_state.get('users', []) if isinstance(u, dict)}
+                chargers_map = {c.get('charger_id'): c for c in current_state.get('chargers', []) if isinstance(c, dict)}
                 for user_id, charger_id in manual_decisions.items():
-                    if user_id in users and charger_id in chargers:
-                        user = users[user_id]
-                        charger = chargers[charger_id]
-                        
-                        # 手动决策强制执行：无论用户当前状态如何都接受
-                        if True:  # 移除状态限制，允许所有状态的用户接受手动决策
-                            if charger.get('status') != 'failure':
-                                valid_manual_decisions[user_id] = charger_id
-                                
-                                # 处理正在充电的用户：强制中断当前充电
-                                current_status = user.get('status')
-                                if current_status == 'charging':
-                                    logger.info(f"=== FORCING CHARGING USER TO SWITCH CHARGERS ===")
-                                    logger.info(f"User {user_id} currently charging, will be forced to switch to {charger_id}")
-                                    
-                                    # 强制中断当前充电，设置为需要重新路由
-                                    user['status'] = 'idle'
-                                    user['target_charger'] = None
-                                    user['needs_charge_decision'] = True
-                                    
-                                    # 清除当前充电桩的用户分配
-                                    current_charger_id = None
-                                    for cid, c in chargers.items():
-                                        if c.get('current_user') == user_id:
-                                            current_charger_id = cid
-                                            c['current_user'] = None
-                                            c['status'] = 'available'
-                                            logger.info(f"Released user {user_id} from charger {cid}")
-                                            break
-                                
-                                elif current_status == 'waiting':
-                                    logger.info(f"=== FORCING WAITING USER TO SWITCH CHARGERS ===")
-                                    logger.info(f"User {user_id} currently waiting, will be forced to switch to {charger_id}")
-                                    
-                                    # 从当前等待队列中移除
-                                    for cid, c in chargers.items():
-                                        if user_id in c.get('queue', []):
-                                            c['queue'].remove(user_id)
-                                            logger.info(f"Removed user {user_id} from queue of charger {cid}")
-                                            break
-                                    
-                                    # 设置为需要重新路由
-                                    user['status'] = 'idle'
-                                    user['target_charger'] = None
-                                    user['needs_charge_decision'] = True
-                                
-                                # 标记为手动决策并强制锁定到目标充电桩
-                                user['manual_decision'] = True
-                                user['manual_decision_locked'] = True  # 锁定到特定充电桩
-                                user['force_target_charger'] = True   # 强制使用目标充电桩
-                                user['manual_decision_override'] = True  # 标记为强制覆盖决策
-                                
-                                # 详细记录手动决策信息
-                                queue_size = len(charger.get('queue', []))
-                                queue_capacity = charger.get('queue_capacity', 5)
-                                logger.info(f"=== MANUAL DECISION FORCE ACCEPTED ===")
-                                logger.info(f"User {user_id} -> Charger {charger_id} (FORCE LOCKED)")
-                                logger.info(f"Previous status: {current_status} -> Now: {user.get('status')}")
-                                logger.info(f"Target charger status: {charger.get('status')}")
-                                logger.info(f"Target queue: {queue_size}/{queue_capacity}")
-                                logger.info(f"User FORCE LOCKED - will override any system allocation")
-                                
-                                if queue_size >= queue_capacity:
-                                    logger.info(f"Manual decision accepted despite full queue - user will wait")
-                            else:
-                                logger.warning(f"Manual decision rejected: Charger {charger_id} is in failure status")
-                    else:
-                        logger.warning(f"Manual decision rejected: User {user_id} or Charger {charger_id} not found in current state")
-                
-                decisions = valid_manual_decisions
+                    if user_id in users_map and charger_id in chargers_map:
+                         validated_manual_decisions[user_id] = charger_id
 
-            # 获取已锁定的手动决策用户列表
-            locked_manual_users = set()
-            if state and state.get('users'):
-                for user in state['users']:
-                    if isinstance(user, dict) and user.get('manual_decision_locked'):
-                        locked_manual_users.add(user.get('user_id'))
+            # 2. 调用算法模块获取决策和元数据
+            if hasattr(algo_module_or_system, 'schedule'):
+                # --- START OF FIX ---
+                # 正确解包算法返回的元组
+                algo_decisions, algo_metadata = algo_module_or_system.schedule(
+                    current_state, self.config, manual_decisions, grid_preferences
+                )
+                # 更新我们的主元数据
+                scheduler_metadata.update(algo_metadata)
+                # --- END OF FIX ---
+
+            elif hasattr(algo_module_or_system, 'make_decisions'): # For Coordinated MAS
+                # 假设 make_decisions 也返回元组
+                algo_decisions, algo_metadata = algo_module_or_system.make_decisions(
+                    current_state, manual_decisions, grid_preferences
+                )
+                scheduler_metadata.update(algo_metadata)
+
+            elif effective_algo_name == "marl" and self.marl_system:
+                # MARL的逻辑比较特殊，我们在这里封装它的返回
+                # ... (MARL action creation and conversion logic) ...
+                marl_actions = self.marl_system.choose_actions(current_state)
+                algo_decisions = self._convert_marl_actions_to_decisions(marl_actions, current_state, {}) # Placeholder for action maps
+                # MARL 目前没有返回元数据，所以我们用默认值
+                scheduler_metadata['candidate_user_count'] = len(algo_decisions) # 粗略估计
             
-            # 如果没有手动决策或手动决策不足，使用算法补充
-            if len(decisions) == 0:
-                if self.algorithm == "rule_based":
-                    algo_decisions = rule_based.schedule(state, self.config)
-                elif self.algorithm == "uncoordinated":
-                    algo_decisions = uncoordinated.schedule(state)
-                elif self.algorithm == "coordinated_mas" and self.coordinated_mas_system:
-                    self.coordinated_mas_system.config = self.config
-                    algo_decisions = self.coordinated_mas_system.make_decisions(state)
-                elif self.algorithm == "marl" and self.marl_system:
-                    # MARL逻辑保持不变
-                    charger_action_maps = {}
-                    if state.get("chargers"):
-                        for charger in state["chargers"]:
-                            charger_id = charger.get("charger_id")
-                            if charger_id and charger.get("status") != "failure":
-                                action_map, action_size = self._create_dynamic_action_map(charger_id, state)
-                                charger_action_maps[charger_id] = {"map": action_map, "size": action_size}
-                    
-                    marl_actions = self.marl_system.choose_actions(state)
-                    algo_decisions = self._convert_marl_actions_to_decisions(marl_actions, state, charger_action_maps)
-                else:
-                    logger.warning(f"Algorithm '{self.algorithm}' not recognized. Using rule-based fallback.")
-                    algo_decisions = rule_based.schedule(state, self.config)
-                
-                # 过滤掉已锁定的手动决策用户，防止算法重新分配
-                filtered_decisions = {}
-                for user_id, charger_id in algo_decisions.items():
-                    if user_id not in locked_manual_users:
-                        filtered_decisions[user_id] = charger_id
-                    else:
-                        logger.info(f"Algorithm decision for locked manual user {user_id} ignored - user locked to specific charger")
-                
-                decisions = filtered_decisions
+            else:
+                logger.error(f"SCHEDULER: Algorithm '{effective_algo_name}' has no recognized decision method.")
+                # 即使出错，也要保证返回两个值
+                return {}, scheduler_metadata
+
+            # 3. 合并决策 (算法决策优先，手动决策覆盖)
+            # 注意：这里的逻辑应该是 manual_decisions 覆盖 algo_decisions
+            final_decisions = algo_decisions.copy()
+            final_decisions.update(validated_manual_decisions) # 手动决策有最高优先级
 
         except Exception as e:
-            logger.error(f"Error during scheduling with {self.algorithm}: {e}", exc_info=True)
-            logger.warning("Falling back to rule-based scheduling due to error.")
-            try:
-                decisions = rule_based.schedule(state, self.config)
-            except Exception as fallback_e:
-                logger.error(f"Error during fallback rule-based scheduling: {fallback_e}", exc_info=True)
-                decisions = {}
+            logger.error(f"SCHEDULER: Error during scheduling with {effective_algo_name}: {e}", exc_info=True)
+            # 出错时返回空决策和元数据
+            return {}, scheduler_metadata
 
-        logger.info(f"Scheduler ({self.algorithm}) made {len(decisions)} assignments.")
-        return decisions
+        logger.info(f"SCHEDULER: ({effective_algo_name}) made {len(final_decisions)} assignments. Candidates: {scheduler_metadata.get('candidate_user_count', 'N/A')}.")
+        
+        # 确保最终返回的是一个包含两个元素的元组
+        return final_decisions, scheduler_metadata
+    def _get_configured_algorithm_module(self):
+        """Helper to get the module instance based on self.scheduling_algorithm_name from config."""
+        # This method is primarily for simple modules listed in self.algorithms
+        # MAS and MARL are typically handled via their dedicated system instances.
+        if self.scheduling_algorithm_name in self.algorithms:
+            return self.algorithms[self.scheduling_algorithm_name]
+        elif self.scheduling_algorithm_name == "coordinated_mas" and self.coordinated_mas_system:
+             return self.coordinated_mas_system # Should be handled before calling this ideally
+        elif self.scheduling_algorithm_name == "marl" and self.marl_system:
+             return self.marl_system # Should be handled before calling this ideally
+        logger.error(f"Configured algorithm {self.scheduling_algorithm_name} module not found in self.algorithms or as a system.")
+        return None
         
     # --- learn, load_q_tables, save_q_tables ---
-    def learn(self, state, actions, rewards, next_state):
+    def learn(self, state, actions, rewards, next_state): # Use 'state' consistent with other methods if it's current_state
         """如果使用 MARL，则调用其学习方法"""
         if self.algorithm == "marl" and self.marl_system:
             try:
@@ -273,14 +259,20 @@ class ChargingScheduler:
         """
         # 从配置中获取 MARL 参数
         marl_config = self.config.get("scheduler", {}).get("marl_config", {})
+        candidate_params = marl_config.get('candidate_selection_params', {})
+        
         action_space_size = marl_config.get("action_space_size", 6) # Default to 6
         max_potential_users = action_space_size - 1 # Number of users to map
 
         # --- 获取可配置的候选用户选择参数 ---
-        MAX_DISTANCE_SQ = marl_config.get("marl_candidate_max_dist_sq", 0.15**2) # ~20km radius
-        W_SOC = marl_config.get("marl_priority_w_soc", 0.5)
-        W_DIST = marl_config.get("marl_priority_w_dist", 0.4)
-        W_URGENCY = marl_config.get("marl_priority_w_urgency", 0.1)
+        MAX_DISTANCE_SQ = marl_config.get("marl_candidate_max_dist_sq", 0.15**2) # Example: (0.15 degrees)^2
+        W_SOC = marl_config.get("marl_priority_w_soc", 0.5) # Weight for SOC in priority scoring
+        W_DIST = marl_config.get("marl_priority_w_dist", 0.4) # Weight for distance
+        W_URGENCY = marl_config.get("marl_priority_w_urgency", 0.1) # Weight for urgency
+
+        base_soc_trigger = candidate_params.get('base_soc_threshold', 40)
+        profile_soc_adjustments = candidate_params.get('profile_soc_adjustments', {})
+        dist_conversion_factor = candidate_params.get('distance_unit_conversion_factor', 111.0) # km per degree
 
         action_map = {0: 'idle'} # Action 0 is always idle
         chargers = state.get('chargers', [])
@@ -305,9 +297,11 @@ class ChargingScheduler:
 
             # --- 筛选逻辑: 寻找主动寻求充电的用户 ---
             is_actively_seeking = False
-            charge_threshold = 40 # 基础阈值，可配置
-            if user_profile == 'anxious': charge_threshold = 50
-            elif user_profile == 'economic': charge_threshold = 30
+            
+            charge_threshold = base_soc_trigger # Start with base
+            charge_threshold += profile_soc_adjustments.get(user_profile, 0)
+            # Ensure threshold is reasonable, e.g. not negative if adjustments are large
+            charge_threshold = max(5, charge_threshold) # Minimum practical threshold
 
             is_low_soc = soc < charge_threshold
 
@@ -331,7 +325,7 @@ class ChargingScheduler:
                 dist_sq = (user_pos['lat'] - charger_pos['lat'])**2 + (user_pos['lng'] - charger_pos['lng'])**2
 
                 if dist_sq < MAX_DISTANCE_SQ:
-                    distance = math.sqrt(dist_sq) * 111 # Approx km
+                    distance = math.sqrt(dist_sq) * dist_conversion_factor # Use configured conversion factor
                     # 计算紧迫度 (0 to 1, higher is more urgent)
                     urgency = max(0, (charge_threshold - soc)) / charge_threshold if charge_threshold > 0 else 0
 

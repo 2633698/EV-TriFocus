@@ -50,7 +50,8 @@ try:
 
 
     from data_storage import operator_storage
-    
+    from power_grid_panel import PowerGridPanel
+    from synergy_dashboard import SynergyDashboard
 except ImportError as e:
     print(f"警告：无法导入仿真模块: {e}")
     print("请确保simulation包在Python路径中")
@@ -323,142 +324,162 @@ class RegionalLoadChart(QWidget):
     
     def renderChart(self, time_series_data):
         """根据显示模式渲染图表"""
-        if not time_series_data or 'timestamps' not in time_series_data:
-            return
+        try:
+            if not time_series_data:
+                logger.debug("RegionalLoadChart: No time_series_data provided")
+                return
+                
+            if 'timestamps' not in time_series_data:
+                logger.debug(f"RegionalLoadChart: No timestamps in data. Available keys: {list(time_series_data.keys()) if isinstance(time_series_data, dict) else 'Not a dict'}")
+                return
+                
+            logger.debug(f"RegionalLoadChart: Rendering chart with {len(time_series_data['timestamps'])} timestamps")
             
-        timestamps = time_series_data['timestamps']
-        regional_data = time_series_data.get('regional_data', {})
-        
-        if not HAS_PYQTGRAPH or not hasattr(self, 'plot_widget'):
-            # 文本显示模式
-            self._renderTextMode(regional_data)
-            return
-        
-        # 清除当前图表
-        self.plot_widget.clear()
-        
-        # 数据采样优化 - 限制显示的数据点数量
-        max_points = 100  # 最多显示100个数据点
-        if len(timestamps) > max_points:
-            # 计算采样步长
-            step = len(timestamps) // max_points
-            sampled_timestamps = timestamps[::step]
-            sampled_indices = list(range(0, len(timestamps), step))
-        else:
-            sampled_timestamps = timestamps
-            sampled_indices = list(range(len(timestamps)))
-        
-        # 准备X轴数据
-        x_data = list(range(len(sampled_timestamps)))
-        
-        if self.display_mode == "total":
-            # 总负载模式 - 将所有区域的负载相加
-            total_load = np.zeros(len(sampled_timestamps)) if sampled_timestamps else []
+            timestamps = time_series_data['timestamps']
+            regional_data = time_series_data.get('regional_data', {})
             
-            for region_id, data in regional_data.items():
-                if 'total_load' in data and data['total_load']:
-                    # 对数据进行采样
-                    region_load = data['total_load']
-                    if len(region_load) > max_points:
-                        sampled_load = [region_load[i] for i in sampled_indices if i < len(region_load)]
-                    else:
-                        sampled_load = region_load
-                    
-                    # 确保长度一致并转换为MW单位
-                    if len(sampled_load) <= len(total_load):
+            logger.debug(f"RegionalLoadChart: Regional data has {len(regional_data)} regions")
+            
+            if not HAS_PYQTGRAPH or not hasattr(self, 'plot_widget'):
+                # 文本显示模式
+                self._renderTextMode(regional_data)
+                return
+            
+            # 清除当前图表
+            self.plot_widget.clear()
+            
+            # 数据采样优化 - 限制显示的数据点数量
+            max_points = 15  # 最多显示15个数据点
+            if len(timestamps) > max_points:
+                # 计算采样步长
+                step = len(timestamps) // max_points
+                sampled_timestamps = timestamps[::step]
+                sampled_indices = list(range(0, len(timestamps), step))
+            else:
+                sampled_timestamps = timestamps
+                sampled_indices = list(range(len(timestamps)))
+            
+            # 准备X轴数据
+            x_data = list(range(len(sampled_timestamps)))
+            
+            if self.display_mode == "total":
+                # 总负载模式 - 将所有区域的负载相加
+                total_load = np.zeros(len(sampled_timestamps)) if sampled_timestamps else []
+                
+                for region_id, data in regional_data.items():
+                    if 'total_load' in data and data['total_load']:
+                        # 对数据进行采样
+                        region_load = data['total_load']
+                        if len(region_load) > max_points:
+                            sampled_load = [region_load[i] for i in sampled_indices if i < len(region_load)]
+                        else:
+                            sampled_load = region_load
+                        
+                        # 确保长度一致并转换为MW单位
+                        if len(sampled_load) <= len(total_load):
+                            # 转换为MW单位显示
+                            sampled_load_mw = [load / 1000 for load in sampled_load]
+                            total_load[:len(sampled_load)] += np.array(sampled_load_mw)
+                
+                # 绘制总负载曲线
+                if len(total_load) > 0 and np.any(total_load > 0):
+                    pen = pg.mkPen(color=(31, 119, 180), width=3)
+                    self.plot_widget.plot(
+                                x_data[:len(total_load)], total_load, 
+                                pen=pen, 
+                                name="总负载",
+                                symbolBrush=(31, 119, 180),
+                                symbolSize=4,  # 减小符号大小
+                                symbolPen=None,  # 移除符号边框
+                                skipFiniteCheck=True  # 提高性能
+                            )
+            
+            elif self.display_mode == "single" and self.selected_region:
+                # 单区域模式 - 只显示选中的区域
+                if self.selected_region in regional_data:
+                    data = regional_data[self.selected_region]
+                    if 'total_load' in data and data['total_load']:
+                        # 对数据进行采样
+                        region_load = data['total_load']
+                        if len(region_load) > max_points:
+                            sampled_load = [region_load[i] for i in sampled_indices if i < len(region_load)]
+                        else:
+                            sampled_load = region_load
+                        
                         # 转换为MW单位显示
                         sampled_load_mw = [load / 1000 for load in sampled_load]
-                        total_load[:len(sampled_load)] += np.array(sampled_load_mw)
-            
-            # 绘制总负载曲线
-            if len(total_load) > 0 and np.any(total_load > 0):
-                pen = pg.mkPen(color=(31, 119, 180), width=3)
-                self.plot_widget.plot(
-                            x_data[:len(total_load)], total_load, 
-                            pen=pen, 
-                            name="总负载",
-                            symbolBrush=(31, 119, 180),
-                            symbolSize=4,  # 减小符号大小
-                            symbolPen=None,  # 移除符号边框
-                            skipFiniteCheck=True  # 提高性能
-                        )
-        
-        elif self.display_mode == "single" and self.selected_region:
-            # 单区域模式 - 只显示选中的区域
-            if self.selected_region in regional_data:
-                data = regional_data[self.selected_region]
-                if 'total_load' in data and data['total_load']:
-                    # 对数据进行采样
-                    region_load = data['total_load']
-                    if len(region_load) > max_points:
-                        sampled_load = [region_load[i] for i in sampled_indices if i < len(region_load)]
-                    else:
-                        sampled_load = region_load
-                    
-                    # 转换为MW单位显示
-                    sampled_load_mw = [load / 1000 for load in sampled_load]
-                    
-                    # 检查是否有有效数据
-                    if any(load > 0 for load in sampled_load_mw):
-                        pen = pg.mkPen(color=(31, 119, 180), width=3)
-                        self.plot_widget.plot(
-                             x_data[:len(sampled_load_mw)], sampled_load_mw, 
-                             pen=pen, 
-                             name=self.selected_region,
-                             symbolBrush=(31, 119, 180),
-                             symbolSize=4,  # 减小符号大小
-                             symbolPen=None  # 移除符号边框
-                         )
-        
-        else:  # "all" 模式 - 显示所有区域，但使用更细的线条
-            for i, (region_id, data) in enumerate(regional_data.items()):
-                if 'total_load' in data and data['total_load']:
-                    # 对数据进行采样
-                    region_load = data['total_load']
-                    if len(region_load) > max_points:
-                        sampled_load = [region_load[i] for i in sampled_indices if i < len(region_load)]
-                    else:
-                        sampled_load = region_load
-                    
-                    # 转换为MW单位显示
-                    sampled_load_mw = [load / 1000 for load in sampled_load]
-                    
-                    # 检查是否有有效数据
-                    if any(load > 0 for load in sampled_load_mw):
-                        color = self.colors[i % len(self.colors)]
-                        pen = pg.mkPen(color=color, width=2)  # 稍微加粗线条
                         
-                        self.plot_widget.plot(
-                             x_data[:len(sampled_load_mw)], sampled_load_mw, 
-                             pen=pen, 
-                             name=region_id,
-                             symbolBrush=color,
-                             symbolSize=3,  # 进一步减小符号
-                             symbolPen=None,  # 无边框
-                             skipFiniteCheck=True  # 跳过有限检查以提高性能
-                         )
-        
-        # 设置X轴标签为时间
-        if sampled_timestamps:
-            # 生成时间标签，最多显示10个
-            label_step = max(1, len(sampled_timestamps) // 10)
-            x_ticks = []
-            for i in range(0, len(sampled_timestamps), label_step):
-                if i < len(sampled_timestamps):
-                    try:
-                        # 从时间戳中提取时间
-                        ts = sampled_timestamps[i]
-                        if isinstance(ts, str):
-                            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-                            time_str = dt.strftime('%H:%M')
-                        else:
-                            time_str = str(i)
-                        x_ticks.append((i, time_str))
-                    except:
-                        x_ticks.append((i, str(i)))
+                        # 检查是否有有效数据
+                        if any(load > 0 for load in sampled_load_mw):
+                            pen = pg.mkPen(color=(31, 119, 180), width=3)
+                            self.plot_widget.plot(
+                                 x_data[:len(sampled_load_mw)], sampled_load_mw, 
+                                 pen=pen, 
+                                 name=self.selected_region,
+                                 symbolBrush=(31, 119, 180),
+                                 symbolSize=4,  # 减小符号大小
+                                 symbolPen=None  # 移除符号边框
+                             )
             
-            if x_ticks:
-                self.plot_widget.getAxis('bottom').setTicks([x_ticks])
+            else:  # "all" 模式 - 显示所有区域，但使用更细的线条
+                for i, (region_id, data) in enumerate(regional_data.items()):
+                    if 'total_load' in data and data['total_load']:
+                        # 对数据进行采样
+                        region_load = data['total_load']
+                        if len(region_load) > max_points:
+                            sampled_load = [region_load[i] for i in sampled_indices if i < len(region_load)]
+                        else:
+                            sampled_load = region_load
+                        
+                        # 转换为MW单位显示
+                        sampled_load_mw = [load / 1000 for load in sampled_load]
+                        
+                        # 检查是否有有效数据
+                        if any(load > 0 for load in sampled_load_mw):
+                            color = self.colors[i % len(self.colors)]
+                            pen = pg.mkPen(color=color, width=2)  # 稍微加粗线条
+                            
+                            self.plot_widget.plot(
+                                 x_data[:len(sampled_load_mw)], sampled_load_mw, 
+                                 pen=pen, 
+                                 name=region_id,
+                                 symbolBrush=color,
+                                 symbolSize=3,  # 进一步减小符号
+                                 symbolPen=None,  # 无边框
+                                 skipFiniteCheck=True  # 跳过有限检查以提高性能
+                             )
+            
+            # 设置X轴标签为时间
+            if sampled_timestamps:
+                # 生成时间标签，最多显示10个
+                label_step = max(1, len(sampled_timestamps) // 10)
+                x_ticks = []
+                for i in range(0, len(sampled_timestamps), label_step):
+                    if i < len(sampled_timestamps):
+                        try:
+                            # 从时间戳中提取时间
+                            ts = sampled_timestamps[i]
+                            if isinstance(ts, str):
+                                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                                time_str = dt.strftime('%H:%M')
+                            else:
+                                time_str = str(i)
+                            x_ticks.append((i, time_str))
+                        except:
+                            x_ticks.append((i, str(i)))
+                
+                if x_ticks:
+                    self.plot_widget.getAxis('bottom').setTicks([x_ticks])
+        
+        except Exception as e:
+            logger.error(f"RegionalLoadChart renderChart error: {e}")
+            import traceback
+            traceback.print_exc()
+            # 在出错时显示错误信息
+            if hasattr(self, 'text_display'):
+                self.text_display.setText(f"图表渲染错误: {str(e)}")
+            elif hasattr(self, 'plot_widget'):
+                self.plot_widget.clear()
     
     def _renderTextMode(self, regional_data):
         """文本显示模式下的渲染"""
@@ -490,7 +511,7 @@ class RegionalLoadChart(QWidget):
                     current_load = data['total_load'][-1] if data['total_load'] else 0
                     text += f"{region_id}: {current_load:.2f} MW\n"
         
-        self.text_display.setText(text)
+            self.text_display.setText(text)
 
 # 在ev_charging_gui.py中，替换MapWidget类
 # 在MapWidget类中添加updateData方法
@@ -498,7 +519,7 @@ class RegionalLoadChart(QWidget):
 class MapWidget(QWidget):
     """增强版地图组件"""
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, config=None):
         super().__init__(parent)
         self.users = []
         self.chargers = []
@@ -511,23 +532,40 @@ class MapWidget(QWidget):
         self.show_user_paths = True
         self.show_charger_queues = True
         self.show_grid_overlay = False
+        self.grid_regions = None # To store region geometry data
         
         self.setMinimumSize(800, 600)
         self.setMouseTracking(True)
         
-        # 地图边界
-        self.map_bounds = {
-            'lat_min': 30.5, 'lat_max': 31.0,
-            'lng_min': 114.0, 'lng_max': 114.5
-        }
+        # 从传入的 config 加载地图边界，如果失败则使用默认值
+        if config and 'environment' in config and 'map_bounds' in config['environment']:
+            self.map_bounds = config['environment']['map_bounds']
+            logger.info(f"MapWidget: Successfully loaded map_bounds from config: {self.map_bounds}")
+        else:
+            # 保留一个硬编码的默认值作为后备，以防万一
+            self.map_bounds = {
+                'lat_min': 30.5, 'lat_max': 31.0,
+                'lng_min': 114.0, 'lng_max': 114.5
+            }
+            logger.warning(f"MapWidget: Could not load map_bounds from config, using default values: {self.map_bounds}")
         
         # 创建右键菜单
         self.createContextMenu()
     
-    def updateData(self, users, chargers):
+    def updateData(self, users, chargers, grid_regions=None):
         """更新地图数据"""
         self.users = users or []
         self.chargers = chargers or []
+        self.grid_regions = grid_regions # Store region data
+        
+        # 添加调试信息
+        logger.debug(f"Map updating with {len(self.users)} users, {len(self.chargers)} chargers")
+        if self.users:
+            logger.debug(f"First user current_position: {self.users[0].get('current_position', 'No current_position')}")
+            logger.debug(f"First user position: {self.users[0].get('position', 'No position')}")
+        if self.chargers:
+            logger.debug(f"First charger position: {self.chargers[0].get('position', 'No position')}")
+        
         self.update()  # 触发重绘
     
     def createContextMenu(self):
@@ -563,7 +601,7 @@ class MapWidget(QWidget):
     
     def toggleGridOverlay(self):
         self.show_grid_overlay = self.show_grid_action.isChecked()
-        self.update()
+        self.update() # Ensure map repaints when toggling overlay
     
     def contextMenuEvent(self, event):
         """显示右键菜单"""
@@ -581,8 +619,8 @@ class MapWidget(QWidget):
         # 绘制背景
         self._drawBackground(painter)
         
-        # 绘制电网分区（如果启用）
-        if self.show_grid_overlay:
+        # 绘制电网分区（如果启用）- 临时禁用用于测试
+        if self.show_grid_overlay and self.grid_regions:
             self._drawGridRegions(painter)
         
         # 绘制用户路径（如果启用）
@@ -631,36 +669,45 @@ class MapWidget(QWidget):
     def _drawChargers(self, painter):
         """绘制充电桩"""
         for charger in self.chargers:
-            if not charger.get('position'):
+            # 1. 直接获取 'position'
+            position = charger.get('position')
+            
+            # 2. 严格的有效性检查
+            if not isinstance(position, dict) or 'lat' not in position or 'lng' not in position:
+                # 这条日志非常重要，如果数据有问题，它会告诉你
+                logger.warning(f"Invalid or missing position data for charger: {charger.get('charger_id', 'Unknown ID')}, data: {charger}")
                 continue
             
-            x, y = self._geoToPixel(charger['position'])
-            
-            # 根据状态选择颜色
+            # 3. 坐标转换
+            try:
+                x, y = self._geoToPixel(position)
+            except Exception as e:
+                logger.error(f"Error converting charger coordinates for {charger.get('charger_id')}: {e}, position: {position}")
+                continue
+
+            # ... 后续的绘图代码保持不变 ...
+            # (根据状态选择颜色, 绘制图标, ID, 队列等)
             status = charger.get('status', 'unknown')
             if status == 'available':
-                color = QColor(46, 204, 113)  # 绿色
+                color = QColor(46, 204, 113)
             elif status == 'occupied':
-                color = QColor(231, 76, 60)   # 红色
+                color = QColor(231, 76, 60)
             elif status == 'failure':
-                color = QColor(149, 165, 166) # 灰色
+                color = QColor(149, 165, 166)
             else:
-                color = QColor(52, 152, 219)  # 蓝色
+                color = QColor(52, 152, 219)
             
-            # 绘制充电桩图标
             painter.setBrush(QBrush(color))
             painter.setPen(QPen(Qt.GlobalColor.black, 2))
             painter.drawRect(int(x-10), int(y-10), 20, 20)
             
-            # 绘制充电桩ID
             painter.setPen(QPen(Qt.GlobalColor.white, 1))
             painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
             charger_id = charger.get('charger_id', '')
             if len(charger_id) > 10:
-                charger_id = charger_id[-4:]  # 只显示最后4位
+                charger_id = charger_id[-4:]
             painter.drawText(int(x-8), int(y+3), charger_id)
             
-            # 绘制队列指示器
             queue_length = len(charger.get('queue', []))
             if queue_length > 0 and self.show_charger_queues:
                 painter.setPen(QPen(Qt.GlobalColor.red, 2))
@@ -671,29 +718,46 @@ class MapWidget(QWidget):
     
     def _drawUsers(self, painter):
         """绘制用户"""
+        if not self.users: return
+        
+        # 打印第一个用户的计算过程
+        first_user = self.users[0]
+        position = first_user.get('current_position')
+        if position:
+            x, y = self._geoToPixel(position)
+            print(f"DEBUG: First user geo {position} -> pixel ({x:.2f}, {y:.2f}). Widget size: ({self.width()}, {self.height()})")
         for user in self.users:
-            if not user.get('current_position'):
+            # 1. 直接获取 'current_position'
+            position = user.get('current_position')
+            
+            # 2. 严格的有效性检查
+            if not isinstance(position, dict) or 'lat' not in position or 'lng' not in position:
+                # 这条日志将揭示问题所在
+                logger.warning(f"Invalid or missing current_position for user: {user.get('user_id', 'Unknown ID')}, data: {user}")
                 continue
-            
-            x, y = self._geoToPixel(user['current_position'])
-            
-            # 根据状态选择颜色
+
+            # 3. 坐标转换
+            try:
+                x, y = self._geoToPixel(position)
+            except Exception as e:
+                logger.error(f"Error converting user coordinates for {user.get('user_id')}: {e}, position: {position}")
+                continue
+                
+            # ... 后续的绘图代码保持不变 ...
             status = user.get('status', 'unknown')
             if status == 'charging':
-                color = QColor(46, 204, 113)  # 绿色
+                color = QColor(46, 204, 113)
             elif status == 'waiting':
-                color = QColor(241, 196, 15)  # 黄色
+                color = QColor(241, 196, 15)
             elif status == 'traveling':
-                color = QColor(52, 152, 219)  # 蓝色
+                color = QColor(52, 152, 219)
             else:
-                color = QColor(149, 165, 166) # 灰色
+                color = QColor(149, 165, 166)
             
-            # 绘制用户图标
             painter.setBrush(QBrush(color))
             painter.setPen(QPen(Qt.GlobalColor.black, 1))
             painter.drawEllipse(int(x-6), int(y-6), 12, 12)
             
-            # 显示SOC
             soc = user.get('soc', 0)
             if soc < 20:
                 painter.setPen(QPen(Qt.GlobalColor.red, 1, Qt.PenStyle.SolidLine))
@@ -709,13 +773,18 @@ class MapWidget(QWidget):
         """绘制用户路径"""
         for user in self.users:
             if user.get('status') == 'traveling' and user.get('target_charger'):
+                # 获取用户当前位置
+                user_position = user.get('current_position') or user.get('position')
+                if not user_position:
+                    continue
+                    
                 # 找到目标充电桩
                 target_charger = next(
                     (c for c in self.chargers if c.get('charger_id') == user['target_charger']), 
                     None
                 )
                 if target_charger:
-                    start = self._geoToPixel(user['current_position'])
+                    start = self._geoToPixel(user_position)
                     end = self._geoToPixel(target_charger['position'])
                     
                     # 绘制路径
@@ -765,23 +834,54 @@ class MapWidget(QWidget):
     
     def _drawGridRegions(self, painter):
         """绘制电网分区"""
-        # 假设有3个区域
-        regions = [
-            {'name': 'Region_1', 'color': QColor(255, 0, 0, 50), 'bounds': (0, 0, 0.33, 1)},
-            {'name': 'Region_2', 'color': QColor(0, 255, 0, 50), 'bounds': (0.33, 0, 0.67, 1)},
-            {'name': 'Region_3', 'color': QColor(0, 0, 255, 50), 'bounds': (0.67, 0, 1, 1)}
-        ]
-        
-        for region in regions:
-            x1, y1, x2, y2 = region['bounds']
-            x1 = x1 * self.width() / self.zoom_level
-            y1 = y1 * self.height() / self.zoom_level
-            x2 = x2 * self.width() / self.zoom_level
-            y2 = y2 * self.height() / self.zoom_level
+        if not self.grid_regions:
+            return
+
+        for region_id, region_info in self.grid_regions.items():
+            polygon_geo = region_info.get("polygon")
+            color_rgba = region_info.get("color", [128, 128, 128, 30]) # Default gray, semi-transparent
+            region_name = region_info.get("name", region_id)
+
+            if not polygon_geo or not isinstance(polygon_geo, list) or len(polygon_geo) < 3:
+                logger.warning(f"Region {region_id} has invalid polygon data: {polygon_geo}")
+                continue
+
+            pixel_points = []
+            for geo_point in polygon_geo:
+                if isinstance(geo_point, list) and len(geo_point) == 2:
+                    # Assuming geo_point is [lng, lat]
+                    px, py = self._geoToPixel({'lng': geo_point[0], 'lat': geo_point[1]})
+                    pixel_points.append(QPointF(px, py))
+                else:
+                    logger.warning(f"Invalid point in polygon for region {region_id}: {geo_point}")
+                    pixel_points.clear() # Invalidate polygon if a point is bad
+                    break
             
-            painter.fillRect(int(x1), int(y1), int(x2-x1), int(y2-y1), region['color'])
-            painter.setPen(QPen(Qt.GlobalColor.black, 1))
-            painter.drawText(int(x1+10), int(y1+20), region['name'])
+            if not pixel_points:
+                continue
+
+            q_polygon_f = QPolygonF(pixel_points)
+
+            try:
+                brush_color = QColor(color_rgba[0], color_rgba[1], color_rgba[2], color_rgba[3])
+            except (IndexError, TypeError):
+                logger.warning(f"Invalid color format for region {region_id}: {color_rgba}. Using default.")
+                brush_color = QColor(128, 128, 128, 30)
+
+            painter.setBrush(QBrush(brush_color))
+            painter.setPen(QPen(QColor(color_rgba[0],color_rgba[1],color_rgba[2],150), 1)) # Darker border for the region color
+            painter.drawPolygon(q_polygon_f)
+
+            # Draw region name (optional, simple centroid calculation)
+            if region_name:
+                centroid_x = sum(p.x() for p in pixel_points) / len(pixel_points)
+                centroid_y = sum(p.y() for p in pixel_points) / len(pixel_points)
+                painter.setPen(QColor(0,0,0, 180)) # Semi-transparent black for text
+                painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+                # Adjust text position slightly if needed
+                metrics = QFontMetrics(painter.font())
+                text_width = metrics.horizontalAdvance(region_name)
+                painter.drawText(int(centroid_x - text_width / 2), int(centroid_y), region_name)
     
     def _drawUserDetails(self, painter, user):
         """绘制用户详细信息"""
@@ -930,55 +1030,51 @@ class MapWidget(QWidget):
                 painter.drawText(stat_x + 10, y_offset, stat)
             y_offset += 18
     
+    # 在 MapWidget 类中
     def _geoToPixel(self, geo_pos):
-        """地理坐标转换为像素坐标"""
+        """
+        将地理坐标转换为【未缩放、未平移】的画布像素坐标。
+        缩放和平移将由 QPainter 在 paintEvent 中统一处理。
+        """
         lat = geo_pos.get('lat', 0)
         lng = geo_pos.get('lng', 0)
         
-        # 根据缩放级别调整地图边界
-        center_lat = (self.map_bounds['lat_max'] + self.map_bounds['lat_min']) / 2
-        center_lng = (self.map_bounds['lng_max'] + self.map_bounds['lng_min']) / 2
+        # 使用基础的、未缩放的地图边界
+        lat_range = self.map_bounds['lat_max'] - self.map_bounds['lat_min']
+        lng_range = self.map_bounds['lng_max'] - self.map_bounds['lng_min']
         
-        lat_range = (self.map_bounds['lat_max'] - self.map_bounds['lat_min']) / self.zoom_level
-        lng_range = (self.map_bounds['lng_max'] - self.map_bounds['lng_min']) / self.zoom_level
+        # 防止除以零
+        if lat_range == 0 or lng_range == 0:
+            return -1, -1
+
+        # 标准化到 [0, 1]
+        x_norm = (lng - self.map_bounds['lng_min']) / lng_range
+        y_norm = (lat - self.map_bounds['lat_min']) / lat_range
         
-        # 计算当前显示的地图边界
-        current_lat_min = center_lat - lat_range / 2
-        current_lat_max = center_lat + lat_range / 2
-        current_lng_min = center_lng - lng_range / 2
-        current_lng_max = center_lng + lng_range / 2
-        
-        # 标准化到[0,1]
-        x_norm = (lng - current_lng_min) / lng_range
-        y_norm = (lat - current_lat_min) / lat_range
-        
-        # 转换为像素坐标
+        # 转换为原始画布尺寸的像素坐标
         x = x_norm * self.width()
-        y = (1 - y_norm) * self.height()  # Y轴翻转
+        y = (1 - y_norm) * self.height()  # Y轴翻转，因为屏幕坐标y向下增长
         
-        return x, y
+        return x, y 
     
+    # 在 MapWidget 类中
     def _screenToGeo(self, screen_pos):
-        """屏幕坐标转地理坐标"""
-        # 考虑偏移但不考虑缩放（因为缩放已经在_geoToPixel中处理）
-        x = screen_pos.x() - self.offset_x
-        y = screen_pos.y() - self.offset_y
+        """将屏幕坐标转换为地理坐标"""
+        # 1. 将屏幕坐标转换回场景坐标 (撤销平移和缩放)
+        scene_x = (screen_pos.x() - self.offset_x) / self.zoom_level
+        scene_y = (screen_pos.y() - self.offset_y) / self.zoom_level
         
-        # 根据缩放级别调整地图边界
-        center_lat = (self.map_bounds['lat_max'] + self.map_bounds['lat_min']) / 2
-        center_lng = (self.map_bounds['lng_max'] + self.map_bounds['lng_min']) / 2
+        # 2. 将场景坐标标准化回 [0, 1]
+        x_norm = scene_x / self.width()
+        y_norm = 1 - (scene_y / self.height()) # 撤销Y轴翻转
+
+        # 3. 将标准化坐标转换回地理坐标
+        lat_range = self.map_bounds['lat_max'] - self.map_bounds['lat_min']
+        lng_range = self.map_bounds['lng_max'] - self.map_bounds['lng_min']
         
-        lat_range = (self.map_bounds['lat_max'] - self.map_bounds['lat_min']) / self.zoom_level
-        lng_range = (self.map_bounds['lng_max'] - self.map_bounds['lng_min']) / self.zoom_level
-        
-        # 计算当前显示的地图边界
-        current_lat_min = center_lat - lat_range / 2
-        current_lng_min = center_lng - lng_range / 2
-        
-        # 转换为地理坐标
-        lng = current_lng_min + (x / self.width()) * lng_range
-        lat = current_lat_min + ((self.height() - y) / self.height()) * lat_range
-        
+        lng = self.map_bounds['lng_min'] + x_norm * lng_range
+        lat = self.map_bounds['lat_min'] + y_norm * lat_range
+
         return {'lat': lat, 'lng': lng}
     
     def _isNearPosition(self, pos1, pos2, threshold):
@@ -1023,7 +1119,7 @@ class MapWidget(QWidget):
             # 检查用户
             self.selected_user = None
             for user in self.users:
-                user_pos = user.get('current_position', {})
+                user_pos = user.get('current_position', {}) or user.get('position', {})
                 if self._isNearPosition(click_pos, user_pos, 0.002):
                     self.selected_user = user
                     break
@@ -1064,29 +1160,28 @@ class MapWidget(QWidget):
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
                 break
     
+    # 在 MapWidget 类中
     def wheelEvent(self, event):
-        """鼠标滚轮事件 - 真正的缩放功能"""
-        # 获取鼠标位置
+        """鼠标滚轮事件 - 实现以鼠标为中心的缩放"""
         mouse_pos = event.position()
         
-        # 缩放前的地理坐标
-        geo_before = self._screenToGeo(mouse_pos.toPoint())
-        
-        # 计算缩放
+        # 缩放前的鼠标点在场景坐标系中的位置
+        # (scene_x, scene_y) = (screen_x - offset_x) / zoom
+        scene_x_before = (mouse_pos.x() - self.offset_x) / self.zoom_level
+        scene_y_before = (mouse_pos.y() - self.offset_y) / self.zoom_level
+
+        # 计算新的缩放级别
         delta = event.angleDelta().y()
-        zoom_factor = 1.1 if delta > 0 else 0.9
-        old_zoom = self.zoom_level
+        zoom_factor = 1.1 if delta > 0 else (1 / 1.1)
+        new_zoom_level = self.zoom_level * zoom_factor
+        new_zoom_level = max(0.2, min(10.0, new_zoom_level)) # 限制缩放范围
+
+        self.zoom_level = new_zoom_level
         
-        self.zoom_level *= zoom_factor
-        self.zoom_level = max(0.5, min(5.0, self.zoom_level))
-        
-        # 缩放后的像素坐标
-        pixel_after = self._geoToPixel(geo_before)
-        pixel_before = [mouse_pos.x() - self.offset_x, mouse_pos.y() - self.offset_y]
-        
-        # 调整偏移以保持鼠标位置不变
-        self.offset_x += pixel_before[0] - pixel_after[0]
-        self.offset_y += pixel_before[1] - pixel_after[1]
+        # 缩放后，我们希望场景中的同一点仍然在鼠标下方。
+        # new_offset_x = screen_x - scene_x * new_zoom
+        self.offset_x = mouse_pos.x() - scene_x_before * self.zoom_level
+        self.offset_y = mouse_pos.y() - scene_y_before * self.zoom_level
         
         self.update()
 
@@ -1108,9 +1203,20 @@ class SimulationWorker(QThread):
         self.environment = None
         self.scheduler = None
         self.mutex = QMutex()
+        self.grid_preferences = {}
+        self.pending_v2g_request = None
+        
+
+        # 计算总的仿真步数
+        env_config = self.config.get('environment', {})
+        simulation_days = env_config.get('simulation_days', 1)
+        time_step_minutes = env_config.get('time_step_minutes', 15)
+        self.total_steps = (simulation_days * 24 * 60) // time_step_minutes
+        self.current_step = 0
         
     def run(self):
         """运行仿真"""
+        print("DEBUG: SimulationWorker.run() started!")
         try:
             self.running = True
             
@@ -1130,65 +1236,37 @@ class SimulationWorker(QThread):
                     time.sleep(0.1)
                     continue
                 
-                # 获取当前状态
+
+                # 1. 获取当前状态
                 current_state = self.environment.get_current_state()
                 
-                # 调度决策 - 分离手动决策和算法决策
-                manual_decisions = None
-                if hasattr(self, 'manual_decisions') and self.manual_decisions:
-                    manual_decisions = self.manual_decisions.copy()
-                    self.manual_decisions.clear()  # 清除已使用的手动决策
-                    logger.info(f"应用手动决策: {manual_decisions}")
-                    # 记录到专用日志文件
-                    manual_decision_logger.info(f"=== 仿真步骤中应用手动决策 ===")
-                    manual_decision_logger.info(f"当前仿真时间: {current_state.get('current_time', 'unknown')}")
-                    manual_decision_logger.info(f"手动决策内容: {manual_decisions}")
-                    for user_id, charger_id in manual_decisions.items():
-                        manual_decision_logger.info(f"  用户 {user_id} -> 充电桩 {charger_id}")
-                
-                # 获取算法决策
-                decisions = self.scheduler.make_scheduling_decision(current_state, manual_decisions)
-                
-                # 执行一步仿真，传递手动决策
-                rewards, next_state, done = self.environment.step(decisions, manual_decisions)
-                
-                # 记录手动决策执行结果
-                if manual_decisions:
-                    manual_decision_logger.info(f"=== 手动决策执行结果 ===")
-                    # 获取用户列表并转换为字典格式以便查找
-                    users_list = next_state.get('users', [])
-                    users_dict = {user.get('user_id'): user for user in users_list if isinstance(user, dict) and 'user_id' in user}
-                    
-                    manual_decision_logger.info(f"状态中包含 {len(users_list)} 个用户，转换为字典后有 {len(users_dict)} 个用户")
-                    
-                    # 调试信息：显示用户对象的实际结构
-                    if users_list and len(users_dict) == 0:
-                        sample_user = users_list[0] if users_list else {}
-                        manual_decision_logger.info(f"用户对象示例结构: {list(sample_user.keys()) if isinstance(sample_user, dict) else type(sample_user)}")
-                    
-                    for user_id, charger_id in manual_decisions.items():
-                        if user_id in users_dict:
-                            user_state = users_dict[user_id]
-                            manual_decision_logger.info(f"用户 {user_id}:")
-                            manual_decision_logger.info(f"  目标充电桩: {charger_id}")
-                            manual_decision_logger.info(f"  当前状态: {user_state.get('status', 'unknown')}")
-                            manual_decision_logger.info(f"  当前SOC: {user_state.get('soc', 0):.1f}%")
-                            manual_decision_logger.info(f"  分配的充电桩: {user_state.get('target_charger', 'none')}")
-                            if user_state.get('target_charger') == charger_id:
-                                manual_decision_logger.info(f"  ✓ 手动决策成功执行")
-                            else:
-                                manual_decision_logger.warning(f"  ✗ 手动决策执行失败，实际分配: {user_state.get('target_charger', 'none')}")
-                        else:
-                            manual_decision_logger.error(f"用户 {user_id} 在执行结果中不存在")
-                            # 调试信息：显示前几个用户的ID
-                            if users_list:
-                                sample_user_ids = [user.get('user_id', 'no_user_id') for user in users_list[:5] if isinstance(user, dict)]
-                                manual_decision_logger.error(f"  可用用户ID示例: {sample_user_ids}")
-                            else:
-                                manual_decision_logger.error(f"  用户列表为空")
-                    manual_decision_logger.info(f"=== 手动决策执行结果结束 ===")
-                
+                # 2. 获取手动决策
+                manual_decisions_this_step = None
+                if self.manual_decisions:
+                    manual_decisions_this_step = self.manual_decisions.copy()
+                    self.manual_decisions.clear()
+
+
+                # 3. 从调度器获取决策和元数据
+                decisions, scheduler_metadata = self.scheduler.make_scheduling_decision(
+                    current_state,
+                    manual_decisions_this_step,
+                    self.grid_preferences
+                )
+
+                # 4. 获取V2G请求
+                v2g_request_to_pass = self.pending_v2g_request
+                self.pending_v2g_request = None
+
+                # 5. 将所有信息传递给 environment.step
+                rewards, next_state, done = self.environment.step(
+                    decisions,
+                    manual_decisions_this_step,
+                    v2g_request_to_pass,
+                    scheduler_metadata  # Pass the metadata here
+                )
                 # 发送状态更新信号
+                print("DEBUG: SimulationWorker emitting statusUpdated signal")
                 self.statusUpdated.emit({
                     'state': next_state,
                     'rewards': rewards,
@@ -1200,6 +1278,7 @@ class SimulationWorker(QThread):
                 self.metricsUpdated.emit(rewards)
                 
                 if done:
+                    self.current_step = self.total_steps # Ensure it reaches 100%
                     break
                 
                 # 控制更新频率
@@ -1226,6 +1305,22 @@ class SimulationWorker(QThread):
         """停止仿真"""
         with QMutexLocker(self.mutex):
             self.running = False
+
+    def set_grid_preference(self, preference_name, value):
+        with QMutexLocker(self.mutex):
+            self.grid_preferences[preference_name] = value
+        logger.info(f"SimulationWorker: Grid preference '{preference_name}' set to '{value}'.")
+
+    def request_v2g_discharge(self, amount_mw):
+        with QMutexLocker(self.mutex):
+            self.pending_v2g_request = amount_mw
+            # Also store it in grid_preferences for agents to see in the next decision cycle
+            if self.grid_preferences is None: # Should have been initialized
+                self.grid_preferences = {}
+            self.grid_preferences["v2g_discharge_active_request_mw"] = amount_mw
+            # This preference will be cleared/reset by the scheduler or environment after being consumed or if request changes.
+            # For now, it will persist until the next request.
+        logger.info(f"SimulationWorker: V2G discharge of {amount_mw} MW requested and preference set.")
 
 
 class ConfigDialog(QDialog):
@@ -1439,7 +1534,27 @@ class MainWindow(QMainWindow):
         super().__init__()
         
         # 初始化配置和状态
-        self.config = self._loadDefaultConfig()
+        # Load configuration
+        try:
+            with open("config.json", 'r', encoding='utf-8') as f:
+                self.config = json.load(f)
+            logger.info("Successfully loaded config.json")
+        except FileNotFoundError:
+            logger.warning("config.json not found, using default configuration.")
+            self.config = self._loadDefaultConfig()
+            try:
+                with open("config.json", 'w', encoding='utf-8') as f:
+                    json.dump(self.config, f, indent=4, ensure_ascii=False)
+                logger.info("Default configuration saved to config.json")
+            except IOError as e:
+                logger.error(f"Could not save default config.json: {e}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Error decoding config.json: {e}. Using default configuration.")
+            self.config = self._loadDefaultConfig()
+        except Exception as e:
+            logger.error(f"Error loading config.json: {e}. Using default configuration.")
+            self.config = self._loadDefaultConfig()
+        self.impact_analysis_pending = False # <-- 新增标志位
         self.simulation_worker = None
         self.current_metrics = {}
         self.time_series_data = {'timestamps': [], 'regional_data': {}}
@@ -1451,6 +1566,11 @@ class MainWindow(QMainWindow):
         # 初始化其他属性
         self.simulation_running = False
         self.simulation_paused = False
+        
+        # 初始化标签页切换相关属性
+        self.pending_tab_index = -1
+        self.tab_switch_timer = None
+        self._switching_tab = False  # 防止递归调用标志
         self.metrics_history = {
             'timestamps': [],
             'userSatisfaction': [],
@@ -1472,7 +1592,30 @@ class MainWindow(QMainWindow):
         # 最后创建定时器，这可能需要连接到已定义的方法
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.updateDisplays)
+        
+        # 性能优化：添加更新频率控制
+        self.last_status_update = 0
+        self.last_metrics_update = 0
+        self.update_throttle_ms = 200  # 最小更新间隔200ms
+        self.ui_update_counter = 0
+        self.ui_update_skip_interval = 3  # 每3次更新跳过2次UI更新
+        
+        # 内存优化：定期垃圾回收
+        self.gc_timer = QTimer()
+        self.gc_timer.timeout.connect(self._performGarbageCollection)
+        self.gc_timer.start(30000)  # 每30秒进行一次垃圾回收
 
+    def _performGarbageCollection(self):
+        """执行垃圾回收以优化内存使用"""
+        import gc
+        try:
+            # 执行垃圾回收
+            collected = gc.collect()
+            if collected > 0:
+                logger.debug(f"垃圾回收完成，清理了 {collected} 个对象")
+        except Exception as e:
+            logger.error(f"垃圾回收失败: {e}")
+    
     def updateDisplays(self):
         """更新显示 - 定时器调用"""
         # 更新进度条
@@ -1743,7 +1886,7 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         
         return panel
-    
+
     def _createControlGroup(self):
         """创建控制组"""
         group = QGroupBox("仿真控制")
@@ -1756,69 +1899,34 @@ class MainWindow(QMainWindow):
         self.start_button = QPushButton("启动")
         self.start_button.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #27ae60, stop:1 #2ecc71);
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 12px;
-                font-weight: bold;
-                font-size: 14px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #27ae60, stop:1 #2ecc71);
+                color: white; border: none; border-radius: 8px; padding: 12px; font-weight: bold; font-size: 14px;
             }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #229954, stop:1 #27ae60);
-            }
-            QPushButton:pressed {
-                background: #1e8449;
-            }
-            QPushButton:disabled {
-                background: #bdc3c7;
-            }
+            QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #229954, stop:1 #27ae60); }
+            QPushButton:pressed { background: #1e8449; }
+            QPushButton:disabled { background: #bdc3c7; }
         """)
         
         self.pause_button = QPushButton("暂停")
         self.pause_button.setEnabled(False)
         self.pause_button.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #f39c12, stop:1 #e67e22);
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 12px;
-                font-weight: bold;
-                font-size: 14px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f39c12, stop:1 #e67e22);
+                color: white; border: none; border-radius: 8px; padding: 12px; font-weight: bold; font-size: 14px;
             }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #e67e22, stop:1 #d35400);
-            }
-            QPushButton:disabled {
-                background: #bdc3c7;
-            }
+            QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e67e22, stop:1 #d35400); }
+            QPushButton:disabled { background: #bdc3c7; }
         """)
         
         self.stop_button = QPushButton("停止")
         self.stop_button.setEnabled(False)
         self.stop_button.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #e74c3c, stop:1 #c0392b);
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 12px;
-                font-weight: bold;
-                font-size: 14px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e74c3c, stop:1 #c0392b);
+                color: white; border: none; border-radius: 8px; padding: 12px; font-weight: bold; font-size: 14px;
             }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #c0392b, stop:1 #a93226);
-            }
-            QPushButton:disabled {
-                background: #bdc3c7;
-            }
+            QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #c0392b, stop:1 #a93226); }
+            QPushButton:disabled { background: #bdc3c7; }
         """)
         
         button_layout.addWidget(self.start_button)
@@ -1826,21 +1934,17 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.stop_button)
         layout.addLayout(button_layout)
         
-        # 进度条
-        self.progress_bar = AnimatedProgressBar()
-        self.progress_bar.setRange(0, 100)
-        layout.addWidget(self.progress_bar)
+        # --- START OF MODIFICATION ---
+        # 删除了进度条的相关代码
+        # --- END OF MODIFICATION ---
         
         # 状态信息
         self.status_label = QLabel("就绪")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setStyleSheet("""
             QLabel {
-                background: #ecf0f1;
-                border: 1px solid #bdc3c7;
-                border-radius: 6px;
-                padding: 8px;
-                font-weight: bold;
+                background: #ecf0f1; border: 1px solid #bdc3c7; border-radius: 6px;
+                padding: 8px; font-weight: bold;
             }
         """)
         layout.addWidget(self.status_label)
@@ -1926,7 +2030,8 @@ class MainWindow(QMainWindow):
         panel = QWidget()
         
         # 创建选项卡widget
-        tab_widget = QTabWidget()
+        self.tab_widget = QTabWidget()  # 保存为实例属性
+        tab_widget = self.tab_widget
         tab_widget.setStyleSheet("""
             QTabWidget::pane {
                 border: 1px solid #c0c4c8;
@@ -1948,7 +2053,9 @@ class MainWindow(QMainWindow):
                 color: white;
             }
         """)
-        
+        # 新的协同仪表盘选项卡
+        self.synergy_dashboard = SynergyDashboard(self) # 创建实例
+        tab_widget.addTab(self.synergy_dashboard, "📈 系统协同仪表盘")
         # 图表选项卡
         charts_tab = self._createChartsTab()
         tab_widget.addTab(charts_tab, "📊 图表分析")
@@ -1968,6 +2075,27 @@ class MainWindow(QMainWindow):
         operator_panel_tab = self._createOperatorPanelTab()
         tab_widget.addTab(operator_panel_tab, "💼 运营商面板")
 
+        # 新增：电网面板选项卡
+        self.power_grid_panel = PowerGridPanel(self) # Store as attribute
+        tab_widget.addTab(self.power_grid_panel, "⚡️ 电网面板")
+
+        # Connect signals from PowerGridPanel
+        if hasattr(self.power_grid_panel, 'gridPreferenceChanged'):
+            self.power_grid_panel.gridPreferenceChanged.connect(self.handle_grid_preference_changed)
+        if hasattr(self.power_grid_panel, 'v2gDischargeRequested'):
+            self.power_grid_panel.v2gDischargeRequested.connect(self.handle_v2g_discharge_requested)
+
+        # 连接标签页切换信号，添加错误处理
+        try:
+            self.tab_widget.currentChanged.connect(self.onTabChanged)
+            # 设置标签页切换的延迟处理，避免快速切换导致的问题
+            self.tab_switch_timer = QTimer()
+            self.tab_switch_timer.setSingleShot(True)
+            self.tab_switch_timer.timeout.connect(self.processTabSwitch)
+            self.pending_tab_index = -1
+        except Exception as e:
+            logger.error(f"设置标签页信号连接时发生错误: {e}")
+        
         layout = QVBoxLayout(panel)
         layout.addWidget(tab_widget)
         
@@ -2101,12 +2229,15 @@ class MainWindow(QMainWindow):
     def _createOperatorPanelTab(self):
         """创建运营商面板选项卡"""
         from operator_panel import OperatorControlPanel
-        self.operator_control_panel = OperatorControlPanel()
+        self.operator_control_panel = OperatorControlPanel(self.config)
         
         # 连接信号
         self.operator_control_panel.pricingStrategyChanged.connect(self.onPricingStrategyChanged)
-        self.operator_control_panel.maintenanceRequested.connect(self.onMaintenanceRequested)
-        
+                # 连接故障注入面板的信号
+        if hasattr(self.operator_control_panel, 'failure_sim_widget'):
+            self.operator_control_panel.failure_sim_widget.requestImpactAnalysis.connect(
+                self.schedule_impact_analysis
+            )
         return self.operator_control_panel
 
         # 添加事件处理方法：
@@ -2185,8 +2316,6 @@ class MainWindow(QMainWindow):
 
 
 
-    # 在_createMapTab方法中，添加按钮功能
-
     def _createMapTab(self):
         """创建地图选项卡"""
         widget = QWidget()
@@ -2195,6 +2324,7 @@ class MainWindow(QMainWindow):
         # 地图控制栏
         control_bar = QHBoxLayout()
         
+
         # 缩放控制
         control_bar.addWidget(QLabel("缩放:"))
         zoom_in_btn = QPushButton("🔍+")
@@ -2226,7 +2356,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(control_bar)
         
         # 地图widget
-        self.map_widget = MapWidget()
+        self.map_widget = MapWidget(config=self.config)
         layout.addWidget(self.map_widget)
         
         return widget
@@ -2251,13 +2381,7 @@ class MainWindow(QMainWindow):
         # 这里可以实现显示/隐藏用户和充电桩的功能
         pass
 
-    def _createDataTab(self):
-        """创建数据详情选项卡"""
-        # 使用advanced_charts.py中的RealTimeDataTable
-        from advanced_charts import RealTimeDataTable
-        
-        self.data_table_widget = RealTimeDataTable()
-        return self.data_table_widget
+    # 重复的_createDataTab方法已删除，使用上面的完整实现
     
     def _createMenuBar(self):
         """创建菜单栏"""
@@ -2389,14 +2513,76 @@ class MainWindow(QMainWindow):
         # 导出工具
         toolbar.addAction("💾", self.exportData)
 
+    def onTabChanged(self, index):
+        """处理标签页切换事件（延迟处理）"""
+        try:
+            # 使用延迟处理机制，避免快速切换导致的问题
+            self.pending_tab_index = index
+            if hasattr(self, 'tab_switch_timer'):
+                self.tab_switch_timer.stop()
+                self.tab_switch_timer.start(100)  # 100ms延迟
+            else:
+                # 如果定时器未初始化，直接处理
+                self.processTabSwitch()
+        except Exception as e:
+            logger.error(f"标签页切换信号处理时发生错误: {e}")
+    
+    def processTabSwitch(self):
+        """实际处理标签页切换的逻辑"""
+        try:
+            # 防止递归调用
+            if hasattr(self, '_switching_tab') and self._switching_tab:
+                return
+                
+            index = self.pending_tab_index
+            if index < 0 or not hasattr(self, 'tab_widget') or not self.tab_widget:
+                return
+                
+            # 检查索引有效性
+            if index >= self.tab_widget.count():
+                logger.warning(f"标签页索引 {index} 超出范围 (总数: {self.tab_widget.count()})")
+                return
+                
+            tab_text = self.tab_widget.tabText(index)
+            logger.info(f"标签页切换到: {tab_text} (索引: {index})")
+            
+            # 如果切换到用户面板，暂停仿真
+            if "用户面板" in tab_text and self.simulation_running and not self.simulation_paused:
+                self.pauseSimulation()
+                self.user_panel_active = True
+                logger.info("切换到用户面板，仿真已暂停")
+            
+            # 更新状态栏
+            if hasattr(self, 'sim_status_label'):
+                self.sim_status_label.setText(f"当前面板: {tab_text}")
+                
+        except Exception as e:
+            logger.error(f"处理标签页切换时发生错误: {e}")
+            # 不重新抛出异常，避免GUI卡死
+    
     def showUserPanel(self):
         """显示用户面板"""
-        # 切换到用户面板选项卡
-        if hasattr(self, 'tab_widget'):  # 假设主选项卡widget有这个名字
-            for i in range(self.tab_widget.count()):
-                if "用户面板" in self.tab_widget.tabText(i):
-                    self.tab_widget.setCurrentIndex(i)
-                    break
+        try:
+            # 防止递归调用
+            if hasattr(self, '_switching_tab') and self._switching_tab:
+                return
+                
+            # 切换到用户面板选项卡
+            if hasattr(self, 'tab_widget') and self.tab_widget:
+                self._switching_tab = True
+                try:
+                    for i in range(self.tab_widget.count()):
+                        if "用户面板" in self.tab_widget.tabText(i):
+                            self.tab_widget.setCurrentIndex(i)
+                            break
+                finally:
+                    self._switching_tab = False
+            else:
+                logger.warning("tab_widget 未找到，无法切换到用户面板")
+        except Exception as e:
+            logger.error(f"切换到用户面板时发生错误: {e}")
+            if hasattr(self, '_switching_tab'):
+                self._switching_tab = False
     
     def _createStatusBar(self):
         """创建状态栏"""
@@ -2505,6 +2691,10 @@ class MainWindow(QMainWindow):
             self.simulation_worker.errorOccurred.connect(self.onErrorOccurred)
             self.simulation_worker.simulationFinished.connect(self.onSimulationFinished)
             self.simulation_worker.environmentReady.connect(self.onEnvironmentReady)
+
+            # Connect PowerGridPanel to status updates
+            if hasattr(self, 'power_grid_panel') and self.power_grid_panel:
+                self.simulation_worker.statusUpdated.connect(self.power_grid_panel.handle_status_update)
             
             # 启动线程
             self.simulation_worker.start()
@@ -2585,45 +2775,19 @@ class MainWindow(QMainWindow):
         
         if self.simulation_worker:
             self.simulation_worker.stop()
-            self.simulation_worker.wait()  # 等待线程结束
+            # 使用异步方式等待线程结束，避免阻塞主线程
+            QTimer.singleShot(100, self._finishStopSimulation)
+        else:
+            self._finishStopSimulation()
+    
+    def _finishStopSimulation(self):
+        """完成停止仿真的后续操作"""
+        if self.simulation_worker and self.simulation_worker.isFinished():
             self.simulation_worker = None
-        
-        # 更新UI状态
-        self.simulation_running = False
-        self.simulation_paused = False
-        
-        self.start_button.setEnabled(True)
-        self.pause_button.setEnabled(False)
-        self.pause_button.setText("暂停")
-        self.stop_button.setEnabled(False)
-        
-        self.status_label.setText("已停止")
-        self.status_label.setStyleSheet("""
-            QLabel {
-                background: #fadbd8;
-                border: 1px solid #e74c3c;
-                border-radius: 6px;
-                padding: 8px;
-                font-weight: bold;
-                color: #e74c3c;
-            }
-        """)
-        
-        self.sim_status_label.setText("仿真已停止")
-        
-        # 停止更新定时器
-        self.update_timer.stop()
-        
-
-    def stopSimulation(self):
-        """停止仿真"""
-        if not self.simulation_running:
+        elif self.simulation_worker and not self.simulation_worker.isFinished():
+            # 如果线程还没结束，再等待一下
+            QTimer.singleShot(100, self._finishStopSimulation)
             return
-        
-        if self.simulation_worker:
-            self.simulation_worker.stop()
-            self.simulation_worker.wait()  # 等待线程结束
-            self.simulation_worker = None
         
         # 更新UI状态
         self.simulation_running = False
@@ -2652,116 +2816,135 @@ class MainWindow(QMainWindow):
         self.update_timer.stop()
         
         logger.info("仿真已停止")
+        
+
+    def schedule_impact_analysis(self):
+        """设置标志，表示下一步需要进行影响分析"""
+        self.impact_analysis_pending = True
+        logger.info("Impact analysis scheduled for the next step.")
 
     def onStatusUpdated(self, status_data):
-        """处理状态更新"""
-        import random  # 确保random模块可用
+        """处理状态更新 - 结合了数据流修复和完整更新逻辑的最终版本"""
+        print("DEBUG: onStatusUpdated called!")
+        import time
+        
         try:
+            # 性能优化：限制UI更新频率
+            current_time_ms = time.time() * 1000
+            if hasattr(self, 'last_status_update') and current_time_ms - self.last_status_update < self.update_throttle_ms:
+                return
+            self.last_status_update = current_time_ms
+            
+            # 从信号中解包数据
             state = status_data.get('state', {})
             rewards = status_data.get('rewards', {})
-            timestamp = status_data.get('timestamp', '')
-            # 保存到历史记录
-            self.simulation_history.append(state.copy())
+            timestamp_str = status_data.get('timestamp', '')
+
+            if not state or not timestamp_str:
+                logger.warning("onStatusUpdated received empty state or timestamp.")
+                return
+
+            # --- 1. 获取最新、最权威的电网状态 ---
+            # 直接从仿真环境的 grid_simulator 获取，确保数据是最新的
+            if hasattr(self, 'simulation_worker') and hasattr(self.simulation_worker, 'environment'):
+                grid_status = self.simulation_worker.environment.grid_simulator.get_status()
+                # 将最新的电网状态更新回 state 字典，以便所有下游函数都能使用
+                state['grid_status'] = grid_status
+            else:
+                grid_status = state.get('grid_status', {}) # Fallback
+
+            # --- 2. 存储历史数据快照 ---
+            # 创建一个更轻量的快照以节省内存
+            history_snapshot = {
+                "timestamp": state.get("timestamp"),
+                "users": state.get("users", []), # 注意：这里仍然是完整列表，未来可优化为只存摘要
+                "chargers": state.get("chargers", []),
+                "grid_status": grid_status, # 使用上面获取的最新电网状态
+                "rewards": rewards # 存储奖励，可用于历史分析
+            }
+            self.simulation_history.append(history_snapshot)
             
             # 限制历史记录长度
-            max_history = 1000
+            max_history = 200
             if len(self.simulation_history) > max_history:
                 self.simulation_history = self.simulation_history[-max_history:]
             
+            # --- START OF MODIFICATION ---
+            # 检查是否需要执行影响分析回调
+            if self.impact_analysis_pending:
+                if hasattr(self, 'operator_control_panel') and hasattr(self.operator_control_panel, 'failure_sim_widget'):
+                    logger.info("Executing impact analysis callback.")
+                    # 将操作后的状态传递给分析面板
+                    self.operator_control_panel.failure_sim_widget.analyze_impact(state)
+                # 重置标志位
+                self.impact_analysis_pending = False
+            # --- 3. 更新所有UI面板 ---
+            
+            dt_object = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            if hasattr(self, 'time_label'):
+                self.time_label.setText(dt_object.strftime('%Y-%m-%d %H:%M:%S'))
+
+            # 更新协同仪表盘
+            if hasattr(self, 'synergy_dashboard'):
+                # 传递完整的历史记录和当前奖励
+                self.synergy_dashboard.update_data(self.simulation_history, rewards)
+                logger.debug("Synergy Dashboard updated.")
+
+            # 更新地图
+            if hasattr(self, 'map_widget'):
+                users = state.get('users', [])
+                chargers = state.get('chargers', [])
+                region_geometries = grid_status.get('region_geometries', {})
+                self.map_widget.updateData(users, chargers, grid_regions=region_geometries)
+                logger.debug("MapWidget updated.")
+            
+            # 更新数据详情表格
+            if hasattr(self, 'data_table_widget'):
+                self.data_table_widget.updateData(state)
+                logger.debug("DataTable updated.")
+
             # 更新用户面板
             if hasattr(self, 'user_control_panel'):
                 current_step = len(self.simulation_history) - 1
-                self.user_control_panel.updateSimulationData(
-                    current_step, len(self.simulation_history) - 1, state
-                )
-
-            # 更新时间显示
-            if timestamp:
-                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                self.time_label.setText(dt.strftime('%H:%M:%S'))
-            
-            # 更新地图
-            users = state.get('users', [])
-            chargers = state.get('chargers', [])
-            self.map_widget.updateData(users, chargers)
-            
-            # 更新数据表
-            if hasattr(self, 'data_table_widget'):
-                self.data_table_widget.updateData(state)
-            
-            # 处理电网数据
-            grid_status = state.get('grid_status', {})
-            
-            # 调试输出，查看grid_status内容
-            logger.info(f"Grid status data received: {grid_status.keys() if isinstance(grid_status, dict) else 'Not a dict'}")
-            
-            # 使用电网模型的真实数据，而不是测试数据
-            if hasattr(self, 'environment') and hasattr(self.environment, 'grid_simulator'):
-                # 从电网模拟器获取真实的时间序列数据
-                real_time_series = self.environment.grid_simulator.get_time_series_data()
-                
-                # 使用真实的时间序列数据
-                if real_time_series and real_time_series.get('timestamps'):
-                    self.time_series_collector = real_time_series
-                    logger.info(f"Using real grid data with {len(real_time_series['timestamps'])} time points")
-                else:
-                    # 如果没有时间序列数据，初始化空的收集器
-                    if not hasattr(self, 'time_series_collector'):
-                        self.time_series_collector = {
-                            'timestamps': [],
-                            'regional_data': {}
-                        }
-                    logger.warning("No real time series data available, using empty collector")
-                
-                # 获取真实的电网状态数据
-                real_grid_status = self.environment.grid_simulator.get_status()
-                if real_grid_status:
-                    # 使用真实的电网状态数据
-                    grid_status = real_grid_status
-                    state['grid_status'] = grid_status
-                    logger.info("Using real grid status data from simulation")
-                else:
-                    logger.warning("No real grid status available")
-            else:
-                logger.warning("Grid simulator not available, cannot use real data")
-                # 如果没有电网模拟器，保持原有的grid_status
-                if not grid_status:
-                    logger.error("No grid data available from any source")
-            
-            # 更新数据表
-            if hasattr(self, 'data_table_widget'):
-                logger.info("Updating data table with grid status")
-                self.data_table_widget.updateData(state)
-            
-            # 更新区域负载图表
-            if hasattr(self, 'regional_load_chart'):
-                logger.info("Updating regional load chart with real grid data")
-                self.regional_load_chart.updateData(self.time_series_collector)
-            
-            # 更新区域热力图
-            if hasattr(self, 'regional_heatmap'):
-                logger.info("Updating regional heatmap with real grid data")
-                # 使用真实的电网状态数据更新热力图
-                if grid_status and 'regional_current_state' in grid_status:
-                    self.regional_heatmap.updateData(grid_status)
-                    logger.info("Regional heatmap updated with real grid status data")
-                else:
-                    logger.warning("No regional current state data available for heatmap update")
-            
+                self.user_control_panel.updateSimulationData(current_step, current_step, state)
+                logger.debug("UserControlPanel updated.")
 
             # 更新运营商面板
             if hasattr(self, 'operator_control_panel'):
                 self.operator_control_panel.updateSimulationData(state)
+                logger.debug("OperatorControlPanel updated.")
+                
+            # 更新电网面板
+            if hasattr(self, 'power_grid_panel'):
+                self.power_grid_panel.handle_status_update(status_data)
+                logger.debug("PowerGridPanel updated.")
+
+            # 更新旧的图表分析页（如果还存在的话，现在被协同仪表盘取代）
+            # 这部分逻辑可以保留，以防需要单独的区域图表
+            time_series_data = grid_status.get('time_series_data_snapshot', {})
+            if hasattr(self, 'regional_load_chart'):
+                self.regional_load_chart.updateData(time_series_data)
+                logger.debug("RegionalLoadChart updated.")
+            
+            if hasattr(self, 'regional_heatmap'):
+                self.regional_heatmap.updateData(grid_status)
+                logger.debug("RegionalHeatmap updated.")
+
         except Exception as e:
             logger.error(f"状态更新错误: {e}")
+            import traceback
             logger.error(traceback.format_exc())
 
-
-
-    
     def onMetricsUpdated(self, metrics):
         """处理指标更新"""
         try:
+            # 性能优化：限制更新频率，避免GUI卡死
+            import time
+            current_time = time.time() * 1000  # 转换为毫秒
+            if current_time - self.last_metrics_update < self.update_throttle_ms:
+                return  # 跳过过于频繁的更新
+            self.last_metrics_update = current_time
+            
             self.current_metrics = metrics
             
             # 更新指标卡片
@@ -2844,6 +3027,24 @@ class MainWindow(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.config = dialog.getConfig()
             self.updateConfigUI()
+
+    def handle_grid_preference_changed(self, preference_name, value):
+        """Handles grid preference changes from the PowerGridPanel."""
+        logger.info(f"MainWindow: Grid preference changed - {preference_name}: {value}")
+        if self.simulation_worker and self.simulation_running: # Check if sim is running
+            self.simulation_worker.set_grid_preference(preference_name, value)
+        else:
+            # Optionally, store it and apply when simulation starts, or just log
+            logger.warning("Simulation not running or worker not available. Grid preference change not passed to worker yet.")
+            # Example: self.config.setdefault('initial_grid_preferences', {})[preference_name] = value
+
+    def handle_v2g_discharge_requested(self, amount_mw):
+        """Handles V2G discharge requests from the PowerGridPanel."""
+        logger.info(f"MainWindow: V2G discharge requested: {amount_mw} MW")
+        if self.simulation_worker and self.simulation_running: # Check if sim is running
+            self.simulation_worker.request_v2g_discharge(amount_mw)
+        else:
+            logger.warning("Simulation not running or worker not available. V2G request not passed to worker.")
     
     def updateConfig(self):
         """更新配置"""
@@ -2873,17 +3074,14 @@ class MainWindow(QMainWindow):
     
     def updateDisplays(self):
         """更新显示 - 定时器调用"""
-        # 更新进度条
-        if self.simulation_running and hasattr(self, 'simulation_worker') and self.simulation_worker:
-            # 根据当前步数和总步数计算进度
-            current_step = getattr(self.simulation_worker, 'current_step', 0)
-            total_steps = getattr(self.simulation_worker, 'total_steps', 100)
-            
-            if total_steps > 0:
-                progress = int((current_step / total_steps) * 100)
-                # 确保进度在0-100之间
-                progress = max(0, min(100, progress))
-                self.progress_bar.setValueAnimated(progress)
+        # --- START OF MODIFICATION ---
+        # 删除了更新进度条的逻辑
+        # 这个定时器现在可以用于其他周期性UI更新，或者如果不再需要，可以完全禁用
+        # --- END OF MODIFICATION ---
+        
+        # 更新其他需要定期刷新的显示
+        # 例如，更新状态标签、检查仿真状态等
+        pass
     
     def updateCurrentTime(self):
         """更新当前时间显示"""

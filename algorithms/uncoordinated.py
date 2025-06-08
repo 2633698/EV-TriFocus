@@ -11,7 +11,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-def schedule(state):
+def schedule(state, config, manual_decisions=None, grid_preferences=None): # Added config
     """
     无序充电算法实现 (先到先得，或基于简单距离/队列)。
 
@@ -22,23 +22,28 @@ def schedule(state):
         dict: 调度决策 {user_id: charger_id}
     """
     decisions = {}
+    
+    algo_config = config.get('algorithms', {})
+    uncoordinated_config = algo_config.get('uncoordinated', {})
+    score_weights = uncoordinated_config.get('score_weights', {"distance": 0.7, "queue_penalty_km": 5.0})
+    low_soc_threshold_for_distance_only = uncoordinated_config.get('low_soc_behavior_threshold', 20)
+    soc_trigger_threshold = uncoordinated_config.get('soc_threshold', 50)
+    max_queue_allowed = uncoordinated_config.get('max_queue', 4)
+
     users = state.get("users", [])
     chargers = state.get("chargers", [])
     if not users or not chargers:
         logger.warning("Uncoordinated: No users or chargers in state.")
         return decisions
 
-    # 筛选需要充电决策的用户 (状态非充电/等待，且标记了 needs_charge_decision)
-    # 或者，可以简化为 SOC 低于某个阈值的非充电/等待用户
+    # 筛选需要充电决策的用户
     candidate_users = []
-    soc_threshold = 50 # 简单阈值
     for u in users:
         needs_charge_flag = u.get("needs_charge_decision", False)
         soc = u.get("soc", 100)
         status = u.get("status", "idle")
-        if status not in ["charging", "waiting"] and (needs_charge_flag or soc < soc_threshold):
-             # 确保有位置信息
-             if u.get("current_position"):
+        if status not in ["charging", "waiting"] and (needs_charge_flag or soc < soc_trigger_threshold):
+             if u.get("current_position"): # Ensure position data exists
                  candidate_users.append(u)
 
     if not candidate_users:
@@ -58,14 +63,15 @@ def schedule(state):
 
     assigned_users_this_step = set() # 防止重复分配
 
-    max_queue_allowed = 4 # 无序用户能容忍的最大队列
-
     for user in candidate_users:
         user_id = user.get("user_id")
         if not user_id or user_id in assigned_users_this_step: continue
 
         user_pos = user.get("current_position", {})
         soc = user.get("soc", 100)
+        
+        # The user's own model has determined they need a charge.
+        needs_charge_flag = user.get("needs_charge_decision", False) 
 
         possible_targets = []
         for cid, charger in charger_dict.items():
@@ -78,13 +84,17 @@ def schedule(state):
                 dist = calculate_distance(user_pos, charger.get("position", {}))
                 if dist == float('inf'): continue # 跳过无效距离
 
-                # 无序用户的选择策略：
-                # SOC很低时，更看重距离；否则距离和队列都看重一点
+                # Uncoordinated user choice strategy:
+                # If SOC is very low OR the user has proactively decided they need a charge, prioritize distance.
+                # Otherwise, consider both distance and queue.
                 eval_score = 0
-                if soc < 20:
-                    eval_score = dist # 主要看距离
+                # A user who has decided they need a charge should act like they have low SOC: prioritize proximity.
+                if soc < low_soc_threshold_for_distance_only or needs_charge_flag:
+                    eval_score = dist # Primarily distance
                 else:
-                    eval_score = dist * 0.7 + total_waiting * 5.0 # 距离权重0.7，队列惩罚（每人等效5km）
+                    dist_weight = score_weights.get('distance', 0.7)
+                    queue_penalty_km_equivalent = score_weights.get('queue_penalty_km', 5.0)
+                    eval_score = dist * dist_weight + total_waiting * queue_penalty_km_equivalent
 
                 possible_targets.append((cid, eval_score))
 
@@ -103,4 +113,8 @@ def schedule(state):
             # logger.debug(f"Uncoordinated assigned user {user_id} to charger {best_charger_id}")
 
     logger.info(f"Uncoordinated made {len(decisions)} assignments for {len(candidate_users)} candidates.")
+    # --- ADD THIS PART ---
+    metadata = {
+        "candidate_user_count": len(candidate_users)
+    }
     return decisions

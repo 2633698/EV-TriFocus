@@ -269,35 +269,46 @@ class OperatorDataStorage:
             logger.error(f"保存充电会话失败: {e}")
     
     # === 财务分析 ===
-    
+
+
     def get_financial_summary(self, start_date: str, end_date: str, 
                             station_id: Optional[str] = None) -> pd.DataFrame:
-        """获取财务汇总数据"""
+        """获取财务汇总数据，支持按小时聚合"""
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # --- START OF MODIFICATION ---
+                # 查询语句改为按小时聚合 (strftime('%Y-%m-%d %H:00:00'))
                 query = """
                     SELECT 
-                        DATE(start_time) as date,
+                        strftime('%Y-%m-%d %H:00:00', start_time) as datetime_hour,
                         station_id,
                         COUNT(*) as sessions_count,
                         SUM(energy_kwh) as total_energy,
                         SUM(revenue) as total_revenue,
                         SUM(cost) as total_cost,
-                        SUM(revenue - cost) as total_profit,
+                        SUM(revenue) - SUM(cost) as total_profit,
                         AVG(price_per_kwh) as avg_price,
                         AVG(duration_minutes) as avg_duration
                     FROM charging_sessions
-                    WHERE DATE(start_time) BETWEEN ? AND ?
+                    WHERE start_time BETWEEN ? AND ?
                 """
+                # --- END OF MODIFICATION ---
                 
-                params = [start_date, end_date]
+                # 调整日期范围以确保包含 end_date 的所有小时
+                start_dt_str = f"{start_date} 00:00:00"
+                end_dt_str = f"{end_date} 23:59:59"
+                
+                params = [start_dt_str, end_dt_str]
                 if station_id:
                     query += " AND station_id = ?"
                     params.append(station_id)
                 
-                query += " GROUP BY DATE(start_time), station_id"
+                # 按小时和站点分组
+                query += " GROUP BY datetime_hour, station_id ORDER BY datetime_hour, station_id"
                 
-                return pd.read_sql_query(query, conn, params=params)
+                df = pd.read_sql_query(query, conn, params=params)
+                logger.info(f"Financial summary query returned {len(df)} hourly records for period {start_date} to {end_date}.")
+                return df
                 
         except Exception as e:
             logger.error(f"获取财务汇总失败: {e}")
@@ -333,15 +344,39 @@ class OperatorDataStorage:
             logger.error(f"保存财务记录失败: {e}")
     
     # === 告警管理 ===
-    
+
     def create_alert(self, alert_data: Dict) -> str:
-        """创建告警"""
+        """创建告警，增加重复告警检查"""
         try:
-            alert_id = f"ALERT_{datetime.now().strftime('%Y%m%d%H%M%S')}_{alert_data.get('charger_id', 'SYS')}"
-            
+            # --- START OF FIX: 防止重复告警 ---
+            # 对于特定类型的告警，如果已存在一个活跃的同类告警，则不重复创建。
+            # 例如，一个充电桩的故障告警，只要还是 active，就不再创建新的。
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
+                # 检查是否存在相同的、仍在活跃的告警
+                query = "SELECT alert_id FROM alerts WHERE status = 'active' AND alert_type = ?"
+                params = [alert_data.get('alert_type')]
+                
+                if alert_data.get('charger_id'):
+                    query += " AND charger_id = ?"
+                    params.append(alert_data.get('charger_id'))
+                elif alert_data.get('station_id'):
+                    query += " AND station_id = ?"
+                    params.append(alert_data.get('station_id'))
+
+                cursor.execute(query, tuple(params))
+                existing_alert = cursor.fetchone()
+
+                if existing_alert:
+                    logger.debug(f"Skipping duplicate active alert for type: {alert_data.get('alert_type')}, target: {alert_data.get('charger_id') or alert_data.get('station_id')}")
+                    return existing_alert[0] # 返回已存在的告警ID
+            # --- END OF FIX ---
+
+            alert_id = f"ALERT_{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{alert_data.get('charger_id', 'SYS')}"
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
                 cursor.execute("""
                     INSERT INTO alerts 
                     (alert_id, charger_id, station_id, alert_type, 
@@ -356,14 +391,13 @@ class OperatorDataStorage:
                     alert_data.get('message'),
                     'active'
                 ))
-                
                 conn.commit()
+                logger.info(f"Created new alert: {alert_id} - {alert_data.get('message')}")
                 return alert_id
                 
         except Exception as e:
             logger.error(f"创建告警失败: {e}")
             return ""
-    
     def get_active_alerts(self) -> List[Dict]:
         """获取活跃告警"""
         try:
@@ -455,7 +489,53 @@ class OperatorDataStorage:
         except Exception as e:
             logger.error(f"获取维护历史失败: {e}")
             return pd.DataFrame()
-    
+    def get_historical_demand_patterns(self, station_id: str, days: int = 28) -> Dict:
+        """
+        获取站点的历史需求模式，用于预测。
+        返回按 (星期几, 小时) 聚合的平均会话数和每日趋势。
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # 查询过去N天的每小时会话数
+                query = """
+                    SELECT 
+                        strftime('%Y-%m-%d', start_time) as date,
+                        strftime('%w', start_time) as weekday, -- 0=Sunday, 1=Monday, ..., 6=Saturday
+                        strftime('%H', start_time) as hour,
+                        COUNT(*) as sessions
+                    FROM charging_sessions
+                    WHERE station_id = ? AND start_time >= date('now', ? || ' days')
+                    GROUP BY date, hour
+                """
+                df = pd.read_sql_query(query, conn, params=[station_id, f'-{days}'])
+
+                if df.empty:
+                    logger.warning(f"No historical data found for station {station_id} in the last {days} days.")
+                    return {"hourly_avg": pd.DataFrame(), "daily_trend": 0.0}
+
+                # 计算每日总会话数以分析趋势
+                daily_totals = df.groupby('date')['sessions'].sum()
+                # 简单的线性回归来找趋势
+                if len(daily_totals) > 1:
+                    x = np.arange(len(daily_totals))
+                    y = daily_totals.values
+                    # 使用 numpy.polyfit 进行线性回归
+                    coeffs = np.polyfit(x, y, 1)
+                    daily_trend = coeffs[0] # 斜率，即每日会话数的平均增长量
+                else:
+                    daily_trend = 0.0
+
+                # 计算按 (星期几, 小时) 聚合的平均会话数
+                df['weekday'] = df['weekday'].astype(int)
+                df['hour'] = df['hour'].astype(int)
+                hourly_avg = df.groupby(['weekday', 'hour'])['sessions'].mean().reset_index()
+                
+                logger.info(f"Generated historical demand patterns for station {station_id}. Daily trend: {daily_trend:.2f} sessions/day.")
+                return {"hourly_avg": hourly_avg, "daily_trend": daily_trend}
+
+        except Exception as e:
+            logger.error(f"获取历史需求模式失败: {e}")
+            return {"hourly_avg": pd.DataFrame(), "daily_trend": 0.0}
     # === 需求预测 ===
     
     def save_demand_forecast(self, forecast_data: List[Dict]):

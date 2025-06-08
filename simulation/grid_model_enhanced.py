@@ -13,7 +13,9 @@ class EnhancedGridModel:
         self.environment_config = config.get('environment', {})
         self.grid_status = {}
         self.region_ids = []
-        
+        self.region_geometries = {} # To store loaded geometries
+        # 新增一个变量来暂存V2G放电量
+        self.pending_v2g_discharge_kw = 0.0
         # 新增：时间-区域历史数据存储
         self.time_series_data = {
             'timestamps': deque(maxlen=288),  # 保存最近72小时的数据（15分钟间隔）
@@ -33,14 +35,38 @@ class EnhancedGridModel:
         # 新增：区域间连接关系
         self.regional_connections = {}
         
+        self._load_region_geometries() # Load geometries during initialization
         self.reset()
+
+    def _load_region_geometries(self):
+        """Loads region geometry data from the grid configuration."""
+        self.region_geometries = self.grid_config.get("region_geometries", {})
+        if not self.region_geometries:
+            logger.warning("No region geometries found in grid configuration.")
+        else:
+            logger.info(f"Loaded geometries for regions: {list(self.region_geometries.keys())}")
 
     def reset(self):
         """重置电网状态到初始值，支持区域化配置"""
         logger.info("Resetting Enhanced GridModel for regional setup...")
-
+        # 重置V2G暂存量
+        self.pending_v2g_discharge_kw = 0.0
         # 确定区域ID
-        base_load_regional_data = self.grid_config.get("base_load", {})
+        # If region_ids are defined by geometries, prioritize those.
+        if self.region_geometries and isinstance(self.region_geometries, dict) and self.region_geometries.keys():
+             # Ensure consistency if both base_load and geometries define regions
+            geom_region_ids = list(self.region_geometries.keys())
+            base_load_regional_data = self.grid_config.get("base_load", {})
+            if isinstance(base_load_regional_data, dict) and base_load_regional_data.keys():
+                base_load_region_ids = list(base_load_regional_data.keys())
+                if set(geom_region_ids) != set(base_load_region_ids):
+                    logger.warning(f"Region IDs from geometries {geom_region_ids} and base_load {base_load_region_ids} differ. Using geometry IDs.")
+                self.region_ids = geom_region_ids
+            else:
+                self.region_ids = geom_region_ids
+            logger.info(f"Region IDs derived from 'grid.region_geometries' keys: {self.region_ids}")
+        else:
+            base_load_regional_data = self.grid_config.get("base_load", {})
         if isinstance(base_load_regional_data, dict) and base_load_regional_data.keys():
             self.region_ids = list(base_load_regional_data.keys())
             logger.info(f"Region IDs derived from 'grid.base_load' keys: {self.region_ids}")
@@ -89,7 +115,10 @@ class EnhancedGridModel:
             
             grid_load_percentage = (initial_total_load / system_capacity) * 100 if system_capacity > 0 else 0.0
             renewable_generation = initial_solar + initial_wind
-            renewable_ratio = (renewable_generation / initial_total_load * 100) if initial_total_load > 0 else 0.0
+            if initial_total_load > 0:
+                renewable_ratio = min((renewable_generation / initial_total_load * 100), 100.0)  # 限制最大值为100%
+            else:
+                renewable_ratio = 0.0
             
             # 计算碳强度（简化模型）
             carbon_intensity = self._calculate_carbon_intensity(renewable_ratio, initial_hour)
@@ -148,13 +177,25 @@ class EnhancedGridModel:
         timestamp = current_time.isoformat()
         self.time_series_data['timestamps'].append(timestamp)
 
-        # 分配EV负载到各区域
-        regional_ev_loads = self._distribute_ev_load(global_ev_load)
 
+        # --- START OF MODIFICATION ---
+        # Calculate net EV load (charging - V2G discharge)
+        net_ev_load_kw = global_ev_load - self.pending_v2g_discharge_kw
+        logger.info(f"Grid step update: Charging Load={global_ev_load:.2f}kW, V2G Discharge={self.pending_v2g_discharge_kw:.2f}kW, Net EV Load={net_ev_load_kw:.2f}kW")
+        
+        # Store the actual V2G dispatch amount for this step's metrics
+        if 'aggregated_metrics' not in self.grid_status: self.grid_status['aggregated_metrics'] = {}
+        self.grid_status['aggregated_metrics']['current_actual_v2g_dispatch_mw'] = self.pending_v2g_discharge_kw / 1000.0
+
+        # Reset pending V2G for the next step
+        self.pending_v2g_discharge_kw = 0.0
+        
+        # Distribute the *net* EV load to regions
+        regional_net_ev_loads = self._distribute_ev_load(net_ev_load_kw)
         # 更新每个区域的状态
         for region_id in self.region_ids:
-            self._update_regional_state(region_id, hour, regional_ev_loads.get(region_id, 0), current_time)
-
+            # 使用正确的变量名 regional_net_ev_loads
+            self._update_regional_state(region_id, hour, regional_net_ev_loads.get(region_id, 0), current_time)
         # 更新全局价格
         current_price = self._get_current_price(hour)
         self.grid_status["current_price"] = current_price
@@ -176,7 +217,10 @@ class EnhancedGridModel:
         
         # 计算可再生能源比例
         renewable_generation = solar_gen + wind_gen
-        renewable_ratio = (renewable_generation / total_load * 100) if total_load > 0 else 0.0
+        if total_load > 0:
+            renewable_ratio = min((renewable_generation / total_load * 100), 100.0)  # 限制最大值为100%
+        else:
+            renewable_ratio = 0.0
         
         # 计算碳强度
         carbon_intensity = self._calculate_carbon_intensity(renewable_ratio, hour)
@@ -380,7 +424,17 @@ class EnhancedGridModel:
         # 添加区域对比
         status['regional_comparison'] = self.get_regional_comparison()
         
+        # 添加时间序列数据快照，供 metrics 使用
+        status['time_series_data_snapshot'] = self.get_time_series_data() # Calling with no args gets all data
+
+        # 添加区域地理信息
+        status['region_geometries'] = self.get_region_geometries()
+
         return status
+
+    def get_region_geometries(self):
+        """Returns the loaded region geometry data."""
+        return self.region_geometries
 
     def export_time_series_data(self, filepath):
         """导出时间序列数据到文件"""
@@ -392,3 +446,23 @@ class EnhancedGridModel:
             logger.info(f"Time series data exported to {filepath}")
         except Exception as e:
             logger.error(f"Failed to export time series data: {e}")
+
+
+    def apply_v2g_discharge(self, amount_mw):
+        """
+        记录V2G放电请求。
+        这个方法只暂存请求的放电量，实际的电网负荷计算将在 update_step 中进行。
+        这确保了V2G的影响与充电负荷在同一时间点进行能量平衡计算。
+
+        Args:
+            amount_mw (float): 请求的V2G放电功率，单位为兆瓦(MW)。
+        """
+        if amount_mw is None or amount_mw < 0:
+            logger.warning(f"Invalid V2G discharge amount received: {amount_mw}. Ignoring.")
+            return
+
+        # 将请求的放电量（MW）转换为千瓦（kW）并暂存
+        # 这个值将在下一次 update_step 被使用，然后重置
+        self.pending_v2g_discharge_kw = amount_mw * 1000.0
+        
+        logger.info(f"GridModel: V2G discharge of {amount_mw:.2f} MW ({self.pending_v2g_discharge_kw:.2f} kW) has been requested and will be applied in the next update step.")

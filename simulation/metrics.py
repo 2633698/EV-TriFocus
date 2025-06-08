@@ -4,8 +4,87 @@ import logging
 import math
 import random
 from datetime import datetime
+import numpy # Added for numpy.std
 
 logger = logging.getLogger(__name__)
+
+# --- New Metric Calculation Functions ---
+
+def calculate_peak_reduction(coordinated_load_profile: list[float], uncoordinated_load_profile: list[float]) -> float:
+    """Calculates the percentage reduction in peak load."""
+    if not coordinated_load_profile or not uncoordinated_load_profile:
+        logger.warning("Empty load profile(s) provided to calculate_peak_reduction.")
+        return 0.0
+
+    max_coord_load = max(coordinated_load_profile)
+    max_uncoord_load = max(uncoordinated_load_profile)
+
+    if max_uncoord_load == 0:
+        if max_coord_load == 0:
+            return 100.0 # No load in either case, effectively 100% reduction of zero peak
+        else:
+            # Uncoordinated had no load, but coordinated has load - this is unusual, implies negative reduction (increase)
+            # Or could be seen as undefined or infinitely bad. For percentage, let's return a large negative.
+            logger.warning(f"Uncoordinated peak load is 0, but coordinated is {max_coord_load}. Peak reduction is ill-defined.")
+            return -float('inf') # Or handle as per specific requirements, e.g., -100 * (max_coord_load / some_reference_load_if_available)
+
+    reduction = max_uncoord_load - max_coord_load
+    reduction_percentage = (reduction / max_uncoord_load) * 100
+    return reduction_percentage
+
+def calculate_load_balance_improvement(coordinated_load_profile: list[float], uncoordinated_load_profile: list[float]) -> float:
+    """Calculates the improvement in load balance (reduction in standard deviation)."""
+    if not coordinated_load_profile or not uncoordinated_load_profile:
+        logger.warning("Empty load profile(s) provided to calculate_load_balance_improvement.")
+        return 0.0
+
+    std_dev_coord = numpy.std(coordinated_load_profile)
+    std_dev_uncoord = numpy.std(uncoordinated_load_profile)
+
+    if std_dev_uncoord == 0:
+        if std_dev_coord == 0:
+            return 0.0 # Both are perfectly flat, no improvement needed or made if interpreted as absolute reduction.
+        else:
+            # Uncoordinated was flat, coordinated is not - implies worsening.
+            logger.warning(f"Uncoordinated load profile StdDev is 0, but coordinated is {std_dev_coord}. Load balance worsened.")
+            return -std_dev_coord # Negative improvement (increase in std dev)
+
+    improvement_metric = std_dev_uncoord - std_dev_coord
+    # This returns the absolute reduction in StdDev.
+    # If percentage improvement was desired: (improvement_metric / std_dev_uncoord) * 100
+    return improvement_metric
+
+def calculate_renewable_energy_percentage(total_load_profile: list[float], renewable_generation_profile: list[float]) -> float:
+    """Calculates the percentage of total load met by renewable energy."""
+    if not total_load_profile or not renewable_generation_profile:
+        logger.warning("Empty load/generation profile provided to calculate_renewable_energy_percentage.")
+        return 0.0
+    if len(total_load_profile) != len(renewable_generation_profile):
+        logger.warning(f"Load profile length ({len(total_load_profile)}) and renewable profile length ({len(renewable_generation_profile)}) mismatch.")
+        # Adjust profiles to the minimum length or return error
+        min_len = min(len(total_load_profile), len(renewable_generation_profile))
+        total_load_profile = total_load_profile[:min_len]
+        renewable_generation_profile = renewable_generation_profile[:min_len]
+        if not total_load_profile: return 0.0
+
+
+    total_energy_consumed = sum(total_load_profile)
+    # total_renewable_generation = sum(renewable_generation_profile) # Not directly used in this definition
+
+    if total_energy_consumed == 0:
+        return 100.0 # No energy consumed, so 100% of (zero) consumption could be seen as met by renewables. Or 0% if no renewables either.
+
+    # Assumes renewables are used first up to the load at each timestep
+    renewable_used = sum(min(load, gen) for load, gen in zip(total_load_profile, renewable_generation_profile))
+
+    renewable_percentage = (renewable_used / total_energy_consumed) * 100
+    return renewable_percentage
+
+
+# --- Modified calculate_rewards or a new wrapper ---
+# For now, let's extend calculate_rewards and assume profiles are passed in via `state` or `config`
+# This part will need careful integration with how profiles are generated/accessed.
+
 
 def calculate_rewards(state, config):
     """
@@ -18,6 +97,68 @@ def calculate_rewards(state, config):
     Returns:
         dict: 包含各项奖励指标及对比指标的字典
     """
+    
+    # --- START OF NESTED HELPER FUNCTION ---
+    # 将 _estimate_uncoordinated_charging_metrics 移动到这里并缩进
+    def _estimate_uncoordinated_charging_metrics(state, config, baseline_cfg, avg_soc, operator_profit, renewable_ratio, hour, peak_hours, valley_hours, weights):
+        """
+        估算无序充电情况下的基准指标。
+        
+        Args:
+            state (dict): 当前环境状态
+            config (dict): 全局配置
+            baseline_cfg (dict): 基准估算配置
+            avg_soc (float): 平均SOC
+            operator_profit (float): 运营商利润
+            renewable_ratio (float): 可再生能源比例
+            hour (int): 当前小时
+            peak_hours (list): 峰值小时列表
+            valley_hours (list): 谷值小时列表
+            weights (dict): 权重配置
+        
+        Returns:
+            dict: 包含基准指标的字典
+        """
+        logger.debug("Estimating uncoordinated charging baseline metrics")
+        
+        # 基准用户满意度估算 (通常比协调充电更低)
+        baseline_satisfaction_factor = baseline_cfg.get('satisfaction_degradation_factor', 0.7)
+        baseline_user_satisfaction = avg_soc * baseline_satisfaction_factor
+        
+        # 基准运营商利润估算 (可能略有不同，但通常相近)
+        baseline_profit_factor = baseline_cfg.get('profit_factor', 0.95)
+        baseline_operator_profit = operator_profit * baseline_profit_factor
+        
+        # 基准电网友好性估算 (通常更差)
+        baseline_grid_factor = baseline_cfg.get('grid_friendliness_factor', 0.6)
+        # 在峰值时段，无序充电会显著降低电网友好性
+        if hour in peak_hours:
+            baseline_grid_factor *= baseline_cfg.get('peak_hour_penalty', 0.5)
+        elif hour in valley_hours:
+            baseline_grid_factor *= baseline_cfg.get('valley_hour_bonus', 1.1)
+        
+        baseline_grid_friendliness = renewable_ratio * baseline_grid_factor
+        
+        # 计算基准总奖励
+        baseline_total_reward = (
+            baseline_user_satisfaction * weights.get("user_satisfaction", 0.4) +
+            baseline_operator_profit * weights.get("operator_profit", 0.3) +
+            baseline_grid_friendliness * weights.get("grid_friendliness", 0.3)
+        )
+        
+        logger.debug(f"Baseline User Satisfaction: {baseline_user_satisfaction:.4f}")
+        logger.debug(f"Baseline Operator Profit: {baseline_operator_profit:.4f}")
+        logger.debug(f"Baseline Grid Friendliness: {baseline_grid_friendliness:.4f}")
+        logger.debug(f"Baseline Total Reward: {baseline_total_reward:.4f}")
+        
+        return {
+            "baseline_user_satisfaction": baseline_user_satisfaction,
+            "baseline_operator_profit": baseline_operator_profit,
+            "baseline_grid_friendliness": baseline_grid_friendliness,
+            "baseline_total_reward": baseline_total_reward
+        }
+    # --- END OF NESTED HELPER FUNCTION ---
+
     users = state.get('users', [])
     chargers = state.get('chargers', [])
     grid_status_dict = state.get('grid_status', {})
@@ -32,294 +173,242 @@ def calculate_rewards(state, config):
     total_chargers = len(chargers) if chargers else 1
 
     # --- 1. 用户满意度 (协调后) ---
-    user_satisfaction_score = 0
-    # (复制粘贴原 _calculate_rewards 中用户满意度的计算逻辑)
-    # ... [原用户满意度计算逻辑，注意使用 state 中的数据] ...
-    # 示例简化版：
-    soc_sum = sum(u.get('soc', 0) for u in users if isinstance(u.get('soc'), (int, float))) # 更安全的求和
+    soc_sum = sum(u.get('soc', 0) for u in users if isinstance(u.get('soc'), (int, float)))
     avg_soc = soc_sum / total_users if total_users > 0 else 0
     waiting_count = sum(1 for u in users if u.get('status') == 'waiting')
-    # 简单的满意度计算，需要替换为原详细逻辑
-    user_satisfaction_raw = (avg_soc / 100.0) * (1 - 0.5 * (waiting_count / total_users))
-    # 映射到 [-1, 1]
-    user_satisfaction = 2 * user_satisfaction_raw - 1 # 极简示例
+    metrics_cfg = config.get("metrics_params", {})
+    user_sat_cfg = metrics_cfg.get("user_satisfaction", {})
+    op_profit_cfg = metrics_cfg.get("operator_profit", {})
+    grid_friend_cfg = metrics_cfg.get("grid_friendliness", {})
+
+    user_satisfaction_raw = (avg_soc / 100.0) * \
+                            (1 - user_sat_cfg.get("waiting_penalty_factor", 0.5) * (waiting_count / total_users if total_users > 0 else 0))
+    
+    user_satisfaction = user_satisfaction_raw * user_sat_cfg.get("final_scale_factor", 2.0) + user_sat_cfg.get("final_offset_factor", -1.0)
     user_satisfaction = max(-1.0, min(1.0, user_satisfaction))
     logger.debug(f"Calculated User Satisfaction: {user_satisfaction:.4f}")
 
 
     # --- 2. 运营商利润 (协调后) ---
-    operator_profit_score = 0
-    
-    # 获取峰谷时段信息，供后续使用
     peak_hours = grid_status_dict.get("peak_hours", [])
     valley_hours = grid_status_dict.get("valley_hours", [])
-    
-    # 计算当前时段的收入和能耗，而不是累计值
-    # 从历史记录中获取最近一段时间（如最近24小时）的数据
     history = state.get('history', [])
     
-    # 计算当前时段的收入增量和能耗增量
-    # 1. 获取当前充电桩状态
     current_revenue = {}
     current_energy = {}
     for c in chargers:
         if isinstance(c, dict):
-            charger_id = c.get('id')
+            charger_id = c.get('id', c.get('charger_id'))
             if charger_id:
                 current_revenue[charger_id] = c.get('daily_revenue', 0)
                 current_energy[charger_id] = c.get('daily_energy', 0)
     
-    # 2. 计算时段收入和能耗（当前值与前一时段的差值）
-    # 默认时段长度为1小时（4个15分钟时间步）
-    time_window_steps = 4
-    
-    # 从历史记录中获取前一时段的数据
+    time_window_steps = op_profit_cfg.get("time_window_steps_for_history", 4)
     previous_revenue = {}
     previous_energy = {}
-    
-    # 如果有足够的历史数据，获取前一时段的值
     if len(history) >= time_window_steps:
-        # 获取前一时段的状态
         previous_state = history[-time_window_steps]
         previous_chargers = previous_state.get('chargers', [])
-        
         for c in previous_chargers:
             if isinstance(c, dict):
-                charger_id = c.get('id')
+                charger_id = c.get('id', c.get('charger_id'))
                 if charger_id:
                     previous_revenue[charger_id] = c.get('daily_revenue', 0)
                     previous_energy[charger_id] = c.get('daily_energy', 0)
     
-    # 3. 计算时段收入和能耗增量
     period_revenue = 0
     period_energy = 0
-    
     for charger_id, current_rev in current_revenue.items():
-        prev_rev = previous_revenue.get(charger_id, current_rev)  # 如果没有前一时段数据，假设增量为0
-        period_revenue += max(0, current_rev - prev_rev)  # 确保增量非负
-    
+        prev_rev = previous_revenue.get(charger_id, current_rev) 
+        period_revenue += max(0, current_rev - prev_rev)
     for charger_id, current_eng in current_energy.items():
-        prev_eng = previous_energy.get(charger_id, current_eng)  # 如果没有前一时段数据，假设增量为0
-        period_energy += max(0, current_eng - prev_eng)  # 确保增量非负
+        prev_eng = previous_energy.get(charger_id, current_eng)
+        period_energy += max(0, current_eng - prev_eng)
     
-    # 如果没有足够的历史数据，使用当前值的一小部分作为估计
     if len(history) < time_window_steps:
-        period_revenue = sum(c.get('daily_revenue', 0) / 24 for c in chargers if isinstance(c.get('daily_revenue'), (int, float)))
-        period_energy = sum(c.get('daily_energy', 0) / 24 for c in chargers if isinstance(c.get('daily_energy'), (int, float)))
+        fall_rev_div = op_profit_cfg.get("fallback_revenue_divisor_for_hourly_est", 24)
+        fall_en_div = op_profit_cfg.get("fallback_energy_divisor_for_hourly_est", 24)
+        period_revenue = sum(c.get('daily_revenue', 0) / fall_rev_div for c in chargers if isinstance(c.get('daily_revenue'), (int, float)))
+        period_energy = sum(c.get('daily_energy', 0) / fall_en_div for c in chargers if isinstance(c.get('daily_energy'), (int, float)))
     
-    # 计算充电桩利用率
     occupied_chargers = sum(1 for c in chargers if c.get('status') == 'occupied')
     waiting_users = sum(1 for c in chargers if len(c.get('queue', [])) > 0)
     utilization = occupied_chargers / total_chargers if total_chargers > 0 else 0
     queue_utilization = waiting_users / total_chargers if total_chargers > 0 else 0
-    combined_utilization = (utilization * 0.7) + (queue_utilization * 0.3)  # 综合利用率
     
-    # 计算运营成本
-    # 1. 电费成本 (根据当前电价和时段能耗)
-    current_price = grid_status_dict.get("current_price", 0.85)  # 当前电价
-    electricity_cost = period_energy * current_price * 0.85  # 假设运营商电价为零售价的85%
+    util_w = op_profit_cfg.get("utilization_weight_in_combined", 0.7)
+    queue_util_w = op_profit_cfg.get("queue_utilization_weight_in_combined", 0.3)
+    combined_utilization = (utilization * util_w) + (queue_utilization * queue_util_w)
     
-    # 2. 维护成本 (与充电桩数量和类型相关) - 按小时分摊
-    maintenance_cost_per_charger = {
-        "normal": 5/24,    # 普通充电桩每小时维护成本
-        "fast": 12/24,     # 快充每小时维护成本
-        "superfast": 25/24  # 超快充每小时维护成本
-    }
-    maintenance_cost = sum(maintenance_cost_per_charger.get(c.get('type', 'normal'), 5/24) 
-                          for c in chargers if isinstance(c, dict))
+    current_price = grid_status_dict.get("current_price", 0.85)
+    op_elec_cost_rate = op_profit_cfg.get("operator_electricity_cost_rate_from_retail", 0.85)
+    electricity_cost = period_energy * current_price * op_elec_cost_rate
     
-    # 3. 人力和固定成本 (与充电桩数量相关，但有规模效应) - 按小时分摊
-    fixed_cost_base = 100/24  # 基础固定成本
-    fixed_cost_per_charger = 2/24  # 每个充电桩增加的固定成本
-    fixed_cost = fixed_cost_base + (fixed_cost_per_charger * total_chargers * (0.7 + 0.3 * math.exp(-total_chargers/50)))  # 规模效应
+    maint_costs_hourly = op_profit_cfg.get("maintenance_cost_per_charger_hourly", {"normal": 0.2083})
+    maintenance_cost = sum(maint_costs_hourly.get(c.get('type', 'normal'), maint_costs_hourly.get("default",0.2083)) for c in chargers if isinstance(c, dict))
     
-    # 总成本
+    fixed_cost_base_hr = op_profit_cfg.get("fixed_cost_base_hourly", 4.1667)
+    fixed_cost_per_charger_hr = op_profit_cfg.get("fixed_cost_per_charger_hourly", 0.0833)
+    fixed_cost_scale_factor = op_profit_cfg.get("fixed_cost_scale_effect_factor", 50)
+    fixed_cost = fixed_cost_base_hr + (fixed_cost_per_charger_hr * total_chargers * (0.7 + 0.3 * math.exp(-total_chargers/ (fixed_cost_scale_factor + 1e-6) )))
+    
     total_cost = electricity_cost + maintenance_cost + fixed_cost
-    
-    # 计算净利润
     net_profit = period_revenue - total_cost
     
-    # 计算投资回报率 (ROI)
-    # 假设不同类型充电桩的投资成本
-    investment_per_charger = {
-        "normal": 5000,    # 普通充电桩投资成本
-        "fast": 15000,     # 快充投资成本
-        "superfast": 40000  # 超快充投资成本
-    }
-    total_investment = sum(investment_per_charger.get(c.get('type', 'normal'), 5000) 
-                          for c in chargers if isinstance(c, dict))
+    invest_per_type = op_profit_cfg.get("investment_per_charger_type", {"normal": 5000})
+    total_investment = sum(invest_per_type.get(c.get('type', 'normal'), invest_per_type.get("default", 5000)) for c in chargers if isinstance(c, dict))
     
-    # 假设充电桩寿命为10年，计算小时均投资成本
-    hourly_investment_cost = total_investment / (10 * 365 * 24)
+    lifespan_years = op_profit_cfg.get("charger_lifespan_years_for_roi", 10)
+    hourly_investment_cost = total_investment / (lifespan_years * 365 * 24) if lifespan_years > 0 else float('inf')
+    hourly_roi = net_profit / hourly_investment_cost if hourly_investment_cost > 0 and hourly_investment_cost != float('inf') else (net_profit if hourly_investment_cost == 0 else 0)
+
+    time_factors_profit = op_profit_cfg.get("time_factors_hourly_profit", {"default":0.0})
+    time_factor = time_factors_profit.get("default",0.0)
+    if hour in peak_hours: time_factor = time_factors_profit.get("peak", -0.1)
+    elif hour in valley_hours: time_factor = time_factors_profit.get("valley", 0.2)
     
-    # 小时投资回报率
-    hourly_roi = net_profit / hourly_investment_cost if hourly_investment_cost > 0 else 0
+    util_score_base_mult = op_profit_cfg.get("utilization_score_base_multiplier", 0.8)
+    util_score_high_bonus_thresh = op_profit_cfg.get("utilization_score_high_bonus_threshold", 0.8)
+    util_score_high_bonus_factor = op_profit_cfg.get("utilization_score_high_bonus_factor", 0.5)
+    util_score_low_penalty_thresh = op_profit_cfg.get("utilization_score_low_penalty_threshold", 0.2)
+    util_score_low_penalty_factor = op_profit_cfg.get("utilization_score_low_penalty_factor", 0.8)
+
+    utilization_score = combined_utilization * util_score_base_mult
+    if combined_utilization > util_score_high_bonus_thresh:
+        utilization_score += (combined_utilization - util_score_high_bonus_thresh) * util_score_high_bonus_factor
+    elif combined_utilization < util_score_low_penalty_thresh:
+        utilization_score *= util_score_low_penalty_factor
     
-    # 考虑峰谷电价对利润的影响
-    time_factor = 0
-    if hour in peak_hours: 
-        time_factor = -0.1  # 高峰期电价高，利润降低
-    elif hour in valley_hours: 
-        time_factor = 0.2   # 低谷期电价低，利润提高
-    
-    # 综合评分计算 (考虑多个因素)
-    # 1. 利用率评分
-    utilization_score = combined_utilization * 0.8  # 0-0.8分
-    if combined_utilization > 0.8:
-        utilization_score += (combined_utilization - 0.8) * 0.5  # 高利用率额外奖励
-    elif combined_utilization < 0.2:
-        utilization_score *= 0.8  # 低利用率惩罚
-    
-    # 2. 收入评分 - 使用对数函数使增长更合理
-    # 假设每个充电桩每小时目标收入为100/24
-    target_hourly_revenue = (100/24) * total_chargers
+    target_hr_rev_base = op_profit_cfg.get("target_hourly_revenue_per_charger_base", 4.1667)
+    target_hourly_revenue = target_hr_rev_base * total_chargers
     revenue_ratio = period_revenue / target_hourly_revenue if target_hourly_revenue > 0 else 0
-    revenue_score = min(0.6, 0.3 * math.log(1 + revenue_ratio * 3) / math.log(4))  # 对数增长，最高0.6分
     
-    # 3. ROI评分
-    roi_target = 0.05/24  # 目标小时投资回报率
-    roi_score = min(0.4, 0.2 * math.log(1 + hourly_roi / roi_target * 5) / math.log(6)) if hourly_roi > 0 else 0  # 对数增长，最高0.4分
+    rev_log_mult = op_profit_cfg.get("revenue_score_log_base_multiplier", 0.3)
+    rev_log_input_mult = op_profit_cfg.get("revenue_score_log_input_multiplier", 3.0)
+    rev_log_base = op_profit_cfg.get("revenue_score_log_base", 4.0)
+    rev_max_score = op_profit_cfg.get("revenue_score_max", 0.6)
+    revenue_score = min(rev_max_score, rev_log_mult * math.log(1 + revenue_ratio * rev_log_input_mult) / math.log(rev_log_base if rev_log_base > 1 else 4.0))
     
-    # 综合评分，加入时间因素
+    roi_target_hr = op_profit_cfg.get("roi_target_hourly", 0.002083)
+    roi_log_mult = op_profit_cfg.get("roi_score_log_base_multiplier", 0.2)
+    roi_log_input_mult = op_profit_cfg.get("roi_score_log_input_multiplier", 5.0)
+    roi_log_base = op_profit_cfg.get("roi_score_log_base", 6.0)
+    roi_max_score = op_profit_cfg.get("roi_score_max", 0.4)
+    roi_score = min(roi_max_score, roi_log_mult * math.log(1 + hourly_roi / (roi_target_hr  + 1e-9) * roi_log_input_mult) / math.log(roi_log_base if roi_log_base > 1 else 6.0)) if hourly_roi > 0 else 0
+    
     operator_profit_raw = utilization_score + revenue_score + roi_score + time_factor
     
-    # 确保在合理范围内
-    operator_profit_raw = max(0.0, min(1.0, operator_profit_raw))
+    op_raw_min = op_profit_cfg.get("profit_raw_min_clamp", 0.0)
+    op_raw_max = op_profit_cfg.get("profit_raw_max_clamp", 1.0)
+    operator_profit_raw = max(op_raw_min, min(op_raw_max, operator_profit_raw))
     
-    # 映射到 [-1, 1]
-    operator_profit = 2 * operator_profit_raw - 1
+    op_final_scale = op_profit_cfg.get("profit_final_scale_factor", 2.0)
+    op_final_offset = op_profit_cfg.get("profit_final_offset_factor", -1.0)
+    operator_profit = op_final_scale * operator_profit_raw + op_final_offset
     operator_profit = max(-1.0, min(1.0, operator_profit))
     
-    logger.debug(f"Calculated Operator Profit: {operator_profit:.4f} (Utilization: {combined_utilization:.2f}, Period Revenue: {period_revenue:.2f}, Period Energy: {period_energy:.2f}, Cost: {total_cost:.2f}, ROI: {hourly_roi:.4f})")
-
-
+    logger.debug(f"Calculated Operator Profit: {operator_profit:.4f} (Raw: {operator_profit_raw:.2f}, Util: {combined_utilization:.2f}, Revenue: {period_revenue:.2f}, ROI_hr: {hourly_roi:.4f})")
 
     # --- 3. 电网友好度 (增强版) ---
-    grid_friendliness_score = 0
-    
-    # 获取全局电网状态
     current_load_percentage = grid_status_dict.get("grid_load_percentage", 50)
     renewable_ratio = grid_status_dict.get("renewable_ratio", 0) / 100.0 if grid_status_dict.get("renewable_ratio") is not None else 0.0
     total_load_abs = grid_status_dict.get("current_total_load", 0)
     ev_load_abs = grid_status_dict.get("current_ev_load", 0)
-    
-    # 获取区域电网状态
     regional_current_state = grid_status_dict.get("regional_current_state", {})
     regional_connections = grid_status_dict.get("regional_connections", {})
+
+    load_tiers = grid_friend_cfg.get('load_factor_tiers', [[30,0.8,0.0],[50,0.5,-0.015],[70,0.2,-0.01],[85,0.0,-0.015]])
+    default_slope = grid_friend_cfg.get('load_factor_default_slope', -0.01)
+    default_base_penalty = grid_friend_cfg.get('load_factor_default_base_penalty', -0.225)
+    max_penalty = grid_friend_cfg.get('load_factor_max_penalty', -0.5)
+    load_factor = default_base_penalty 
+    for i, (threshold, base_score, factor) in enumerate(load_tiers):
+        if current_load_percentage < threshold:
+            prev_threshold = load_tiers[i-1][0] if i > 0 else 0
+            load_factor = base_score - (current_load_percentage - prev_threshold) * factor
+            break
+    else:
+        last_threshold = load_tiers[-1][0] if load_tiers else 85
+        load_factor = max(max_penalty, default_base_penalty - (current_load_percentage - last_threshold) * default_slope)
+
+    renewable_factor = grid_friend_cfg.get('renewable_factor_multiplier', 0.8) * renewable_ratio
     
-    # 1. 全局负载因子 (基础评分)
-    if current_load_percentage < 30: load_factor = 0.8
-    elif current_load_percentage < 50: load_factor = 0.5 - (current_load_percentage - 30) * 0.015
-    elif current_load_percentage < 70: load_factor = 0.2 - (current_load_percentage - 50) * 0.01
-    elif current_load_percentage < 85: load_factor = 0.0 - (current_load_percentage - 70) * 0.015
-    else: load_factor = max(-0.5, -0.225 - (current_load_percentage - 85) * 0.01)
-    
-    # 2. 可再生能源因子
-    renewable_factor = 0.8 * renewable_ratio
-    
-    # 3. 时间因子 (峰谷平)
-    time_factor = 0
-    if hour in peak_hours: time_factor = -0.3
-    elif hour in valley_hours: time_factor = 0.6
-    else: time_factor = 0.2  # 平峰
-    
-    # 4. EV负载集中度因子
-    ev_concentration_factor = 0
+    time_scores = grid_friend_cfg.get('time_factor_scores', {"peak": -0.3, "valley": 0.6, "shoulder": 0.2})
+    if hour in peak_hours: time_factor = time_scores.get('peak', -0.3)
+    elif hour in valley_hours: time_factor = time_scores.get('valley', 0.6)
+    else: time_factor = time_scores.get('shoulder', 0.2)
+        
+    ev_conc_thresh = grid_friend_cfg.get('ev_concentration_penalty_threshold', 0.3)
+    ev_conc_factor_val = grid_friend_cfg.get('ev_concentration_penalty_factor', -0.15)
+    ev_concentration_factor = 0.0
     if total_load_abs > 1e-6:
         ev_load_ratio = ev_load_abs / total_load_abs
-        if ev_load_ratio > 0.3:
-            ev_concentration_factor = -0.15 * (ev_load_ratio - 0.3) / 0.7
-    
-    # 5. 区域负载不平衡因子 (新增)
-    region_imbalance_factor = 0
-    try:
-        if regional_current_state:
-            # 计算区域负载百分比的标准差
-            load_percentages = [region.get('grid_load_percentage', 0) for region in regional_current_state.values()]
-            if load_percentages:
-                avg_load = sum(load_percentages) / len(load_percentages)
-                variance = sum((x - avg_load) ** 2 for x in load_percentages) / len(load_percentages)
-                std_dev = variance ** 0.5
-                
-                # 标准差越大，不平衡越严重，惩罚越大
-                if std_dev > 10:  # 10%的标准差作为阈值
-                    region_imbalance_factor = -0.2 * min(1.0, (std_dev - 10) / 30)  # 最多-0.2分
-    except Exception as e:
-        logger.warning(f"Error calculating region imbalance factor: {e}")
-    
-    # 6. 碳强度因子 (新增)
-    carbon_intensity_factor = 0
-    try:
-        if regional_current_state:
-            # 计算平均碳强度
-            carbon_intensities = [region.get('carbon_intensity', 0) for region in regional_current_state.values()]
-            if carbon_intensities:
-                avg_carbon = sum(carbon_intensities) / len(carbon_intensities)
-                # 碳强度越低越好
-                if avg_carbon < 400:  # 低碳 (kg CO2/MWh)
-                    carbon_intensity_factor = 0.2
-                elif avg_carbon < 600:  # 中等
-                    carbon_intensity_factor = 0.1
-                elif avg_carbon > 800:  # 高碳
-                    carbon_intensity_factor = -0.1
-    except Exception as e:
-        logger.warning(f"Error calculating carbon intensity factor: {e}")
-    
-    # 7. 负载变化率因子 (新增)
-    load_change_factor = 0
-    history = state.get('history', [])
-    if len(history) >= 4:  # 至少需要前一小时的数据
-        try:
-            prev_state = history[-4]  # 假设15分钟一个时间步，取1小时前
-            if prev_state and 'grid_status' in prev_state:
-                prev_grid_status = prev_state.get('grid_status', {})
-                prev_load = prev_grid_status.get('current_total_load')
-                
-                # 确保 prev_load 和 total_load_abs 都不是 None
-                if prev_load is not None and total_load_abs is not None and prev_load > 0:
-                    load_change_rate = abs(total_load_abs - prev_load) / prev_load
-                    # 负载变化率过大不利于电网稳定
-                    if load_change_rate > 0.2:  # 20%的变化率作为阈值
-                        load_change_factor = -0.15 * min(1.0, (load_change_rate - 0.2) / 0.3)  # 最多-0.15分
-        except Exception as e:
-            logger.warning(f"Error calculating load change factor: {e}")
-    
-    # 8. 区域间电力传输因子 (新增)
-    transfer_factor = 0
-    try:
-        if regional_connections:
-            # 计算区域间电力传输总量与容量比
-            total_transfer = sum(conn.get('current_transfer', 0) for conn in regional_connections.values())
-            total_capacity = sum(conn.get('transfer_capacity', 1000) for conn in regional_connections.values())
+        if ev_load_ratio > ev_conc_thresh:
+            ev_concentration_factor = ev_conc_factor_val * (ev_load_ratio - ev_conc_thresh) / (1.0 - ev_conc_thresh + 1e-6)
             
-            if total_capacity > 0:
-                transfer_ratio = total_transfer / total_capacity
-                # 传输比例过高不利于电网稳定
-                if transfer_ratio > 0.7:  # 70%的传输比例作为阈值
-                    transfer_factor = -0.1 * min(1.0, (transfer_ratio - 0.7) / 0.3)  # 最多-0.1分
-    except Exception as e:
-        logger.warning(f"Error calculating transfer factor: {e}")
+    region_imbalance_std_thresh = grid_friend_cfg.get('region_imbalance_std_dev_threshold', 10.0)
+    region_imbalance_penalty = grid_friend_cfg.get('region_imbalance_penalty_factor', -0.2)
+    region_imbalance_scale = grid_friend_cfg.get('region_imbalance_penalty_scale_range', 30.0)
+    region_imbalance_factor = 0.0
+    if regional_current_state:
+        load_percentages = [region.get('grid_load_percentage', 0) for region in regional_current_state.values() if region]
+        if load_percentages:
+            std_dev = numpy.std(load_percentages)
+            if std_dev > region_imbalance_std_thresh:
+                region_imbalance_factor = region_imbalance_penalty * min(1.0, (std_dev - region_imbalance_std_thresh) / (region_imbalance_scale + 1e-6) )
     
-    # 综合计算电网友好度原始分数
-    grid_friendliness_raw = (
-        load_factor +              # 全局负载因子
-        renewable_factor +         # 可再生能源因子
-        time_factor +              # 时间因子
-        ev_concentration_factor +  # EV负载集中度因子
-        region_imbalance_factor +  # 区域负载不平衡因子
-        carbon_intensity_factor +  # 碳强度因子
-        load_change_factor +       # 负载变化率因子
-        transfer_factor            # 区域间电力传输因子
-    )
+    carbon_intensity_factor = 0.0
+    ci_thresholds = grid_friend_cfg.get('carbon_intensity_thresholds', [400,600,800])
+    ci_scores = grid_friend_cfg.get('carbon_intensity_scores', [0.2, 0.1, 0.0, -0.1])
+    if regional_current_state and len(ci_thresholds) == 3 and len(ci_scores) == 4:
+        carbon_intensities = [region.get('carbon_intensity', ci_thresholds[1]) for region in regional_current_state.values() if region]
+        if carbon_intensities:
+            avg_carbon = sum(carbon_intensities) / len(carbon_intensities)
+            if avg_carbon < ci_thresholds[0]: carbon_intensity_factor = ci_scores[0]
+            elif avg_carbon < ci_thresholds[1]: carbon_intensity_factor = ci_scores[1]
+            elif avg_carbon < ci_thresholds[2]: carbon_intensity_factor = ci_scores[2]
+            else: carbon_intensity_factor = ci_scores[3]
+
+    load_change_factor = 0.0
+    lc_thresh = grid_friend_cfg.get('load_change_rate_threshold', 0.2)
+    lc_penalty = grid_friend_cfg.get('load_change_penalty_factor', -0.15)
+    lc_scale = grid_friend_cfg.get('load_change_penalty_scale_range', 0.3)
+    history = state.get('history', [])
+    if len(history) >= time_window_steps:
+        prev_state_for_load_change = history[-time_window_steps]
+        if prev_state_for_load_change and 'grid_status' in prev_state_for_load_change:
+            prev_load = prev_state_for_load_change['grid_status'].get('current_total_load')
+            if prev_load is not None and total_load_abs is not None and prev_load > 1e-6:
+                load_change_rate = abs(total_load_abs - prev_load) / prev_load
+                if load_change_rate > lc_thresh:
+                    load_change_factor = lc_penalty * min(1.0, (load_change_rate - lc_thresh) / (lc_scale + 1e-6))
     
-    # 最终调整
-    grid_friendliness = max(-0.9, min(1.0, grid_friendliness_raw))
-    if grid_friendliness < 0: 
-        grid_friendliness *= 0.8  # 负分减轻惩罚
-    else: 
-        grid_friendliness = min(1.0, grid_friendliness * 1.1)  # 正分小幅提升
+    transfer_factor = 0.0
+    tr_thresh = grid_friend_cfg.get('transfer_ratio_threshold', 0.7)
+    tr_penalty = grid_friend_cfg.get('transfer_penalty_factor', -0.1)
+    tr_scale = grid_friend_cfg.get('transfer_penalty_scale_range', 0.3)
+    if regional_connections:
+        total_transfer = sum(conn.get('current_transfer', 0) for conn in regional_connections.values())
+        total_capacity = sum(conn.get('transfer_capacity', 1000) for conn in regional_connections.values())
+        if total_capacity > 1e-6:
+            transfer_ratio = abs(total_transfer) / total_capacity
+            if transfer_ratio > tr_thresh:
+                transfer_factor = tr_penalty * min(1.0, (transfer_ratio - tr_thresh) / (tr_scale + 1e-6))
+
+    grid_friendliness_raw = sum([
+        load_factor, renewable_factor, time_factor, ev_concentration_factor,
+        region_imbalance_factor, carbon_intensity_factor, load_change_factor, transfer_factor
+    ])
     
-    # 详细日志
+    gf_raw_min = grid_friend_cfg.get('grid_raw_min_clamp', -0.9)
+    gf_raw_max = grid_friend_cfg.get('grid_raw_max_clamp', 1.0)
+    grid_friendliness_raw = max(gf_raw_min, min(gf_raw_max, grid_friendliness_raw))
+
+    neg_adjust = grid_friend_cfg.get('grid_negative_score_adjustment_factor', 0.8)
+    pos_adjust = grid_friend_cfg.get('grid_positive_score_adjustment_factor', 1.1)
+    if grid_friendliness_raw < 0: grid_friendliness = grid_friendliness_raw * neg_adjust
+    else: grid_friendliness = min(1.0, grid_friendliness_raw * pos_adjust)
+    
     logger.debug(f"Grid Friendliness Components: Load={load_factor:.2f}, Renewable={renewable_factor:.2f}, "  
                 f"Time={time_factor:.2f}, EV Concentration={ev_concentration_factor:.2f}, "  
                 f"Region Imbalance={region_imbalance_factor:.2f}, Carbon={carbon_intensity_factor:.2f}, "  
@@ -337,80 +426,208 @@ def calculate_rewards(state, config):
     logger.debug(f"Calculated Total Reward: {total_reward:.4f}")
 
 
-    # --- 5. 无序充电基准对比 (从原环境类逻辑迁移并调整) ---
-    uncoordinated_user_satisfaction = None
-    uncoordinated_operator_profit = None
-    uncoordinated_grid_friendliness = None
-    uncoordinated_total_reward = None
-    improvement_percentage = None
+    # --- 5. 无序充电基准对比 ---
+    baseline_cfg = metrics_cfg.get("uncoordinated_baseline_estimation", {})
+    # This is the line that caused the error. Now the function is nested, so it's in scope.
+    results = _estimate_uncoordinated_charging_metrics(state, config, baseline_cfg, avg_soc, operator_profit, renewable_ratio, hour, peak_hours, valley_hours, weights)
+    results["user_satisfaction"] = user_satisfaction
+    results["operator_profit"] = operator_profit
+    results["grid_friendliness"] = grid_friendliness
+    results["total_reward"] = total_reward
+    
+    # --- Algorithm Comparison Metrics (Data for GUI) ---
+    comparison_cfg = metrics_cfg.get("algorithm_comparison_dummy_uncoordinated_profile", {})
+    power_quality_cfg = metrics_cfg.get("power_quality_metrics", {})
+    carbon_savings_cfg = metrics_cfg.get("carbon_savings_calculation", {})
 
-    # 检查配置是否启用了基准对比
-    enable_baseline = config.get('environment', {}).get('enable_uncoordinated_baseline', True)
+    grid_time_series = state.get('grid_status', {}).get('time_series_data_snapshot', {})
+    coordinated_load_profile_regional = grid_time_series.get('regional_data', {})
+    timestamps = grid_time_series.get('timestamps', [])
+    num_steps = len(timestamps)
+    coordinated_total_load_profile = [0.0] * num_steps
+    coordinated_total_renewable_gen_profile = [0.0] * num_steps
 
-    if enable_baseline:
-        # 估算无序用户满意度 (简化)
-        # 主要惩罚等待时间，SOC影响较小
-        uncoordinated_wait_factor = 0.7 # 假设平均等待时间更长，满意度因子降低
-        # 无序充电可能导致SOC分布更差？这里简化为与协调后类似，但乘以等待惩罚
-        uncoordinated_soc_factor = avg_soc / 100.0
-        unc_user_satisfaction_raw = uncoordinated_soc_factor * uncoordinated_wait_factor
-        uncoordinated_user_satisfaction = 2 * unc_user_satisfaction_raw - 1
-        uncoordinated_user_satisfaction = max(-1.0, min(1.0, uncoordinated_user_satisfaction))
-        logger.debug(f"Baseline User Satisfaction: {uncoordinated_user_satisfaction:.4f}")
+    if num_steps > 0 and coordinated_load_profile_regional:
+        for region_id, region_data in coordinated_load_profile_regional.items():
+            for i in range(num_steps):
+                coordinated_total_load_profile[i] += region_data.get('total_load', [0]*num_steps)[i]
+                coordinated_total_renewable_gen_profile[i] += region_data.get('solar_generation', [0]*num_steps)[i] + \
+                                                            region_data.get('wind_generation', [0]*num_steps)[i]
+    
+    uncoordinated_load_profile = state.get('uncoordinated_load_profile')
+    if not uncoordinated_load_profile and coordinated_total_load_profile:
+        noise_min = comparison_cfg.get("noise_factor_min", -0.05)
+        noise_max = comparison_cfg.get("noise_factor_max", 0.2)
+        peak_noise_max_load_based = comparison_cfg.get("additional_peak_noise_factor_max_load_based", 0.1)
+        peak_inc_main = comparison_cfg.get("peak_increase_main_factor", 1.2)
+        peak_inc_secondary = comparison_cfg.get("peak_increase_secondary_factor", 0.96)
+        
+        max_coord_val = max(coordinated_total_load_profile) if coordinated_total_load_profile else 10
+        uncoordinated_load_profile = [
+            max(0, load + load * random.uniform(noise_min, noise_max) + random.uniform(0, max_coord_val * peak_noise_max_load_based))
+            for load in coordinated_total_load_profile
+        ]
+        if len(uncoordinated_load_profile) > 5 :
+            idx1 = random.randint(0, len(uncoordinated_load_profile)-1)
+            idx2 = random.randint(0, len(uncoordinated_load_profile)-1)
+            uncoordinated_load_profile[idx1] *= peak_inc_main
+            uncoordinated_load_profile[idx2] *= peak_inc_secondary
+            
+    uncoordinated_renewable_profile = coordinated_total_renewable_gen_profile
 
-        # 估算无序运营商利润 (简化)
-        # 假设利用率可能接近，但收入分布不均，高峰期收入高但成本也高，可能利润率更低
-        # 假设整体利润比协调后低 10-30%
-        profit_reduction_factor = random.uniform(0.7, 0.9)
-        uncoordinated_operator_profit = operator_profit * profit_reduction_factor - 0.1 # 再加一点固定惩罚
-        uncoordinated_operator_profit = max(-1.0, min(1.0, uncoordinated_operator_profit))
-        logger.debug(f"Baseline Operator Profit: {uncoordinated_operator_profit:.4f}")
+    if coordinated_total_load_profile and uncoordinated_load_profile:
+        peak_reduction_perc = calculate_peak_reduction(coordinated_total_load_profile, uncoordinated_load_profile)
+        std_dev_uncoordinated = numpy.std(uncoordinated_load_profile)
+        std_dev_coordinated = numpy.std(coordinated_total_load_profile)
+        renewable_share_coord_perc = calculate_renewable_energy_percentage(coordinated_total_load_profile, coordinated_total_renewable_gen_profile)
+        renewable_share_uncoord_perc = calculate_renewable_energy_percentage(uncoordinated_load_profile, uncoordinated_renewable_profile)
+        results['comparison_metrics_display'] = {
+            'peak_reduction': {'uncoordinated': 0, 'coordinated': peak_reduction_perc},
+            'load_balance': {'uncoordinated': std_dev_uncoordinated, 'coordinated': std_dev_coordinated},
+            'renewable_share': {'uncoordinated': renewable_share_uncoord_perc, 'coordinated': renewable_share_coord_perc}
+        }
+    else:
+        results['comparison_metrics_display'] = {'peak_reduction': {'uncoordinated': 0, 'coordinated': 0}, 
+                                               'load_balance': {'uncoordinated': 0, 'coordinated': 0}, 
+                                               'renewable_share': {'uncoordinated': 0, 'coordinated': 0}}
 
-        # 估算无序电网友好度 (基于时间)
-        # 无序充电更可能集中在高峰期
-        if hour in peak_hours:
-            # 高峰期，大量无序充电，电网友好度很差
-            uncoordinated_grid_friendliness = -0.7 - 0.1 * renewable_ratio # 基础分很低，受可再生能源影响小
-        elif hour in valley_hours:
-            # 低谷期，部分无序充电可能发生，但比协调模式差
-            uncoordinated_grid_friendliness = 0.2 + 0.2 * renewable_ratio # 比协调模式的谷时得分低
-        else: # 平峰期
-            # 平峰期，无序充电影响中等偏负面
-            uncoordinated_grid_friendliness = -0.2 - 0.1 * renewable_ratio # 比协调模式的平峰得分低
+    # --- Power Quality Metrics ---
+    history = state.get('history', [])
+    previous_total_load_profile = []
+    if history:
+        prev_grid_time_series = history[-1].get('grid_status', {}).get('time_series_data_snapshot', {})
+        prev_regional_data = prev_grid_time_series.get('regional_data', {})
+        prev_timestamps = prev_grid_time_series.get('timestamps', [])
+        if prev_timestamps and prev_regional_data:
+            previous_total_load_profile = [0.0] * len(prev_timestamps)
+            for region_id, r_data in prev_regional_data.items():
+                for i in range(len(prev_timestamps)):
+                    previous_total_load_profile[i] += r_data.get('total_load', [0]*len(prev_timestamps))[i]
+    
+    current_ev_load_total = grid_status_dict.get('aggregated_metrics', {}).get('total_ev_load', 0)
+    current_scheduling_algorithm = config.get('scheduler', {}).get('scheduling_algorithm', 'uncoordinated')
+    v2g_active_kw_total = state.get('v2g_active_total_kw', 0)
 
-        uncoordinated_grid_friendliness = max(-1.0, min(1.0, uncoordinated_grid_friendliness))
-        logger.debug(f"Baseline Grid Friendliness: {uncoordinated_grid_friendliness:.4f}")
-
-        # 计算无序总奖励
-        uncoordinated_total_reward = (
-            uncoordinated_user_satisfaction * weights["user_satisfaction"] +
-            uncoordinated_operator_profit * weights["operator_profit"] +
-            uncoordinated_grid_friendliness * weights["grid_friendliness"]
-        )
-        logger.debug(f"Baseline Total Reward: {uncoordinated_total_reward:.4f}")
-
-        # 计算改进百分比
-        if uncoordinated_total_reward is not None and abs(uncoordinated_total_reward) > 1e-6:
-            improvement_percentage = ((total_reward - uncoordinated_total_reward) /
-                                      abs(uncoordinated_total_reward)) * 100
-            logger.debug(f"Improvement Percentage: {improvement_percentage:.2f}%")
-
-
-    # --- 最终返回结果 ---
-    results = {
-        "user_satisfaction": user_satisfaction,
-        "operator_profit": operator_profit,
-        "grid_friendliness": grid_friendliness,
-        "total_reward": total_reward
+    results['power_quality'] = {
+        'voltage_stability': _calculate_voltage_stability_metric(grid_status_dict, coordinated_total_load_profile, power_quality_cfg),
+        'frequency_stability': _calculate_frequency_stability_metric(grid_status_dict, coordinated_total_load_profile, previous_total_load_profile, power_quality_cfg),
+        'grid_strain': _calculate_grid_strain_metric(grid_status_dict, current_ev_load_total, current_scheduling_algorithm, v2g_active_kw_total, power_quality_cfg)
     }
-    # 如果计算了基准，则添加到结果中
-    if enable_baseline:
-        results.update({
-            "uncoordinated_user_satisfaction": uncoordinated_user_satisfaction,
-            "uncoordinated_operator_profit": uncoordinated_operator_profit,
-            "uncoordinated_grid_friendliness": uncoordinated_grid_friendliness,
-            "uncoordinated_total_reward": uncoordinated_total_reward,
-            "improvement_percentage": improvement_percentage
-        })
+    logger.debug(f"Calculated Power Quality Metrics: {results['power_quality']}")
 
+    # --- Carbon Savings Calculation ---
+    time_step_minutes = config.get('environment', {}).get('time_step_minutes', 15)
+    step_duration_hours = time_step_minutes / 60.0
+    current_carbon_intensity_profile_aggregated = []
+    if num_steps > 0 and coordinated_load_profile_regional:
+        for i in range(num_steps):
+            step_intensities = [region_data.get('carbon_intensity', [carbon_savings_cfg.get("default_carbon_intensity_g_kwh",300)]*num_steps)[i] 
+                                for region_data in coordinated_load_profile_regional.values() if region_data]
+            current_carbon_intensity_profile_aggregated.append(sum(step_intensities) / len(step_intensities) if step_intensities else carbon_savings_cfg.get("default_carbon_intensity_g_kwh",300))
+    else:
+        current_carbon_intensity_profile_aggregated = [carbon_savings_cfg.get("default_carbon_intensity_g_kwh",300)] * num_steps
+
+    uncoordinated_carbon_intensity_profile_mock = [
+        intensity * carbon_savings_cfg.get("mock_uncoordinated_intensity_multiplier", 1.2) 
+        for intensity in current_carbon_intensity_profile_aggregated
+    ]
+    load_profile_kwh = [load_kw * step_duration_hours for load_kw in coordinated_total_load_profile]
+
+    if coordinated_total_load_profile and current_carbon_intensity_profile_aggregated and uncoordinated_carbon_intensity_profile_mock:
+        results['calculated_carbon_savings_kg'] = _calculate_carbon_savings(
+            current_carbon_intensity_profile_aggregated,
+            uncoordinated_carbon_intensity_profile_mock,
+            load_profile_kwh
+        )
+        logger.debug(f"Calculated Carbon Savings: {results['calculated_carbon_savings_kg']:.2f} kg CO₂")
+    else:
+        results['calculated_carbon_savings_kg'] = 0.0
+        logger.warning("Insufficient data for carbon savings calculation.")
+        
     return results
+# --- Carbon Savings Helper Function ---
+def _calculate_carbon_savings(current_carbon_intensity_profile_g_kwh: list[float],
+                             uncoordinated_carbon_intensity_profile_g_kwh: list[float],
+                             load_profile_kwh: list[float]) -> float:
+    """Calculates carbon savings in kg CO2."""
+    if not (len(current_carbon_intensity_profile_g_kwh) == len(uncoordinated_carbon_intensity_profile_g_kwh) == len(load_profile_kwh)):
+        logger.warning("Carbon intensity and load profiles have mismatched lengths. Cannot calculate savings.")
+        return 0.0
+
+    total_current_emissions_g = sum(
+        intensity * energy
+        for intensity, energy in zip(current_carbon_intensity_profile_g_kwh, load_profile_kwh)
+    )
+    total_baseline_emissions_g = sum(
+        intensity * energy
+        for intensity, energy in zip(uncoordinated_carbon_intensity_profile_g_kwh, load_profile_kwh)
+    )
+
+    savings_gCO2 = total_baseline_emissions_g - total_current_emissions_g
+    savings_kgCO2 = savings_gCO2 / 1000.0
+
+    return savings_kgCO2
+
+# --- Power Quality Helper Functions ---
+
+def _calculate_voltage_stability_metric(grid_status_dict, load_profile, pq_cfg):
+    """Calculates a voltage stability indicator."""
+    aggregated_metrics = grid_status_dict.get('aggregated_metrics', {})
+    load_percentage = aggregated_metrics.get('overall_load_percentage', 50)
+    thresholds = pq_cfg.get("voltage_stability_load_thresholds", [60, 80, 95])
+
+    if load_percentage < thresholds[0]: 
+        return {'text': '稳定', 'color': 'green'}
+    elif load_percentage < thresholds[1]: 
+        return {'text': '良好', 'color': 'lightgreen'}
+    elif load_percentage < thresholds[2]: 
+        return {'text': '波动风险', 'color': 'orange'}
+    else:
+        return {'text': '不稳定', 'color': 'red'}
+
+def _calculate_frequency_stability_metric(grid_status_dict, current_load_profile, previous_load_profile, pq_cfg):
+    """Calculates a frequency stability indicator based on load changes."""
+    fallback_thresh = pq_cfg.get("frequency_stability_fallback_load_threshold", 75)
+    ramp_thresholds = pq_cfg.get("frequency_stability_ramp_rate_thresholds_percent", [2.0, 5.0])
+
+    if not current_load_profile or not previous_load_profile or not current_load_profile or not previous_load_profile:
+        logger.debug("Frequency stability: Insufficient profile data. Using load percentage fallback.")
+        aggregated_metrics = grid_status_dict.get('aggregated_metrics', {})
+        load_percentage = aggregated_metrics.get('overall_load_percentage', 50)
+        if load_percentage < fallback_thresh: return {'text': '稳定', 'color': 'green'}
+        else: return {'text': '轻微波动', 'color': 'orange'}
+
+    current_final_load = current_load_profile[-1]
+    previous_final_load = previous_load_profile[-1]
+    load_diff = abs(current_final_load - previous_final_load)
+    total_capacity = grid_status_dict.get('aggregated_metrics', {}).get('total_capacity', 0)
+
+    if total_capacity == 0 and current_final_load > 0:
+        load_perc = grid_status_dict.get('aggregated_metrics', {}).get('overall_load_percentage', 50)
+        total_capacity = current_final_load / (load_perc / 100.0 if load_perc > 0 else 0.5) # Estimate capacity
+    if total_capacity == 0:
+         logger.warning("Frequency stability: Total capacity is zero. Fallback.")
+         return {'text': '稳定 (低负荷)', 'color': 'green'}
+
+    ramp_rate_percentage = (load_diff / total_capacity) * 100 if total_capacity > 0 else 0
+
+    if ramp_rate_percentage < ramp_thresholds[0]: return {'text': '稳定', 'color': 'green'}
+    elif ramp_rate_percentage < ramp_thresholds[1]: return {'text': '轻微波动', 'color': 'orange'}
+    else: return {'text': '较大波动', 'color': 'red'}
+
+def _calculate_grid_strain_metric(grid_status_dict, current_total_ev_load, current_strategy, v2g_active_total_kw, pq_cfg):
+    """Calculates a grid strain indicator."""
+    aggregated_metrics = grid_status_dict.get('aggregated_metrics', {})
+    total_load = aggregated_metrics.get('total_load', 0)
+    strain_thresholds = pq_cfg.get("grid_strain_ev_load_ratio_thresholds_percent", [30, 15]) # [High, Medium]
+
+    ev_load_ratio = (current_total_ev_load / total_load) * 100 if total_load > 0 else 0
+
+    if current_strategy == "v2g_active" or v2g_active_total_kw > 0 :
+        return {'text': '可变(双向)', 'color': '#F39C12'} 
+    elif ev_load_ratio > strain_thresholds[0]: 
+        return {'text': '升高', 'color': 'red'}
+    elif ev_load_ratio > strain_thresholds[1]: 
+        return {'text': '中等', 'color': 'orange'}
+    else: 
+        return {'text': '正常', 'color': 'green'}

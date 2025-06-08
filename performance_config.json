@@ -1,0 +1,40 @@
+{
+  "performance_optimization": {
+    "description": "EV充电仿真系统性能优化配置",
+    "ui_update_settings": {
+      "update_throttle_ms": 200,
+      "ui_update_skip_interval": 3,
+      "description": "UI更新频率控制，update_throttle_ms为最小更新间隔，ui_update_skip_interval为跳过更新的间隔"
+    },
+    "timer_intervals": {
+      "main_display_timer_ms": 1000,
+      "advanced_charts_timer_ms": 1000,
+      "operator_panel_timer_ms": 8000,
+      "trip_info_timer_ms": 2000,
+      "description": "各组件定时器更新间隔设置"
+    },
+    "data_optimization": {
+      "max_history_records": 1000,
+      "max_chart_display_points": 15,
+      "description": "数据存储和显示优化设置"
+    },
+    "logging_optimization": {
+      "use_debug_level": true,
+      "reduce_frequent_logs": true,
+      "description": "日志级别优化，减少频繁的info日志"
+    },
+    "memory_optimization": {
+      "enable_garbage_collection": true,
+      "gc_interval_seconds": 30,
+      "description": "内存管理优化设置"
+    }
+  },
+  "troubleshooting": {
+    "common_issues": [
+      "如果程序仍然卡顿，可以增加update_throttle_ms的值",
+      "如果界面更新太慢，可以减少ui_update_skip_interval的值",
+      "如果内存占用过高，可以减少max_history_records的值",
+      "对于低配置电脑，建议将所有定时器间隔增加50%"
+    ]
+  }
+}

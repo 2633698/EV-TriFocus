@@ -6,6 +6,8 @@
 """
 
 import sys
+import logging
+logger = logging.getLogger(__name__)
 from typing import Dict, List, Optional, Any, Tuple
 import numpy as np
 import pandas as pd
@@ -30,39 +32,41 @@ try:
 except ImportError:
     HAS_PYQTGRAPH = False
 
-
 class RegionalLoadHeatmap(QWidget):
-    """区域负载显示"""
+    """区域负载显示 - 最终优化版，解决闪烁问题"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.current_loads = {}  # 当前各区域负载
-        self.region_widgets = {}  # 区域显示组件
-        
+        self.region_widgets = {}  # {region_id: widget}
         self.setupUI()
         
     def setupUI(self):
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(5, 5, 5, 5)
         
-        # 标题
         title = QLabel("区域负载状态")
         title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title)
+        main_layout.addWidget(title)
         
-        # 区域显示容器
-        self.regions_container = QHBoxLayout()
-        self.regions_container.setSpacing(20)
-        layout.addLayout(self.regions_container)
+        # 网格布局
+        self.grid_layout = QGridLayout()
+        self.grid_layout.setSpacing(10)
+        # 设置对齐方式，防止卡片在网格单元格内乱晃
+        self.grid_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+
+        # 容器 widget
+        container_widget = QWidget()
+        container_widget.setLayout(self.grid_layout)
+        main_layout.addWidget(container_widget)
         
-        # 添加说明
+        main_layout.addStretch(1)
+        
+        # 图例
         legend_layout = QHBoxLayout()
         legend_layout.addStretch()
-        
         legend_label = QLabel("负载水平: ")
         legend_layout.addWidget(legend_label)
-        
-        # 颜色图例
         colors = [("低", "#90EE90"), ("中", "#FFD700"), ("高", "#FF6B6B")]
         for level, color in colors:
             color_box = QLabel()
@@ -71,89 +75,153 @@ class RegionalLoadHeatmap(QWidget):
             legend_layout.addWidget(color_box)
             legend_layout.addWidget(QLabel(level))
             legend_layout.addSpacing(10)
-        
         legend_layout.addStretch()
-        layout.addLayout(legend_layout)
-        
-        layout.addStretch()
+        main_layout.addLayout(legend_layout)
     
     def updateData(self, grid_status):
-        """更新区域负载显示"""
-        if not grid_status or 'regional_current_state' not in grid_status:
-            return
-        
-        regional_data = grid_status['regional_current_state']
-        
-        # 更新当前负载数据
-        for region_id, data in regional_data.items():
-            current_load = data.get('current_total_load', 0)
-            # 使用系统容量而不是基础负载来计算负载率，与数据详情页保持一致
-            system_capacity = data.get('system_capacity', 80000)  # 默认系统容量
+        """
+        更新区域负载显示 - 最终无闪烁更新逻辑
+        """
+        try:
+            if not grid_status or 'regional_current_state' not in grid_status:
+                for widget in self.region_widgets.values():
+                    if widget.isVisible():
+                        widget.hide()
+                return
             
-            # 计算负载率 - 与grid_model_enhanced.py中的计算方式一致
-            load_rate = data.get('grid_load_percentage', 0)
-            self.current_loads[region_id] = {
-                'load': current_load,
-                'rate': load_rate,
-                'base': system_capacity
-            }
+            regional_data = grid_status['regional_current_state']
+            all_region_ids = set(regional_data.keys())
+            
+            # --- START OF NEW UPDATE LOGIC ---
+            
+            # 动态计算网格布局的列数
+            num_regions = len(all_region_ids)
+            if num_regions <= 4: cols = num_regions if num_regions > 0 else 1
+            elif num_regions <= 9: cols = 3
+            else: cols = 4
+            
+            # 遍历所有需要显示的区域
+            row, col = 0, 0
+            visible_regions = set()
+            for region_id in sorted(list(all_region_ids)): # 排序以保证布局稳定
+                visible_regions.add(region_id)
+                
+                # 获取或创建卡片
+                if region_id not in self.region_widgets:
+                    # 创建新卡片并立即添加到布局中
+                    load_data = self._extract_load_data(regional_data.get(region_id, {}))
+                    card = self._createRegionWidget(region_id, load_data)
+                    self.region_widgets[region_id] = card
+                    self.grid_layout.addWidget(card, row, col)
+                else:
+                    # 更新现有卡片数据
+                    card = self.region_widgets[region_id]
+                    load_data = self._extract_load_data(regional_data.get(region_id, {}))
+                    card.updateStatus(load_data)
+                    
+                    # 确保卡片在正确的位置并可见
+                    current_item = self.grid_layout.itemAtPosition(row, col)
+                    if not current_item or current_item.widget() != card:
+                        # 如果位置不对，移动它（这通常只在区域数量变化时发生）
+                        self.grid_layout.addWidget(card, row, col)
+                    
+                    if not card.isVisible():
+                        card.show()
+                
+                # 更新网格位置
+                col += 1
+                if col >= cols:
+                    col = 0
+                    row += 1
+            
+            # 隐藏不再需要的卡片
+            for region_id, widget in self.region_widgets.items():
+                if region_id not in visible_regions and widget.isVisible():
+                    widget.hide()
+
+            # --- END OF NEW UPDATE LOGIC ---
+            
+        except Exception as e:
+            import traceback
+            logger.error(f"RegionalLoadHeatmap updateData error: {e}\n{traceback.format_exc()}")
+
+    def _extract_load_data(self, data: dict) -> dict:
+        """从原始数据中提取并计算负载信息"""
+        if not isinstance(data, dict):
+            return {'load': 0, 'rate': 0, 'base': 0}
+            
+        current_load = data.get('total_load', data.get('current_total_load', 0))
+        system_capacity = data.get('system_capacity', 1)
+        if system_capacity <= 0: system_capacity = 1 # 避免除以零
         
-        self._updateDisplay()
-    
-    def _updateDisplay(self):
-        """更新显示"""
-        # 清除现有区域显示
-        for i in reversed(range(self.regions_container.count())):
-            child = self.regions_container.takeAt(i)
-            if child.widget():
-                child.widget().deleteLater()
+        load_rate = data.get('grid_load_percentage', 0)
         
-        # 创建新的区域显示
-        for region_id, load_data in self.current_loads.items():
-            region_widget = self._createRegionWidget(region_id, load_data)
-            self.regions_container.addWidget(region_widget)
+        if load_rate == 0 and current_load > 0:
+            load_rate = (current_load / system_capacity) * 100
+            
+        return {
+            'load': current_load,
+            'rate': load_rate,
+            'base': system_capacity
+        }
     
     def _createRegionWidget(self, region_id, load_data):
-        """创建区域显示组件"""
+        """创建单个区域的显示组件（卡片）"""
         widget = QFrame()
-        widget.setFrameStyle(QFrame.Shape.Box)
-        widget.setFixedSize(120, 100)
-        
+        widget.setFrameShape(QFrame.Shape.StyledPanel)
+        widget.setFrameShadow(QFrame.Shadow.Raised)
+        widget.setFixedSize(140, 100)
+        widget.setObjectName("RegionCard")
+
         layout = QVBoxLayout(widget)
-        
-        # 区域名称
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(4)
+
         name_label = QLabel(region_id)
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         name_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        name_label.setObjectName("RegionNameLabel")
         layout.addWidget(name_label)
-        
-        # 负载值
-        load_value = load_data['load'] / 1000  # 转换为MW
-        load_label = QLabel(f"{load_value:.1f} MW")
+
+        load_label = QLabel()
         load_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        load_label.setObjectName("LoadValueLabel")
         layout.addWidget(load_label)
-        
-        # 负载率
-        rate = load_data['rate']
-        rate_label = QLabel(f"{rate:.1f}%")
+
+        rate_label = QLabel()
         rate_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        rate_label.setObjectName("RateValueLabel")
         layout.addWidget(rate_label)
         
-        # 根据负载率设置背景颜色
-        if rate > 80:
-            color = "#FF6B6B"  # 红色
-        elif rate > 60:
-            color = "#FFD700"  # 黄色
-        else:
-            color = "#90EE90"  # 绿色
+        widget.name_label = name_label
+        widget.load_label = load_label
+        widget.rate_label = rate_label
         
-        widget.setStyleSheet(f"QFrame {{ background-color: {color}; border-radius: 5px; }}")
-        
+        def update_status(data):
+            load_value_mw = data.get('load', 0) / 1000
+            rate = data.get('rate', 0)
+            
+            widget.load_label.setText(f"{load_value_mw:.1f} MW")
+            widget.rate_label.setText(f"负载率: {rate:.1f}%")
+            
+            if rate > 80: color = "#FF6B6B"
+            elif rate > 60: color = "#FFD700"
+            else: color = "#90EE90"
+            
+            widget.setStyleSheet(f"""
+                #RegionCard {{
+                    background-color: {color};
+                    border: 1px solid #aaa;
+                    border-radius: 8px;
+                }}
+                #RegionNameLabel {{ color: #333; }}
+                #LoadValueLabel, #RateValueLabel {{ color: #555; }}
+            """)
+
+        widget.updateStatus = update_status
+        widget.updateStatus(load_data)
+
         return widget
-    
-
-
-
 class MultiMetricsChart(QWidget):
     """多指标对比图表"""
     
@@ -218,11 +286,37 @@ class MultiMetricsChart(QWidget):
     
     def updateData(self, metrics_history):
         """更新指标数据"""
-        if not metrics_history:
-            return
-        
-        self.metrics_data = metrics_history
-        self.updateChart()
+        try:
+            if not metrics_history:
+                print("MultiMetricsChart: No metrics_history provided")
+                return
+            
+            print(f"MultiMetricsChart: Received metrics data with keys: {list(metrics_history.keys()) if isinstance(metrics_history, dict) else 'Not a dict'}")
+            
+            # 检查必要的数据字段
+            required_keys = ['timestamps', 'userSatisfaction', 'operatorProfit', 'gridFriendliness', 'totalReward']
+            missing_keys = [key for key in required_keys if key not in metrics_history]
+            if missing_keys:
+                print(f"MultiMetricsChart: Missing required keys: {missing_keys}")
+            
+            # 检查数据长度
+            if 'timestamps' in metrics_history:
+                timestamp_count = len(metrics_history['timestamps'])
+                print(f"MultiMetricsChart: {timestamp_count} timestamps available")
+                
+                for key in ['userSatisfaction', 'operatorProfit', 'gridFriendliness', 'totalReward']:
+                    if key in metrics_history:
+                        data_count = len(metrics_history[key])
+                        print(f"MultiMetricsChart: {key} has {data_count} data points")
+                        if data_count != timestamp_count:
+                            print(f"MultiMetricsChart: Warning - {key} length mismatch with timestamps")
+            
+            self.metrics_data = metrics_history
+            self.updateChart()
+        except Exception as e:
+            print(f"MultiMetricsChart updateData error: {e}")
+            import traceback
+            traceback.print_exc()
     
     def updateChart(self):
         """更新图表显示"""
@@ -288,9 +382,9 @@ class RealTimeDataTable(QWidget):
         self.current_data = {}
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self._processUpdate)
-        self.update_timer.setInterval(500)  # 500ms更新一次
+        self.update_timer.setInterval(1000)  # 1000ms更新一次，减少CPU负载
         self.pending_update = None
-        self.max_display_rows = 100  # 限制显示行数
+        self.max_display_rows = 15  # 限制显示行数
         
         self.setupUI()
     
@@ -441,6 +535,14 @@ class RealTimeDataTable(QWidget):
         """更新数据 - 不直接更新表格，而是存储待更新数据"""
         if not state_data:
             return
+        
+        # 检查是否过于频繁更新（限制为每秒最多2次）
+        import time
+        current_time = time.time()
+        if hasattr(self, '_last_update_time'):
+            if current_time - self._last_update_time < 0.5:  # 500ms内不重复更新
+                return
+        self._last_update_time = current_time
         
         # 存储待更新数据
         self.pending_update = state_data
