@@ -1206,91 +1206,153 @@ class SimulationWorker(QThread):
         self.grid_preferences = {}
         self.pending_v2g_request = None
         
-
-        # 计算总的仿真步数
-        env_config = self.config.get('environment', {})
-        simulation_days = env_config.get('simulation_days', 1)
-        time_step_minutes = env_config.get('time_step_minutes', 15)
-        self.total_steps = (simulation_days * 24 * 60) // time_step_minutes
+        # 新增属性来存储负荷曲线
+        self.uncoordinated_load_profile = []
+        self.coordinated_load_profile = []
+        self.renewable_generation_profile = []
+        self.total_steps = 0
         self.current_step = 0
+        # 计算总的仿真步数
+
+
+
+
+# In class SimulationWorker:
+
+# In ev_charging_gui.py
+
+class SimulationWorker(QThread):
+    """仿真工作线程（修复版，用于维护和传递负荷曲线）"""
+    
+    statusUpdated = pyqtSignal(dict)
+    metricsUpdated = pyqtSignal(dict)
+    errorOccurred = pyqtSignal(str)
+    simulationFinished = pyqtSignal()
+    environmentReady = pyqtSignal(object)
+
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.running = False
+        self.paused = False
+        self.environment = None
+        self.scheduler = None
+        self.mutex = QMutex()
+        self.grid_preferences = {}
+        self.pending_v2g_request = None
+        
+        # --- START OF MODIFICATION ---
+        # 新增属性来存储负荷曲线
+        self.uncoordinated_load_profile = []
+        self.coordinated_load_profile = []
+        self.renewable_generation_profile = []
+        self.total_steps = 0
+        self.current_step = 0
+        # --- END OF MODIFICATION ---
         
     def run(self):
-        """运行仿真"""
-        print("DEBUG: SimulationWorker.run() started!")
+        """运行仿真，先跑基线，再跑主循环，并记录两条曲线"""
+        logger.info("SimulationWorker.run() started!")
         try:
             self.running = True
             
-            # 初始化仿真环境
+            # 1. 初始化
             self.environment = ChargingEnvironment(self.config)
             self.scheduler = ChargingScheduler(self.config)
-            # 添加手动决策支持
             self.manual_decisions = {}
-            
-            # 发出环境准备就绪信号
             self.environmentReady.emit(self.environment)
-
-            logger.info("仿真开始")
             
-            while self.running:
+            self.total_steps = (self.environment.simulation_days * 24 * 60) // self.environment.time_step_minutes
+            
+            # --- 2. 运行无序充电基线 ---
+            logger.info("--- Starting Uncoordinated Baseline Simulation ---")
+            self.uncoordinated_load_profile = [] # 清空旧数据
+            baseline_env = ChargingEnvironment(self.config)
+            uncoordinated_scheduler_config = self.config.copy()
+            uncoordinated_scheduler_config['scheduler']['scheduling_algorithm'] = 'uncoordinated'
+            baseline_scheduler = ChargingScheduler(uncoordinated_scheduler_config)
+            
+            for _ in range(self.total_steps):
+                if not self.running: break
+                state = baseline_env.get_current_state()
+                decisions, _ = baseline_scheduler.make_scheduling_decision(state)
+                _, next_state, _ = baseline_env.step(decisions)
+                
+                agg_metrics = next_state.get('grid_status', {}).get('aggregated_metrics', {})
+                self.uncoordinated_load_profile.append(agg_metrics.get('total_load', 0))
+            
+            logger.info(f"--- Uncoordinated Baseline Simulation Finished. ---")
+            
+            if not self.running:
+                self.simulationFinished.emit()
+                return
+
+            # --- 3. 运行主仿真（协调调度） ---
+            self.environment.reset()
+            self.current_step = 0
+            self.coordinated_load_profile = [] # 清空
+            self.renewable_generation_profile = [] # 清空
+
+            while self.running and self.current_step < self.total_steps:
                 if self.paused:
                     time.sleep(0.1)
                     continue
-                
 
-                # 1. 获取当前状态
                 current_state = self.environment.get_current_state()
                 
-                # 2. 获取手动决策
-                manual_decisions_this_step = None
-                if self.manual_decisions:
-                    manual_decisions_this_step = self.manual_decisions.copy()
-                    self.manual_decisions.clear()
+                # 在这里，我们不再需要向 state 注入 uncoordinated_load_profile
+                # 因为我们将直接把它传递给 calculate_rewards
 
-
-                # 3. 从调度器获取决策和元数据
-                decisions, scheduler_metadata = self.scheduler.make_scheduling_decision(
-                    current_state,
-                    manual_decisions_this_step,
-                    self.grid_preferences
-                )
-
-                # 4. 获取V2G请求
-                v2g_request_to_pass = self.pending_v2g_request
-                self.pending_v2g_request = None
-
-                # 5. 将所有信息传递给 environment.step
-                rewards, next_state, done = self.environment.step(
-                    decisions,
-                    manual_decisions_this_step,
-                    v2g_request_to_pass,
-                    scheduler_metadata  # Pass the metadata here
-                )
-                # 发送状态更新信号
-                print("DEBUG: SimulationWorker emitting statusUpdated signal")
-                self.statusUpdated.emit({
-                    'state': next_state,
-                    'rewards': rewards,
-                    'decisions': decisions,
-                    'timestamp': datetime.now().isoformat()
-                })
+                # ... (获取决策和V2G请求的逻辑保持不变) ...
+                manual_decisions_this_step = self.manual_decisions.copy(); self.manual_decisions.clear()
+                decisions, scheduler_metadata = self.scheduler.make_scheduling_decision(current_state, manual_decisions_this_step, self.grid_preferences)
+                v2g_request_to_pass = self.pending_v2g_request; self.pending_v2g_request = None
                 
-                # 发送指标更新信号
+                # --- 4. 修改 step 调用和 rewards 计算 ---
+                # 我们需要在调用 step 之后，但在计算 rewards 之前，记录下当前的负荷
+                
+                # 先执行一步仿真
+                _, next_state, _ = self.environment.step(
+                    decisions, manual_decisions_this_step, v2g_request_to_pass, scheduler_metadata
+                )
+                
+                # 从新状态中记录当前步的负荷和新能源发电量
+                agg_metrics = next_state.get('grid_status', {}).get('aggregated_metrics', {})
+                self.coordinated_load_profile.append(agg_metrics.get('total_load', 0))
+                
+                regional_states = next_state.get('grid_status', {}).get('regional_current_state', {})
+                renewable_gen = sum(r.get('current_solar_gen', 0) + r.get('current_wind_gen', 0) for r in regional_states.values() if r)
+                self.renewable_generation_profile.append(renewable_gen)
+
+                # 将最新的曲线数据添加到要传递给 calculate_rewards 的 state 字典中
+                # 这是一个临时的、用于计算的数据包，不影响 environment 的主状态
+                state_for_rewards = next_state.copy()
+                state_for_rewards['uncoordinated_load_profile'] = self.uncoordinated_load_profile
+                state_for_rewards['coordinated_load_profile'] = self.coordinated_load_profile
+                state_for_rewards['renewable_generation_profile'] = self.renewable_generation_profile
+                
+                # 使用这个增强的 state 来计算 rewards
+                rewards = calculate_rewards(state_for_rewards, self.config)
+
+                # 更新步数
+                self.current_step += 1
+                
+                # 发送信号
+                self.statusUpdated.emit({
+                    'state': next_state, 'rewards': rewards,
+                    'decisions': decisions, 'timestamp': next_state.get('timestamp')
+                })
                 self.metricsUpdated.emit(rewards)
                 
-                if done:
-                    self.current_step = self.total_steps # Ensure it reaches 100%
-                    break
-                
-                # 控制更新频率
                 time.sleep(0.1)
-                
+            
         except Exception as e:
-            logger.error(f"仿真错误: {e}")
+            logger.error(f"仿真错误: {e}", exc_info=True)
             self.errorOccurred.emit(str(e))
         finally:
             self.running = False
             self.simulationFinished.emit()
-    
+            
     def pause(self):
         """暂停仿真"""
         with QMutexLocker(self.mutex):
@@ -2850,9 +2912,10 @@ class MainWindow(QMainWindow):
                 grid_status = self.simulation_worker.environment.grid_simulator.get_status()
                 # 将最新的电网状态更新回 state 字典，以便所有下游函数都能使用
                 state['grid_status'] = grid_status
+
             else:
                 grid_status = state.get('grid_status', {}) # Fallback
-
+            
             # --- 2. 存储历史数据快照 ---
             # 创建一个更轻量的快照以节省内存
             history_snapshot = {
@@ -2917,6 +2980,12 @@ class MainWindow(QMainWindow):
             # 更新电网面板
             if hasattr(self, 'power_grid_panel'):
                 self.power_grid_panel.handle_status_update(status_data)
+                comparison_data = rewards.get('comparison_metrics_display')
+                if comparison_data:
+                    self.power_grid_panel.update_algorithm_comparison_chart(comparison_data)
+                    logger.debug("Explicitly updated algorithm comparison chart.")
+                else:
+                    logger.warning("Comparison metrics not found in rewards for GUI update.")
                 logger.debug("PowerGridPanel updated.")
 
             # 更新旧的图表分析页（如果还存在的话，现在被协同仪表盘取代）

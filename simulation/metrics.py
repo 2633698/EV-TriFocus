@@ -54,30 +54,33 @@ def calculate_load_balance_improvement(coordinated_load_profile: list[float], un
     # If percentage improvement was desired: (improvement_metric / std_dev_uncoord) * 100
     return improvement_metric
 
+
 def calculate_renewable_energy_percentage(total_load_profile: list[float], renewable_generation_profile: list[float]) -> float:
     """Calculates the percentage of total load met by renewable energy."""
     if not total_load_profile or not renewable_generation_profile:
-        logger.warning("Empty load/generation profile provided to calculate_renewable_energy_percentage.")
         return 0.0
-    if len(total_load_profile) != len(renewable_generation_profile):
-        logger.warning(f"Load profile length ({len(total_load_profile)}) and renewable profile length ({len(renewable_generation_profile)}) mismatch.")
-        # Adjust profiles to the minimum length or return error
-        min_len = min(len(total_load_profile), len(renewable_generation_profile))
-        total_load_profile = total_load_profile[:min_len]
-        renewable_generation_profile = renewable_generation_profile[:min_len]
-        if not total_load_profile: return 0.0
+    
+    min_len = min(len(total_load_profile), len(renewable_generation_profile))
+    if min_len == 0:
+        return 0.0
 
-
+    total_load_profile = total_load_profile[:min_len]
+    renewable_generation_profile = renewable_generation_profile[:min_len]
+    
     total_energy_consumed = sum(total_load_profile)
-    # total_renewable_generation = sum(renewable_generation_profile) # Not directly used in this definition
-
     if total_energy_consumed == 0:
-        return 100.0 # No energy consumed, so 100% of (zero) consumption could be seen as met by renewables. Or 0% if no renewables either.
+        return 0.0 # 不能说100%，因为没有消耗也就没有使用
 
-    # Assumes renewables are used first up to the load at each timestep
-    renewable_used = sum(min(load, gen) for load, gen in zip(total_load_profile, renewable_generation_profile))
-
-    renewable_percentage = (renewable_used / total_energy_consumed) * 100
+    # --- START OF FIX ---
+    # 核心修复：计算实际使用的可再生能源
+    # 在每个时间步，实际使用的可再生能源 = min(当前负荷, 当前可再生能源发电量)
+    renewable_energy_used = sum(
+        min(load, gen) for load, gen in zip(total_load_profile, renewable_generation_profile)
+    )
+    
+    # 百分比 = (实际使用的可再生能源 / 总消耗的能源) * 100
+    renewable_percentage = (renewable_energy_used / total_energy_consumed) * 100 if total_energy_consumed > 0 else 0
+    # --- END OF FIX ---
     return renewable_percentage
 
 
@@ -180,7 +183,9 @@ def calculate_rewards(state, config):
     user_sat_cfg = metrics_cfg.get("user_satisfaction", {})
     op_profit_cfg = metrics_cfg.get("operator_profit", {})
     grid_friend_cfg = metrics_cfg.get("grid_friendliness", {})
-
+    comparison_cfg = metrics_cfg.get("algorithm_comparison_dummy_uncoordinated_profile", {})
+    power_quality_cfg = metrics_cfg.get("power_quality_metrics", {})
+    carbon_savings_cfg = metrics_cfg.get("carbon_savings_calculation", {})
     user_satisfaction_raw = (avg_soc / 100.0) * \
                             (1 - user_sat_cfg.get("waiting_penalty_factor", 0.5) * (waiting_count / total_users if total_users > 0 else 0))
     
@@ -434,63 +439,43 @@ def calculate_rewards(state, config):
     results["operator_profit"] = operator_profit
     results["grid_friendliness"] = grid_friendliness
     results["total_reward"] = total_reward
-    
+
     # --- Algorithm Comparison Metrics (Data for GUI) ---
     comparison_cfg = metrics_cfg.get("algorithm_comparison_dummy_uncoordinated_profile", {})
-    power_quality_cfg = metrics_cfg.get("power_quality_metrics", {})
-    carbon_savings_cfg = metrics_cfg.get("carbon_savings_calculation", {})
-
+    
     grid_time_series = state.get('grid_status', {}).get('time_series_data_snapshot', {})
     coordinated_load_profile_regional = grid_time_series.get('regional_data', {})
     timestamps = grid_time_series.get('timestamps', [])
     num_steps = len(timestamps)
-    coordinated_total_load_profile = [0.0] * num_steps
-    coordinated_total_renewable_gen_profile = [0.0] * num_steps
 
-    if num_steps > 0 and coordinated_load_profile_regional:
-        for region_id, region_data in coordinated_load_profile_regional.items():
-            for i in range(num_steps):
-                coordinated_total_load_profile[i] += region_data.get('total_load', [0]*num_steps)[i]
-                coordinated_total_renewable_gen_profile[i] += region_data.get('solar_generation', [0]*num_steps)[i] + \
-                                                            region_data.get('wind_generation', [0]*num_steps)[i]
+    # --- START OF FIX: 使用真实的协调和非协调数据 ---
     
-    uncoordinated_load_profile = state.get('uncoordinated_load_profile')
-    if not uncoordinated_load_profile and coordinated_total_load_profile:
-        noise_min = comparison_cfg.get("noise_factor_min", -0.05)
-        noise_max = comparison_cfg.get("noise_factor_max", 0.2)
-        peak_noise_max_load_based = comparison_cfg.get("additional_peak_noise_factor_max_load_based", 0.1)
-        peak_inc_main = comparison_cfg.get("peak_increase_main_factor", 1.2)
-        peak_inc_secondary = comparison_cfg.get("peak_increase_secondary_factor", 0.96)
-        
-        max_coord_val = max(coordinated_total_load_profile) if coordinated_total_load_profile else 10
-        uncoordinated_load_profile = [
-            max(0, load + load * random.uniform(noise_min, noise_max) + random.uniform(0, max_coord_val * peak_noise_max_load_based))
-            for load in coordinated_total_load_profile
-        ]
-        if len(uncoordinated_load_profile) > 5 :
-            idx1 = random.randint(0, len(uncoordinated_load_profile)-1)
-            idx2 = random.randint(0, len(uncoordinated_load_profile)-1)
-            uncoordinated_load_profile[idx1] *= peak_inc_main
-            uncoordinated_load_profile[idx2] *= peak_inc_secondary
-            
-    uncoordinated_renewable_profile = coordinated_total_renewable_gen_profile
-
-    if coordinated_total_load_profile and uncoordinated_load_profile:
+    # 从 state 中直接获取由 SimulationWorker 准备好的曲线
+    coordinated_total_load_profile = state.get('coordinated_load_profile', [])
+    uncoordinated_load_profile = state.get('uncoordinated_load_profile', [])
+    coordinated_total_renewable_gen_profile = state.get('renewable_generation_profile', [])
+    
+    # 确保曲线长度一致，以当前协调调度的步数为准
+    current_steps = len(coordinated_total_load_profile)
+    if len(uncoordinated_load_profile) >= current_steps:
+        uncoordinated_load_profile = uncoordinated_load_profile[:current_steps]
+    
+    if coordinated_total_load_profile and uncoordinated_load_profile and len(uncoordinated_load_profile) == current_steps:
         peak_reduction_perc = calculate_peak_reduction(coordinated_total_load_profile, uncoordinated_load_profile)
         std_dev_uncoordinated = numpy.std(uncoordinated_load_profile)
         std_dev_coordinated = numpy.std(coordinated_total_load_profile)
         renewable_share_coord_perc = calculate_renewable_energy_percentage(coordinated_total_load_profile, coordinated_total_renewable_gen_profile)
-        renewable_share_uncoord_perc = calculate_renewable_energy_percentage(uncoordinated_load_profile, uncoordinated_renewable_profile)
+        renewable_share_uncoord_perc = calculate_renewable_energy_percentage(uncoordinated_load_profile, coordinated_total_renewable_gen_profile)
+        
         results['comparison_metrics_display'] = {
             'peak_reduction': {'uncoordinated': 0, 'coordinated': peak_reduction_perc},
             'load_balance': {'uncoordinated': std_dev_uncoordinated, 'coordinated': std_dev_coordinated},
             'renewable_share': {'uncoordinated': renewable_share_uncoord_perc, 'coordinated': renewable_share_coord_perc}
         }
     else:
-        results['comparison_metrics_display'] = {'peak_reduction': {'uncoordinated': 0, 'coordinated': 0}, 
-                                               'load_balance': {'uncoordinated': 0, 'coordinated': 0}, 
-                                               'renewable_share': {'uncoordinated': 0, 'coordinated': 0}}
-
+        results['comparison_metrics_display'] = {'peak_reduction': {'uncoordinated': 0, 'coordinated': 0}, 'load_balance': {'uncoordinated': 0, 'coordinated': 0}, 'renewable_share': {'uncoordinated': 0, 'coordinated': 0}}
+    
+    logger.debug(f"Calculated Algorithm Comparison Metrics: {results['comparison_metrics_display']}")
     # --- Power Quality Metrics ---
     history = state.get('history', [])
     previous_total_load_profile = []

@@ -69,7 +69,7 @@ class ChargingEnvironment:
         self.chargers = {}
         self.history = []
         self.completed_charging_sessions = [] # 存储完成的充电会话日志
-
+        self.uncoordinated_load_profile = []
         # 初始化子模型 - GridModel 需要完整的 config
         self.grid_simulator = EnhancedGridModel(config)
 
@@ -608,30 +608,20 @@ class ChargingEnvironment:
         # 更新电网状态
         self.grid_simulator.update_step(self.current_time, total_ev_load)
 
-        # 前进模拟时间
+        # 1. 前进模拟时间
         self.current_time += timedelta(minutes=self.time_step_minutes)
 
-        # 计算奖励
+        # 2. 计算奖励并保存历史
         current_state = self.get_current_state()
         rewards = calculate_rewards(current_state, self.config)
-
-        # 保存历史状态，并传入 scheduler_metadata
         self._save_current_state(rewards, scheduler_metadata)
 
-        # 检查结束条件
-        if self.start_time:
-            current_sim_time_naive = self.current_time.replace(tzinfo=None)
-            start_sim_time_naive = self.start_time.replace(tzinfo=None)
-            total_minutes_elapsed = (current_sim_time_naive - start_sim_time_naive).total_seconds() / 60
-            total_simulation_minutes = self.simulation_days * 24 * 60
-            done = total_minutes_elapsed >= (total_simulation_minutes - self.time_step_minutes / 2)
-        else:
-            logger.error("Simulation start time is missing!")
-            done = True
+        # 3. 移除 done 的计算，并总是返回 False
+        # 循环的控制权完全交给调用者 (SimulationWorker)
+        done = False
 
         step_duration = time.time() - step_start_time
         logger.debug(f"--- Step End: {self.current_time} (Duration: {step_duration:.3f}s) ---")
-
         return rewards, current_state, done
 
 

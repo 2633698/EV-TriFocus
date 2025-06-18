@@ -186,87 +186,108 @@ class PowerGridPanel(QWidget):
         else:
             logger.debug("PyQtGraph not available or curves not initialized. Skipping chart update.")
 
+# In class PowerGridPanel:
+
+# In class PowerGridPanel:
+
     def _create_algorithm_comparison_section(self):
         group_box = QGroupBox("调度算法对比")
         group_box.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        layout = QVBoxLayout(group_box)
+        
+        # --- START OF MODIFICATION: 使用 QHBoxLayout 实现横向排列 ---
+        main_layout = QHBoxLayout(group_box)
+        main_layout.setSpacing(15)
+
+        self.comparison_plots = {}
+        self.metric_categories = {
+            "peak_reduction": "峰值降低 (%)",
+            "load_balance": "负载均衡提升 (StdDev)",
+            "renewable_share": "新能源占比 (%)"
+        }
 
         if HAS_PYQTGRAPH:
-            self.algorithm_comparison_plot = PlotWidget()
-            self.algorithm_comparison_plot.setMinimumHeight(300)
-            self.algorithm_comparison_plot.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-            self.algorithm_comparison_plot.setBackground('w')
-            self.algorithm_comparison_plot.setLabel('left', '指标值', color='#333', **{'font-size': '10pt'})
-            self.algorithm_comparison_plot.setLabel('bottom', '对比维度', color='#333', **{'font-size': '10pt'})
-            self.algorithm_comparison_plot.showGrid(x=True, y=True, alpha=0.3)
-            self.algorithm_comparison_plot.addLegend(offset=(-10,10)) # Ensure legend is created once here
-
-            # Bar items will be created/updated in the update method
-            # Set X-axis ticks
-            ticks = [(i, name) for i, name in enumerate(self.metric_categories)]
-            self.algorithm_comparison_plot.getAxis('bottom').setTicks([ticks])
+            # 统一的图例，只创建一个
+            self.comparison_legend = pg.LegendItem(offset=(-10, 5), labelTextSize='9pt')
             
-            layout.addWidget(self.algorithm_comparison_plot)
+            for key, title in self.metric_categories.items():
+                # 每个图表放在一个带标题的容器里
+                plot_container = QGroupBox(title)
+                plot_layout = QVBoxLayout(plot_container)
+                
+                plot_widget = PlotWidget()
+                plot_widget.setBackground('w')
+                plot_widget.showGrid(x=True, y=True, alpha=0.3)
+                plot_widget.setLabel('left', "指标值", color='#333', **{'font-size': '9pt'})
+                plot_widget.getAxis('bottom').setStyle(showValues=False) # 隐藏X轴的刻度值
+                
+                # 将图例附加到第一个图表上
+                if not self.comparison_legend.parentItem():
+                    self.comparison_legend.setParentItem(plot_widget.getPlotItem())
+
+                plot_layout.addWidget(plot_widget)
+                main_layout.addWidget(plot_container)
+                
+                self.comparison_plots[key] = {
+                    "widget": plot_widget,
+                    "bars": None # 这里只存一个 BarGraphItem
+                }
         else:
-            error_label = QLabel("图表功能需要 PyQtGraph 库。")
-            error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            error_label.setStyleSheet("color:red; font-weight:bold; padding:20px;")
-            layout.addWidget(error_label)
+            main_layout.addWidget(QLabel("图表功能需要 PyQtGraph 库。"))
         
+        # --- END OF MODIFICATION ---
         return group_box
 
     def update_algorithm_comparison_chart(self, comparison_data):
-        if not HAS_PYQTGRAPH or not self.algorithm_comparison_plot:
-            logger.debug("PyQtGraph not available or algo comparison plot not initialized.")
+        if not HAS_PYQTGRAPH or not self.comparison_plots:
+            return
+        if not comparison_data or not isinstance(comparison_data, dict):
+            logger.warning("Invalid or empty comparison_data for algorithm chart.")
             return
 
-        # Clear previous bar items if any, to prevent overplotting on updates
-        for item_name in list(self.bar_items.keys()): # Iterate over a copy of keys
-            self.algorithm_comparison_plot.removeItem(self.bar_items[item_name])
-            del self.bar_items[item_name]
-
-        bar_width = 0.3
-        num_metrics = len(self.metric_categories)
-        x_positions = list(range(num_metrics))
-
-        algorithms = ['uncoordinated', 'coordinated']
         algo_labels = {'uncoordinated': '无序充电', 'coordinated': '集中调度'}
-        colors = {'uncoordinated': (255, 100, 100, 150), 'coordinated': (100, 255, 100, 150)} # Red-ish, Green-ish
-
-        for i, algo_key in enumerate(algorithms):
-            heights = []
-            current_x_positions = [x + (i - 0.5) * bar_width for x in x_positions] # Shift for side-by-side
-            
-            # Ensure data keys match self.metric_categories or map them
-            # For this example, let's assume comparison_data keys are 'peak_reduction', 'load_balance', 'renewable_share'
-            data_keys_ordered = ['peak_reduction', 'load_balance', 'renewable_share']
-            for metric_key_internal in data_keys_ordered:
-                heights.append(comparison_data.get(metric_key_internal, {}).get(algo_key, 0))
-
-            bar_name = f"{algo_labels[algo_key]}" # Legend name from BarGraphItem
-            
-            bar_item = pg.BarGraphItem(x=current_x_positions, height=heights, width=bar_width, 
-                                       brush=pg.mkBrush(color=colors[algo_key]), name=bar_name)
-            self.algorithm_comparison_plot.addItem(bar_item)
-            self.bar_items[f"{algo_key}"] = bar_item # Store to manage later if needed (e.g. for selective updates)
+        colors = {'uncoordinated': QColor(255, 128, 128), 'coordinated': QColor(128, 255, 128)}
+        bar_width = 0.4
         
-        # Explicitly add legend after items are added if it wasn't showing up
-        # Check if a legend already exists, remove it to add a fresh one
-        # REMOVED Problematic line: if self.algorithm_comparison_plot.plotItem.legend:
-        # REMOVED Problematic line:    self.algorithm_comparison_plot.plotItem.legend.scene().removeItem(self.algorithm_comparison_plot.plotItem.legend)
-        # The legend should update automatically when items are added/removed if addLegend() was called once during setup.
-        # Re-adding the legend here can cause issues or duplicate legends.
-        # self.algorithm_comparison_plot.addLegend(offset=(-10,10)) # This should only be in _create_algorithm_comparison_section
+        # --- START OF MODIFICATION: 彻底的清理和重绘逻辑 ---
 
-        # Ensure legend is present if not already (though it should be from setup)
-        # REMOVED: if not self.algorithm_comparison_plot.plotItem.legend:
-        # REMOVED:     self.algorithm_comparison_plot.addLegend(offset=(-10,10))
-        # else:
-            # Optional: If items were cleared and legend appears empty,
-            # one might need to manually trigger an update or ensure items are re-added correctly.
-            # However, adding named BarGraphItems should repopulate it.
-            # self.algorithm_comparison_plot.plotItem.legend.updateSize() # Example of a manual update if needed
+        # 1. 更新图例 (只需一次)
+        self.comparison_legend.clear()
+        for algo_key, label in algo_labels.items():
+            self.comparison_legend.addItem(pg.BarGraphItem(x=[0], height=[0], width=1, brush=colors[algo_key]), name=label)
+            
+        # 2. 遍历每个图表进行更新
+        for metric_key, plot_info in self.comparison_plots.items():
+            plot_widget = plot_info["widget"]
+            
+            # 清除上一次的 BarGraphItem
+            if plot_info["bars"]:
+                plot_widget.removeItem(plot_info["bars"])
+                plot_info["bars"] = None
 
+            metric_data = comparison_data.get(metric_key, {})
+            
+            # 准备并排柱状图的数据
+            x_uncoord = 0 - bar_width / 2
+            x_coord = 0 + bar_width / 2
+            
+            height_uncoord = max(0, metric_data.get('uncoordinated', 0))
+            height_coord = max(0, metric_data.get('coordinated', 0))
+
+            # 创建一个新的 BarGraphItem
+            bar_item = pg.BarGraphItem(
+                x=[x_uncoord, x_coord],
+                height=[height_uncoord, height_coord],
+                width=bar_width,
+                brushes=[colors['uncoordinated'], colors['coordinated']]
+            )
+            
+            plot_widget.addItem(bar_item)
+            plot_info["bars"] = bar_item # 保存新的 item 引用
+            
+            # 设置X轴刻度为一个居中的空标签，因为标题已经说明了指标
+            plot_widget.getAxis('bottom').setTicks([[(0, '')]])
+            
+        # --- END OF MODIFICATION ---
     def _create_load_monitoring_section(self):
         # ... (Existing code - unchanged)
         group_box = QGroupBox("电网负荷监控");group_box.setFont(QFont("Arial", 12, QFont.Weight.Bold));group_layout = QVBoxLayout(group_box)
